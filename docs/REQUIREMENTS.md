@@ -29,6 +29,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Deployment:** Docker & Google Kubernetes Engine (GKE)
 - **Load Testing:** k6
 - **CI/CD:** GitHub Actions (lint, typecheck, build)
+- **Git Hooks:** Husky (pre-commit: format, pre-push: lint + typecheck)
 
 ## Load-Test Szenario (k6)
 
