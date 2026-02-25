@@ -39,25 +39,25 @@
 │  Dashboards  │   │              Fastify Worker (apps/worker)       │
 │              │   │                                                 │
 │  - RPS       │   │  1. Konsumiert BuyTicketEvent aus Pub/Sub       │
-│  - Latenz    │   │  2. Prüft DB (Double-Check Verfügbarkeit)       │
-│  - Errors    │   │  3. INSERT via Drizzle ORM                      │
-│  - Queue     │   │  4. Aktualisiert Redis Counter (DECR)           │
+│  - Latenz    │   │  2. Simuliert Payment Provider Latenz (~1s)     │
+│  - Errors    │   │  3. INSERT in `tickets` & UPDATE `events.sold`  │
+│  - Queue     │   │  4. (Optional) Redis Counter Reconciliation     │
 └──────────────┘   └──────────────────────────┬──────────────────-───┘
                                               │
-                                              │ Drizzle INSERT
+                                              │ Drizzle Transaction
                                               ▼
                    ┌──────────────────────────────────────────────────┐
                    │         PostgreSQL (Cloud SQL)                   │
                    │                                                  │
-                   │  ┌────────────┐    ┌─────────────────────┐       │
-                   │  │  tickets   │    │      orders         │       │
-                   │  │  - id      │    │  - id               │       │
-                   │  │  - type    │    │  - ticket_id        │       │
-                   │  │  - status  │    │  - user_id          │       │
-                   │  │  - price   │    │  - status           │       │
-                   │  └────────────┘    │  - created_at       │       │
-                   │                    └─────────────────────┘       │
-                   └──────────────────────────────────────────────────┘
+                   │  ┌───────────────┐ ┌───────────────┐     │
+                   │  │    events     │ │   tickets     │     │
+                   │  │  - id         │ │  - id (UUID)  │     │
+                   │  │  - capacity   │ │  - event_id   │     │
+                   │  │  - sold_count │ │  - first_name │     │
+                   │  └───────────────┘ │  - last_name  │     │
+                   │                    │  - status     │     │
+                   │                    └───────────────┘     │
+                   └──────────────────────────────────────────┘
 ```
 
 ## Datenfluss: Ticket-Kauf (Happy Path)
@@ -69,9 +69,8 @@
 4. ✅ Ja → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted
    ❌ Nein → HTTP 409 Conflict (Sold Out)
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
-6. Worker prüft PostgreSQL (Double-Check: Race Condition Guard)
-7. Worker führt INSERT in orders-Tabelle aus
-8. Worker führt Redis DECR tickets:available aus
+6. Worker simuliert Payment-Processing (Sleep 1s)
+7. Worker führt Transaktion aus: `INSERT INTO tickets` (generiert UUID) und `UPDATE events SET sold_count = sold_count + 1`
 9. Nutzer pollt GET /api/orders/{orderId} für finalen Status
 ```
 

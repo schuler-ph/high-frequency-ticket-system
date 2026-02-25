@@ -6,7 +6,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-001: Monorepo mit Turborepo
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Einzelnes Showcase-Projekt mit Frontend, API, Worker und shared Packages. Recruiter und Reviewer sollen alles in einem Repository sehen können.
 - **Entscheidung:** Turborepo mit pnpm Workspaces.
@@ -17,7 +16,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-002: Fastify statt Express
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** High-Concurrency API benötigt maximale Performance bei I/O-bound Workloads. Das System muss unter extremer Last (50.000+ gleichzeitige Nutzer) stabil bleiben.
 - **Entscheidung:** Fastify als HTTP-Framework für API Gateway und Worker.
@@ -28,7 +26,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-003: Drizzle ORM statt Prisma
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** ORM muss typsicher sein, nah an SQL bleiben und minimalen Runtime-Overhead erzeugen. Späterer Wechsel zu Cloud Spanner muss möglich sein.
 - **Entscheidung:** Drizzle ORM (Code-First).
@@ -39,7 +36,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-004: Asynchrone Writes über Pub/Sub
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Bei Lastspitzen (Ticket-Sale-Start) würden direkte DB-Schreibzugriffe die PostgreSQL-Instanz überlasten. Die API muss sofort antworten können, unabhängig von der DB-Kapazität.
 - **Entscheidung:** API published Kauf-Intents in Google Cloud Pub/Sub, Worker konsumiert und schreibt in DB.
@@ -50,7 +46,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-005: Redis als Read-Cache
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Die API muss Ticket-Verfügbarkeiten in Sub-Millisekunden-Bereich liefern. Direkte DB-Reads unter Last sind zu langsam und überlasten PostgreSQL.
 - **Entscheidung:** Cloud Memorystore (Redis) als exklusive Read-Quelle für die API. Worker aktualisiert den Cache nach erfolgreichen DB-Writes.
@@ -61,7 +56,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-006: Prometheus + Grafana für Monitoring
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Lasttest-Ergebnisse müssen visuell dokumentiert werden für das GitHub README. Das System muss unter Last beobachtbar sein. Lokales Development braucht ein kostenloses, leichtgewichtiges Setup.
 - **Entscheidung:** Prometheus für Metrics Collection (via `prom-client` in Fastify), Grafana für Dashboards. Lokal via Docker Compose. k6 exportiert direkt an Prometheus → Live-Visualisierung in Grafana.
@@ -72,7 +66,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-007: GitHub Actions für CI/CD
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Automatisierte Quality Gates (lint, typecheck, build) sind notwendig, um Code-Qualität im Monorepo sicherzustellen.
 - **Entscheidung:** GitHub Actions mit Turborepo-Cache für lint, typecheck und build.
@@ -83,7 +76,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-008: Zod für Schema Validation & DTOs
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Request-Validation muss typsicher sein und darf keine doppelten Typ-Deklarationen erzeugen. Fastify nutzt JSON Schema für Serialisierung.
 - **Entscheidung:** Zod-Schemas als Single Source of Truth für Request/Response-Typen. TypeScript-Typen werden via `z.infer<>` abgeleitet.
@@ -94,7 +86,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-009: Husky für Git Hooks
 
-- **Status:** Accepted
 - **Datum:** 2026-02-24
 - **Kontext:** Code-Qualität soll lokal vor Commit/Push sichergestellt werden, ohne dass Entwickler manuell Befehle ausführen müssen. CI soll nicht der erste Ort sein, an dem Fehler auffallen.
 - **Entscheidung:** Husky mit zwei Hooks: `pre-commit` (format), `pre-push` (lint + typecheck). Build läuft nur in der CI-Pipeline.
@@ -105,7 +96,6 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 ## ADR-010: Terraform für Infrastructure as Code (IaC)
 
-- **Status:** Accepted
 - **Datum:** 2026-02-25
 - **Kontext:** Das Projekt soll realistisch in der Google Cloud (GKE, Cloud SQL, Memorystore, Pub/Sub) laufen. Für das Portfolio und die Reproduzierbarkeit muss das Infrastruktur-Setup code-basiert, versioniert und wiederholbar sein.
 - **Entscheidung:** Terraform für das gesamte Cloud-Ressourcen-Management. Kubernetes-Manifeste werden über klassische YAML-Dateien (oder Helm) via Kubeconfig angewendet, nachdem Terraform den GKE Cluster provisioniert hat.
@@ -114,3 +104,33 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
   - _Google Cloud Deployment Manager:_ Veraltet, wird kaum noch genutzt.
   - _Pulumi:_ Moderner (TypeScript), aber Terraform ist aktuell noch der de-facto Standard, den Recruiter/Seniors bevorzugen.
   - _ClickOps (GCP Console):_ Nicht reproduzierbar, keine Versionierung (absolutes No-Go für ein Showcase-Projekt).
+
+---
+
+## ADR-011: Event Capacity Model vs. Pre-generated Tickets
+
+- **Datum:** 2026-02-25
+- **Kontext:** 1.000.000 Tickets sollen verkauft werden, personalisiert mit Name, Geburtsdatum, Adresse etc. Die Pre-Generation von 1 Million leeren Rows bläht die Datenbank extrem auf und Updates darauf sind ineffizient.
+- **Entscheidung:** Wir nutzen ein Capacity-Modell kombiniert mit Ticket-Generierung on-the-fly (`INSERT` statt `UPDATE`).
+- **Begründung:** Eine zentrale Tabelle `events` speichert `total_capacity` und `sold_capacity`. Der Redis-Cache hält initial die volle Kapazität als Integer und zählt pro Kauf atomar herunter (`DECR`). Erst wenn der Kauf via Pub/Sub im Worker bearbeitet wird, erfolgt ein `INSERT` eines neuen, fertig personalisierten Tickets (inkl. generierter UUID als Ticket-Code/QR-Code-Ersatz) in die Tabelle `tickets` und ein atomares Erhöhen der `sold_capacity`. So enthält die Datenbank nur so viele Ticket-Rows, wie tatsächlich verkauft wurden.
+- **Alternativen:** 1 Mio. leere Rows vorab generieren (ineffizient für RDBMS, riesiger Speicher-Overhead und Table Scans), NoSQL mit Object-Appends (passt nicht zu unseren relationalen ACID-Anforderungen).
+
+---
+
+## ADR-012: Guest Checkout (Keine Authentifizierung)
+
+- **Datum:** 2026-02-25
+- **Kontext:** Authentifizierung (OAuth, NextAuth) lenkt vom Kern-Szenario (High-Concurrency, Async Writes) ab und erhöht die Komplexität des Beispielprojekts.
+- **Entscheidung:** Keine E-Mail/Passwort- oder Social-Login Authentifizierung. Es wird ein Guest-Checkout implementiert.
+- **Begründung:** Die zu personalisierenden Käuferdaten (Vorname, Adresse, etc.) werden direkt im POST-Request beim Ticket-Kauf mitgeliefert. Das Frontend generiert eine lokale Request/Session-UUID um per Polling abfragen zu können, ob das asynchrone Ticket erfolgreich generiert wurde. Der Scope bleibt somit streng fokussiert auf System-Performance.
+- **Alternativen:** Vollständige Auth via Supabase/NextAuth (zu viel Feature-Creep).
+
+---
+
+## ADR-013: Payment Flow Mocking
+
+- **Datum:** 2026-02-25
+- **Kontext:** Echte Zahlungsanbieter (Stripe, PayPal) führen bei extremer Last durch API-Rate-Limits oft zu Engpässen.
+- **Entscheidung:** Der Payment-Flow wird im Worker durch eine künstliche Latenz (z.B. nicht-blockierender Sleep von 500ms bis 1500ms via `setTimeout` aus `node:timers/promises`) simuliert.
+- **Begründung:** Diese simulierte Latenz demonstriert den Hauptvorteil unserer asynchronen Pub/Sub-Architektur perfekt: Selbst wenn die "externe Zahlungsabwicklung" extrem langsam wird und den Worker verlangsamt, kann die Fastify API im Frontend sofort das HTTP 202 (Accepted) Signal geben. Die Pub/Sub Queue fängt den Rückstau ab. Bei einer synchronen Architektur würden an dieser Stelle alle Requests in ein Timeout laufen. Da `setTimeout` via Promises den Event-Loop nicht blockiert (kein Busy Wait), kann der Worker effizient tausende asynchrone Zahlungen gleichzeitig "abwarten", ohne CPU-Ressourcen zu verschwenden.
+- **Alternativen:** Keine Verzögerung (unrealistisch für echtes Ticketing), Echter Payment-Provider Testmodus (deren Rate Limits würden den k6 Last-Test zerstören oder fälschen).
