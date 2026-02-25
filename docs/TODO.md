@@ -28,7 +28,7 @@
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
-- [ ] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis und Pub/Sub Emulator.
+- [ ] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
 - [ ] Setze Drizzle ORM in `packages/db` auf.
 - [ ] Definiere Schema für `tickets` und `orders` in Drizzle.
 - [ ] Definiere Zod DTOs für `BuyTicketRequest` in `packages/types`.
@@ -66,3 +66,11 @@
 - [ ] Erstelle Dockerfiles für API, Worker und Web.
 - [ ] Schreibe Kubernetes Deployment/Service/Ingress Manifeste.
 - [ ] Führe Cloud-Lasttest aus und sammle Metriken für die README.
+
+## Phase 6: Optional & Resilience (Maximum Learning)
+
+- [ ] Implementiere Dead Letter Queue (DLQ) in Pub/Sub und einen Retry/Replay-Mechanismus im Worker.
+- [ ] Implementiere Idempotency Keys für die Ticket-Kauf-Route (API & DB) um doppelte Käufe zu verhindern.
+- [ ] Füge Rate Limiting in Fastify (via Redis) als Bot-Protection hinzu.
+- [ ] Integriere den k6 Lasttest als Quality Gate in GitHub Actions (Fail bei großer Latenz oder hohen Error-Rates).
+- [ ] Simuliere Chaos Engineering (z.B. Redis oder Worker Ausfälle während des Lasttests) um zu testen, ob das System graceful degradiert.
