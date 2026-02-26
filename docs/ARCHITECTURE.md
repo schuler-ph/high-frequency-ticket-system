@@ -8,9 +8,9 @@
 flowchart TD
     User([NUTZER / BROWSER])
 
-    Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX – Ticket-Shop]
+    Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX – Ticket-Shop<br/>Tailwind CSS"]
 
-    subgraph API["Fastify API Gateway (apps/api)"]
+    subgraph API [Fastify API Gateway apps-api]
         API_metrics["/metrics<br/>(Prometheus)"]
         API_avail["GET /availability<br/>→ Redis Read"]
         API_buy["POST /tickets/buy<br/>→ Pub/Sub Publish"]
@@ -24,7 +24,7 @@ flowchart TD
 
     Worker["Fastify Worker (apps/worker)<br/>1. Konsumiert BuyTicketEvent aus Pub/Sub<br/>2. Simuliert Payment Provider Latenz (~1s)<br/>3. INSERT in tickets & UPDATE events.sold<br/>4. (Optional) Redis Counter Reconciliation"]
 
-    subgraph DB["PostgreSQL (Cloud SQL)"]
+    subgraph DB [PostgreSQL Cloud SQL]
         events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
         tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- first_name<br/>- last_name<br/>- status")]
     end
