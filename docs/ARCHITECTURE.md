@@ -8,7 +8,7 @@
 flowchart TD
     User([NUTZER / BROWSER])
 
-    Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX – Ticket-Shop<br/>Tailwind CSS"]
+    Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX – Ticket-Shop]
 
     subgraph API["Fastify API Gateway (apps/api)"]
         API_metrics["/metrics<br/>(Prometheus)"]
@@ -54,7 +54,7 @@ flowchart TD
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
 6. Worker simuliert Payment-Processing (Sleep 1s)
 7. Worker führt Transaktion aus: `INSERT INTO tickets` (generiert UUID) und `UPDATE events SET sold_count = sold_count + 1`
-9. Nutzer pollt GET /api/orders/{orderId} für finalen Status
+8. Nutzer pollt GET /api/orders/{orderId} für finalen Status
 
 ## Datenfluss: Verfügbarkeits-Check
 
