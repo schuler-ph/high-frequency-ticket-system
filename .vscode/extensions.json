@@ -1,6 +1,10 @@
 {
   "recommendations": [
     "yzhang.markdown-all-in-one",
-    "hediet.vscode-drawio"
+    "hediet.vscode-drawio",
+    "hashicorp.terraform",
+    "googlecloudtools.cloudcode",
+    "esbenp.prettier-vscode",
+    "bierner.markdown-mermaid"
   ]
 }
