@@ -18,10 +18,8 @@
 
 - [x] Initialisiere Turborepo (`npx create-turbo@latest`) mit pnpm und Name "high-frequency-ticket-system".
 - [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io hinzu.
-- [ ] Bereinige generierte Apps zu: `apps/web`, `apps/api`, `apps/worker`.
-- [ ] Bereinige generierte Packages zu: `packages/db`, `packages/types`, `packages/config`.
-- [ ] Erstelle `apps/api` als leeres Fastify-Projekt mit TypeScript.
-- [ ] Erstelle `apps/worker` als leeres Fastify-Projekt mit TypeScript.
+- [x] Generiere api und worker mit fastify-cli und passe sie auf unser turborepo an.
+- [ ] Generiere drizzle ORM package
 - [ ] Installiere und konfiguriere Tailwind CSS in `apps/web`.
 - [ ] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 
