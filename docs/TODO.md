@@ -17,8 +17,7 @@
 ## Phase 1: Foundation & Tooling
 
 - [x] Initialisiere Turborepo (`npx create-turbo@latest`) mit pnpm und Name "high-frequency-ticket-system".
-- [ ] Richte `.devcontainer` mit Node.js und pnpm ein.
-- [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io und Foam hinzu.
+- [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io hinzu.
 - [ ] Bereinige generierte Apps zu: `apps/web`, `apps/api`, `apps/worker`.
 - [ ] Bereinige generierte Packages zu: `packages/db`, `packages/types`, `packages/config`.
 - [ ] Erstelle `apps/api` als leeres Fastify-Projekt mit TypeScript.
