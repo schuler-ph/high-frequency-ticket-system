@@ -1,4 +1,5 @@
 ---
+name: plan-next-task
 description: Analysiert `todo.md`, plant die nächste kleine Aufgabe und aktualisiert die Dokumentation
 ---
 
