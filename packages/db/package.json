@@ -11,8 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
@@ -20,10 +20,12 @@
     "pg": "^8.19.0"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.16.0",
     "drizzle-kit": "^0.31.9",
+    "eslint": "^9.39.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
