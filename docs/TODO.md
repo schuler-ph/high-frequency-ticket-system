@@ -20,16 +20,16 @@
 - [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io hinzu.
 - [x] Generiere api und worker mit fastify-cli und passe sie auf unser turborepo an.
 - [x] Generiere drizzle ORM package
-- [ ] Installiere und konfiguriere Tailwind CSS in `apps/web`.
+- [x] Installiere und konfiguriere Tailwind CSS in `apps/web`.
 - [ ] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
 - [x] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
-- [ ] Setze Drizzle ORM in `packages/db` auf.
-- [ ] Definiere Schema für `tickets` und `orders` in Drizzle.
+- [x] Setze Drizzle ORM in `packages/db` auf.
+- [x] Definiere Schema für `tickets` und `orders` in Drizzle.
 - [ ] Definiere Zod DTOs für `BuyTicketRequest` in `packages/types`.
-- [ ] Erstelle erste Datenbank-Migration und führe sie lokal aus.
+- [x] Erstelle erste Datenbank-Migration und führe sie lokal aus.
 
 ## Phase 3: Core Logic (Backend)
 
