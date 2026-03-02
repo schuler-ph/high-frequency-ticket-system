@@ -21,7 +21,7 @@
 - [x] Generiere api und worker mit fastify-cli und passe sie auf unser turborepo an.
 - [x] Generiere drizzle ORM package
 - [x] Installiere und konfiguriere Tailwind CSS in `apps/web`.
-- [ ] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
+- [x] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
