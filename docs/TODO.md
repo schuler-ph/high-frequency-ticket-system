@@ -19,7 +19,7 @@
 - [x] Initialisiere Turborepo (`npx create-turbo@latest`) mit pnpm und Name "high-frequency-ticket-system".
 - [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io hinzu.
 - [x] Generiere api und worker mit fastify-cli und passe sie auf unser turborepo an.
-- [ ] Generiere drizzle ORM package
+- [x] Generiere drizzle ORM package
 - [ ] Installiere und konfiguriere Tailwind CSS in `apps/web`.
 - [ ] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 
