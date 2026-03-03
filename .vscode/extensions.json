@@ -5,6 +5,7 @@
     "hashicorp.terraform",
     "googlecloudtools.cloudcode",
     "esbenp.prettier-vscode",
-    "bierner.markdown-mermaid"
+    "bierner.markdown-mermaid",
+    "firsttris.vscode-jest-runner"
   ]
 }
