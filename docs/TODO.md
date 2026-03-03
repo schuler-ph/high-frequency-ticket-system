@@ -29,7 +29,7 @@
 - [x] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
 - [x] Setze Drizzle ORM in `packages/db` auf.
 - [x] Definiere Schema für `tickets` und `orders` in Drizzle.
-- [ ] Definiere Zod DTOs für `BuyTicketRequest` in `packages/types`.
+- [x] Definiere Zod DTOs für `BuyTicketRequest` in `packages/types`.
 - [x] Erstelle erste Datenbank-Migration und führe sie lokal aus.
 
 ## Phase 3: Core Logic (Backend)
