@@ -34,29 +34,54 @@
 
 ## Phase 3: Core Logic (Backend)
 
-- [ ] Implementiere Fastify Server in `apps/api`.
-- [ ] Verbinde `apps/api` mit lokalem Redis für Lese-Zugriffe (Verfügbarkeits-Check).
-- [ ] Implementiere Pub/Sub Publisher in `apps/api` für Kauf-Events.
-- [ ] Implementiere Fastify Worker in `apps/worker`.
-- [ ] Lasse `apps/worker` Nachrichten aus lokalem Pub/Sub Emulator konsumieren.
-- [ ] Implementiere sichere Drizzle-Inserts im Worker.
+### API Gateway (`apps/api`)
+
+- [ ] Setup Fastify Server Instanz (CORS, sensible defaults, Error Handler).
+- [ ] Integriere `fastify-type-provider-zod` für Request/Response Validierung.
+- [ ] Implementiere Healthcheck-Route (`GET /health`).
+- [ ] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.
+- [ ] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
+- [ ] Setup Google Cloud Pub/Sub Client Plugin.
+- [ ] Implementiere `POST /api/tickets/buy` Route inkl. Zod Validierung (`BuyTicketRequest`).
+- [ ] Logik für Kauf: Prüfe Redis `tickets:available` > 0. Wenn ok: Publish an Pub/Sub & HTTP 202. Wenn nicht: HTTP 409.
+
+### Worker Service (`apps/worker`)
+
+- [ ] Setup Fastify Server Instanz für den Worker (Healthcheck, Logging).
+- [ ] Setup Google Cloud Pub/Sub Client Plugin.
+- [ ] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
+- [ ] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
+- [ ] Implementiere Drizzle-Transaktion im Worker: `INSERT INTO tickets` und `UPDATE events SET sold_count_...`.
+- [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
 ## Phase 4: Interface & Testing
 
-- [ ] Baue Next.js Landingpage in `apps/web` (Frequency Festival Theme, Tailwind).
-- [ ] Verbinde Frontend "Kaufen"-Button mit lokaler API.
-- [ ] Schreibe k6 Lasttest-Skript in `load-tests/spike.js` (Ramp: 1k→10k→50k RPS, Sell-Out, Cool-Down).
-- [ ] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere Bottlenecks.
+### Frontend (`apps/web`)
+
+- [ ] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
+- [ ] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/availability`).
+- [ ] Implementiere Kaufen-Button mit Loading State und Error-Handling.
+- [ ] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/buy`.
+- [ ] Baue UI Feedback ein (Toast/Alert für Erfolg "In Warteschlange" vs. "Ausverkauft").
+
+### Lasttests (`load-tests/`)
+
+- [ ] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
+- [ ] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
+- [ ] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
+- [ ] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks.
 
 ## Phase 4.5: Monitoring & Observability
 
-- [ ] Füge Prometheus-Metriken zu `apps/api` hinzu (`prom-client`).
-- [ ] Füge Grafana + Prometheus zu `docker-compose.yml` hinzu.
-- [ ] Erstelle Grafana-Dashboard: API Latenz, RPS, Error-Rate.
-- [ ] Erstelle Grafana-Dashboard: Redis Hit/Miss Ratio.
+- [ ] Integriere `prom-client` in `apps/api` und Worker für Fastify-Metriken (RPS, Latenz).
+- [ ] Exponiere `/metrics` Endpunkt für Prometheus-Scraping.
+- [ ] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
+- [ ] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
+- [ ] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).
+- [ ] Erstelle Grafana-Dashboard: Redis Performance (Hit/Miss Ratio).
 - [ ] Erstelle Grafana-Dashboard: Pub/Sub Queue Depth & Worker Processing Rate.
-- [ ] Verbinde k6 Output mit Grafana für Live-Lasttest-Visualisierung.
-- [ ] Erstelle README-Screenshots der Grafana-Dashboards unter Last.
+- [ ] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views.
+- [ ] Erzeuge Screenshots der Dashboards unter extremer Last für die README.
 
 ## Phase 5: Cloud Deployment (GCP)
 
