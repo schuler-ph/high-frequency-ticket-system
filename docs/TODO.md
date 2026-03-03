@@ -22,7 +22,7 @@
 - [x] Generiere drizzle ORM package
 - [x] Installiere und konfiguriere Tailwind CSS in `apps/web`.
 - [x] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
-- [ ] Caching in GitHub Actions aktivieren
+- [x] Caching in GitHub Actions aktivieren
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
