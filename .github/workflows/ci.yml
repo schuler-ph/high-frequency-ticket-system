@@ -24,14 +24,31 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
+      - name: Next.js & Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.turbo
+            ${{ github.workspace }}/apps/web/.next/cache
+          key: ${{ runner.os }}-turbo-nextjs-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-nextjs-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm run lint
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
 
       - name: Typecheck
         run: pnpm run check-types
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
 
       - name: Build
         run: pnpm run build
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
+          NEXT_TELEMETRY_DISABLED: 1
