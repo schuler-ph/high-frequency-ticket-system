@@ -36,7 +36,7 @@
 
 ### API Gateway (`apps/api`)
 
-- [ ] Setup Fastify Server Instanz (CORS, sensible defaults, Error Handler).
+- [x] Setup Fastify Server Instanz (CORS, sensible defaults, Error Handler).
 - [ ] Integriere `fastify-type-provider-zod` für Request/Response Validierung.
 - [ ] Implementiere Healthcheck-Route (`GET /health`).
 - [ ] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.

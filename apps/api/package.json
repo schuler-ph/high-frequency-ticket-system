@@ -20,11 +20,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.0.0",
     "@fastify/autoload": "^6.0.0",
+    "@fastify/cors": "^11.2.0",
     "@fastify/sensible": "^6.0.0",
-    "fastify-cli": "^7.4.1"
+    "@repo/types": "workspace:*",
+    "fastify": "^5.0.0",
+    "fastify-cli": "^7.4.1",
+    "fastify-plugin": "^5.0.0"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

@@ -5,7 +5,18 @@ import { FastifyPluginAsync, FastifyServerOptions } from "fastify";
 export interface AppOptions
   extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 // Pass --options via CLI arguments in command to enable these options.
-const options: AppOptions = {};
+const options: AppOptions = {
+  logger: {
+    level: process.env.LOG_LEVEL || "info",
+    // Format logs to map Pino's `level` to GCP's `severity` for correct Cloud Logging display
+    formatters: {
+      level: (label: string, number: number) => ({
+        severity: label.toUpperCase(),
+        level: number,
+      }),
+    },
+  },
+};
 
 const app: FastifyPluginAsync<AppOptions> = async (
   fastify,
