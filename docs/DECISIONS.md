@@ -151,3 +151,23 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
   - _Exoscale (CH):_ Exzellent für K8s und Datenschutz (Datencenter in Wien/München), gemanagte Services via Aiven. Leicht teurer und komplexer im Setup.
   - _Hetzner Cloud (DE):_ Unschlagbares Preis-Leistungs-Verhältnis für Compute, aber kein natives Managed Kubernetes oder Managed Message Queues. Erfordert sehr viel Eigenbau (z.B. K3s, RabbitMQ Operator), was vom Fokus (High-Frequency Backend Logik) ablenkt.
   - _OVHcloud (FR):_ Großer Player, aber stellenweise altbackene APIs und Terraform-Provider Eigenheiten.
+
+---
+
+## ADR-015: Custom Error Classes & Secure Error Handling
+
+- **Datum:** 2026-03-04
+- **Kontext:** Die API benötigt ein verlässliches Error-Handling. Zum einen müssen erwartbare fachliche Fehler (z.B. "Tickets ausverkauft" -> 409 Conflict) strukturiert an den Client gesendet werden. Zum anderen dürfen interne Systemfehler (500 Fehler, DB Exceptions) in der Produktion niemals echte Fehlermeldungen (Information Leakage) an den Client senden.
+- **Entscheidung:** Einführung von abstrakten `AppError` Klassen (in `packages/types`), die von Standard-Errors ableiten und in einem zentralen Fastify Error Handler ausgewertet werden.
+- **Begründung:** Der zentrale Error Handler fängt alle Exceptions ab. Wenn `error instanceof AppError`, ist es ein "Operational Error" und darf sicher (inkl. Status Code und Message) zum Client geschickt werden. Ist es ein unbekannter Fehler und `NODE_ENV === "production"`, verdeckt der Handler die echte Nachricht mit einem generischen "Internal Server Error" 500. Das schützt interne Infrastruktur-Details.
+- **Alternativen:** Try/Catch in jeder einzelnen Route (zu viel Boilerplate, fehleranfällig).
+
+---
+
+## ADR-016: GCP-Ready Structured Logging mit Pino
+
+- **Datum:** 2026-03-04
+- **Kontext:** Für Observability und Fehlersuche müssen Logs strukturiert in der Cloud (GCP Stackdriver / Cloud Logging) ankommen. Fastify nutzt standardmäßig Pino.
+- **Entscheidung:** Pino wird so konfiguriert, dass das Standardfeld `level` (ein Integer bei Pino) zu einem GCP-kompatiblen Feld `severity` (z.B. "INFO", "ERROR") umgeschrieben wird.
+- **Begründung:** Cloud Logging parst Pino's rohes JSON automatisch. Wenn jedoch das `severity`-Feld fehlt, werden alle Logs in der GCP UI standardmäßig als wertloses "DEFAULT" oder "INFO" klassifiziert, auch wenn es fatale Fehler sind. Die Mapping-Config sichert 100%ige Kompatibilität zur GCP-Log-Analyse ohne Performance-Verlust. Alle Logs enthalten zudem automatisch die Fastify `reqId`, um Requests über API und Worker tracebar zu machen.
+- **Alternativen:** Winston oder Morgan statt Pino (unnötiger Overhead, Pino ist in Fastify integriert und der schnellste Node Logger), externer Log-Agent (zu viel DevOps Overhead für dieses Setup).
