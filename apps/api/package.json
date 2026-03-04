@@ -28,7 +28,7 @@
     "fastify-cli": "^7.4.1",
     "fastify-plugin": "^5.0.0",
     "fastify-type-provider-zod": "^6.1.0",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

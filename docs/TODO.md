@@ -38,7 +38,7 @@
 
 - [x] Setup Fastify Server Instanz (CORS, sensible defaults, Error Handler).
 - [x] Integriere `fastify-type-provider-zod` für Request/Response Validierung.
-- [ ] Implementiere Healthcheck-Route (`GET /health`).
+- [x] Implementiere Healthcheck-Route (`GET /health`).
 - [ ] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.
 - [ ] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
 - [ ] Setup Google Cloud Pub/Sub Client Plugin.
