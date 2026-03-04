@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const buyTicketRequestSchema = z.object({
-  eventId: z.string().uuid("Invalid event ID format"),
+  eventId: z.uuid("Invalid event ID format"),
   firstName: z
     .string()
     .min(1, "First name is required")
@@ -16,7 +16,7 @@ export type BuyTicketRequest = z.infer<typeof buyTicketRequestSchema>;
 
 export const buyTicketResponseSchema = z.object({
   message: z.string(),
-  orderId: z.string().uuid().optional(),
+  orderId: z.uuid().optional(),
 });
 
 export type BuyTicketResponse = z.infer<typeof buyTicketResponseSchema>;
