@@ -7,7 +7,7 @@ import { env } from "@repo/env";
  * This plugin sets up a global error handler for the Fastify application.
  * It provides a consistent JSON structure for all errors.
  */
-export default fp(async (fastify) => {
+export default fp((fastify, _opts, done) => {
   fastify.setErrorHandler(function (error: FastifyError, request, reply) {
     // 1. Log the error using Fastify's structured Pino logger.
     // The logger automatically includes the request ID.
@@ -52,4 +52,5 @@ export default fp(async (fastify) => {
       reqId,
     });
   });
+  done();
 });

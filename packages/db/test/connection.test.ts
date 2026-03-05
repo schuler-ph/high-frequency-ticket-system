@@ -9,7 +9,7 @@ import { events, tickets } from "../src/schema.js";
 
 const DATABASE_URL = env.DATABASE_URL;
 
-describe("database integration", () => {
+void describe("database integration", () => {
   const pool = new pg.Pool({ connectionString: DATABASE_URL });
   const db = drizzle(pool, { schema });
 
@@ -17,22 +17,22 @@ describe("database integration", () => {
     await pool.end();
   });
 
-  it("should connect and execute a raw query", async () => {
+  void it("should connect and execute a raw query", async () => {
     const result = await db.execute(sql`SELECT 1 as ok`);
-    assert.equal(result.rows[0].ok, 1);
+    assert.equal(result.rows[0]?.ok, 1);
   });
 
-  it("should have the events table", async () => {
+  void it("should have the events table", async () => {
     const result = await db.select().from(events).limit(0);
     assert.ok(Array.isArray(result));
   });
 
-  it("should have the tickets table", async () => {
+  void it("should have the tickets table", async () => {
     const result = await db.select().from(tickets).limit(0);
     assert.ok(Array.isArray(result));
   });
 
-  it("should insert and read back an event", async () => {
+  void it("should insert and read back an event", async () => {
     const [inserted] = await db
       .insert(events)
       .values({

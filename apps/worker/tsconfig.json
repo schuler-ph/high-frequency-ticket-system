@@ -1,5 +1,5 @@
 {
-  "extends": "fastify-tsconfig",
+  "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "outDir": "dist",
     "sourceMap": true

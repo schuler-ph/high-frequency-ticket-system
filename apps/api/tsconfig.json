@@ -1,8 +1,8 @@
 {
-  "extends": "fastify-tsconfig",
+  "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "outDir": "dist",
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "eslint.config.mjs"]
+  "include": ["src/**/*.ts"]
 }

@@ -6,7 +6,7 @@ import cors, { FastifyCorsOptions } from "@fastify/cors";
  * @see https://github.com/fastify/fastify-cors
  */
 export default fp<FastifyCorsOptions>(async (fastify) => {
-  fastify.register(cors, {
+  await fastify.register(cors, {
     origin: true, // For local development, allow all origins
   });
 });

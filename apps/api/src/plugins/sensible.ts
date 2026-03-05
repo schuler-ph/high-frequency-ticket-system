@@ -7,5 +7,5 @@ import sensible, { FastifySensibleOptions } from "@fastify/sensible";
  * @see https://github.com/fastify/fastify-sensible
  */
 export default fp<FastifySensibleOptions>(async (fastify) => {
-  fastify.register(sensible);
+  await fastify.register(sensible);
 });
