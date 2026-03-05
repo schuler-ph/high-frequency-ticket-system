@@ -1,12 +1,13 @@
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
-import "dotenv/config";
+import { config } from "dotenv";
+
+config({ path: ["../../.env"] });
 
 export const env = createEnv({
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]),
-    PORT: z.coerce.number().min(10000).max(10050),
     REDIS_URL: z.url(),
     DATABASE_URL: z.url(),
   },
