@@ -23,6 +23,7 @@
 - [x] Installiere und konfiguriere Tailwind CSS in `apps/web`.
 - [x] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 - [x] Caching in GitHub Actions aktivieren
+- [x] Erstelle `@repo/env` Paket mit `@t3-oss/env-core` & Zod für strikte Laufzeit-Konfigurationsvalidierung.
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 

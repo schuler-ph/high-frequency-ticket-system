@@ -3,12 +3,11 @@ import assert from "node:assert/strict";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import pg from "pg";
+import { env } from "@repo/env";
 import * as schema from "../src/schema.js";
 import { events, tickets } from "../src/schema.js";
 
-const DATABASE_URL =
-  process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/high_frequency_tickets";
+const DATABASE_URL = env.DATABASE_URL;
 
 describe("database integration", () => {
   const pool = new pg.Pool({ connectionString: DATABASE_URL });

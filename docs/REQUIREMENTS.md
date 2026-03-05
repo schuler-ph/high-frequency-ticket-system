@@ -22,6 +22,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Backend Framework:** Fastify (API Gateway & Worker Services)
 - **Database:** PostgreSQL (Cloud SQL, architected for future Cloud Spanner migration)
 - **ORM:** Drizzle ORM (Code-First)
+- **Configuration Management:** `@t3-oss/env-core` + Zod
 - **Schema Validation & DTOs:** Zod
 - **Message Broker:** Google Cloud Pub/Sub
 - **Caching:** Cloud Memorystore (Redis)

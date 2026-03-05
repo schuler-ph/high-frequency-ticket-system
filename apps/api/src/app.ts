@@ -5,13 +5,14 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from "fastify-type-provider-zod";
+import { env } from "@repo/env";
 
 export interface AppOptions
   extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 // Pass --options via CLI arguments in command to enable these options.
 const options: AppOptions = {
   logger: {
-    level: process.env.LOG_LEVEL || "info",
+    level: env.LOG_LEVEL,
     // Format logs to map Pino's `level` to GCP's `severity` for correct Cloud Logging display
     formatters: {
       level: (label: string, number: number) => ({

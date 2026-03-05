@@ -1,6 +1,7 @@
 import fp from "fastify-plugin";
 import type { FastifyError } from "fastify";
 import { AppError } from "@repo/types/errors";
+import { env } from "@repo/env";
 
 /**
  * This plugin sets up a global error handler for the Fastify application.
@@ -13,7 +14,7 @@ export default fp(async (fastify) => {
     request.log.error(error);
 
     // 2. Identify the error type
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production";
     const reqId = request.id;
 
     if (error instanceof AppError) {
