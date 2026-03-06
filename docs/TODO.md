@@ -42,14 +42,14 @@
 - [x] Implementiere Healthcheck-Route (`GET /health`).
 - [x] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.
 - [x] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
-- [ ] Setup Google Cloud Pub/Sub Client Plugin.
+- [x] Setup Google Cloud Pub/Sub Client Plugin für Publish.
 - [ ] Implementiere `POST /api/tickets/buy` Route inkl. Zod Validierung (`BuyTicketRequest`).
 - [ ] Logik für Kauf: Prüfe Redis `tickets:available` > 0. Wenn ok: Publish an Pub/Sub & HTTP 202. Wenn nicht: HTTP 409.
 
 ### Worker Service (`apps/worker`)
 
 - [ ] Setup Fastify Server Instanz für den Worker (Healthcheck, Logging).
-- [ ] Setup Google Cloud Pub/Sub Client Plugin.
+- [ ] Setup Google Cloud Pub/Sub Client Plugin für Subscribe.
 - [ ] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
 - [ ] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
 - [ ] Implementiere Drizzle-Transaktion im Worker: `INSERT INTO tickets` und `UPDATE events SET sold_count_...`.

@@ -10,6 +10,12 @@ export const env = createEnv({
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]),
     REDIS_URL: z.url(),
     DATABASE_URL: z.url(),
+    GOOGLE_CLOUD_PROJECT: z
+      .string()
+      .min(1)
+      .default("high-frequency-ticket-system"),
+    PUBSUB_EMULATOR_HOST: z.string().min(1).optional(),
+    PUBSUB_TOPIC_BUY_TICKET: z.string().min(1).default("buy-ticket"),
   },
 
   /**
