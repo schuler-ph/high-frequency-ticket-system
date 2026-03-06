@@ -20,3 +20,18 @@ export const buyTicketResponseSchema = z.object({
 });
 
 export type BuyTicketResponse = z.infer<typeof buyTicketResponseSchema>;
+
+export const ticketAvailabilityResponseSchema = z.object({
+  available: z.string().nullable(),
+  total: z.string().nullable(),
+});
+
+export type TicketAvailabilityResponse = z.infer<
+  typeof ticketAvailabilityResponseSchema
+>;
+
+export const ticketResetResponseSchema = z.object({
+  message: z.string(),
+});
+
+export type TicketResetResponse = z.infer<typeof ticketResetResponseSchema>;

@@ -41,7 +41,7 @@
 - [x] Integriere `fastify-type-provider-zod` für Request/Response Validierung.
 - [x] Implementiere Healthcheck-Route (`GET /health`).
 - [x] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.
-- [ ] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
+- [x] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
 - [ ] Setup Google Cloud Pub/Sub Client Plugin.
 - [ ] Implementiere `POST /api/tickets/buy` Route inkl. Zod Validierung (`BuyTicketRequest`).
 - [ ] Logik für Kauf: Prüfe Redis `tickets:available` > 0. Wenn ok: Publish an Pub/Sub & HTTP 202. Wenn nicht: HTTP 409.
