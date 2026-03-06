@@ -11,6 +11,8 @@ export type TestContext = {
 async function build(t: TestContext): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: false,
+    // Autoload + ESM/ts-node can be slow in CI/local runs; avoid flaky 10s startup timeouts.
+    pluginTimeout: 60_000,
   });
 
   // fastify-plugin ensures that all decorators
