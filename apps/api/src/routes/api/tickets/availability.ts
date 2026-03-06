@@ -7,6 +7,7 @@ import {
 const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
   fastify,
   _opts,
+  // eslint-disable-next-line @typescript-eslint/require-await
 ) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "GET",
