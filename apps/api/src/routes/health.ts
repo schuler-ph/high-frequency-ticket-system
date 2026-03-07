@@ -4,7 +4,6 @@ import {
 } from "fastify-type-provider-zod";
 import { healthSchema } from "@repo/types/health";
 
-// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsyncZod requires async signature
 const healthRoutes: FastifyPluginAsyncZod = async (fastify, _opts) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "GET",

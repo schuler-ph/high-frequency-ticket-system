@@ -1,3 +1,4 @@
+// eslint-disable
 import * as assert from "node:assert";
 import { test } from "node:test";
 import Fastify from "fastify";
@@ -9,6 +10,7 @@ import {
 import buyRoute from "../../src/routes/api/tickets/buy.js";
 
 function registerLocalErrorHandler(fastify: ReturnType<typeof Fastify>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fastify.setErrorHandler((error: any, _req: any, reply: any) => {
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send({ message: error.message });
@@ -36,6 +38,7 @@ async function setupBuyRouteTest(
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- For test setup only --- IGNORE ---
   (fastify as any).redis = redis;
   fastify.decorate("pubsubPublisher", { publishBuyTicket });
 

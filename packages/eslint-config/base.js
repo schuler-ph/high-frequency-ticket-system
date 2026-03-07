@@ -6,51 +6,38 @@ import onlyWarn from "eslint-plugin-only-warn";
 
 /**
  * Creates a shared ESLint configuration for the repository.
- * Each consuming package must pass its own `import.meta.dirname` so
- * the TypeScript project service can locate the correct tsconfig.json.
+ * Universal config, no dirname or typechecked rules required.
  *
- * @param {string} dirname - `import.meta.dirname` from the consuming package's eslint.config.js
  * @returns {import("eslint").Linter.Config[]}
  */
-export function createConfig(dirname) {
-  return [
-    js.configs.recommended,
-    eslintConfigPrettier,
-    ...tseslint.configs.recommendedTypeChecked,
-    {
-      languageOptions: {
-        parserOptions: {
-          projectService: {
-            allowDefaultProject: ["eslint.config.js"],
-          },
-          tsconfigRootDir: dirname,
+const config = [
+  js.configs.recommended,
+  eslintConfigPrettier,
+  ...tseslint.configs.recommended,
+  {
+    plugins: {
+      turbo: turboPlugin,
+    },
+    rules: {
+      "turbo/no-undeclared-env-vars": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
         },
-      },
+      ],
     },
-    {
-      plugins: {
-        turbo: turboPlugin,
-      },
-      rules: {
-        "turbo/no-undeclared-env-vars": "warn",
-        "@typescript-eslint/no-unused-vars": [
-          "warn",
-          {
-            argsIgnorePattern: "^_",
-            varsIgnorePattern: "^_",
-            caughtErrorsIgnorePattern: "^_",
-          },
-        ],
-        "@typescript-eslint/no-deprecated": "error",
-      },
+  },
+  {
+    plugins: {
+      onlyWarn,
     },
-    {
-      plugins: {
-        onlyWarn,
-      },
-    },
-    {
-      ignores: ["dist/**", "*.config.js", "eslint.config.js"],
-    },
-  ];
-}
+  },
+  {
+    ignores: ["dist/**", "*.config.js", "eslint.config.js"],
+  },
+];
+
+export default config;

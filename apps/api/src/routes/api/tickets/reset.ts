@@ -4,7 +4,6 @@ import {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const ticketResetRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
