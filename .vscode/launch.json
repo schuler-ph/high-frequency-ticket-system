@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: Debug (build + start)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "run", "dev:start"],
+      "console": "integratedTerminal",
+      "preLaunchTask": "api:build",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/apps/api/dist/**/*.js"],
+      "autoAttachChildProcesses": true,
+      "env": {
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "debug"
+      }
+    },
+    {
+      "name": "API: Debug init (stop on entry)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "run", "dev:start"],
+      "console": "integratedTerminal",
+      "preLaunchTask": "api:build",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/apps/api/dist/**/*.js"],
+      "autoAttachChildProcesses": true,
+      "stopOnEntry": true,
+      "env": {
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "debug"
+      }
+    },
+    {
+      "name": "API: Attach (port 9229)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/apps/api/dist/**/*.js"]
+    }
+  ]
+}
