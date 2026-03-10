@@ -90,13 +90,13 @@ const pubSubPlugin: FastifyPluginCallback<PubSubPluginOptions> = (
 
     if (!autoCreateTopic) {
       throw new Error(
-        `Configured Pub/Sub topic \"${topicName}\" does not exist. Create it before starting the API.`,
+        `Configured Pub/Sub topic "${topicName}" does not exist. Create it before starting the API.`,
       );
     }
 
     if (!client.createTopic) {
       throw new Error(
-        `Configured Pub/Sub topic \"${topicName}\" does not exist and client.createTopic is unavailable.`,
+        `Configured Pub/Sub topic "${topicName}" does not exist and client.createTopic is unavailable.`,
       );
     }
 
