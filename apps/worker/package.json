@@ -8,7 +8,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "pnpm run build && tsc -p test/tsconfig.json && c8 node --test -r ts-node/register \"test/**/*.ts\"",
+    "test": "pnpm run build && tsc -p test/tsconfig.json && c8 node --loader ts-node/esm --test \"test/**/*.ts\"",
     "start": "pnpm run build && fastify start -l info -p 10003 dist/app.js",
     "build": "tsc",
     "watch": "tsc -w",
@@ -21,19 +21,23 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.0.0",
     "@fastify/autoload": "^6.0.0",
     "@fastify/sensible": "^6.0.0",
-    "fastify-cli": "^7.4.1"
+    "@repo/env": "workspace:*",
+    "@repo/types": "workspace:*",
+    "fastify": "^5.0.0",
+    "fastify-cli": "^7.4.1",
+    "fastify-plugin": "^5.0.0",
+    "fastify-type-provider-zod": "^6.1.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.0.8",
     "c8": "^10.1.2",
     "concurrently": "^9.0.0",
     "eslint": "^9.39.1",
-    "@repo/typescript-config": "workspace:*",
     "ts-node": "^10.4.0",
     "typescript": "~5.9.2"
   }
