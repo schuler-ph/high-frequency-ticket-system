@@ -12,8 +12,8 @@
     "start": "pnpm run build && fastify start -l info -p 10003 dist/app.js",
     "build": "pnpm --filter @repo/db run build && tsc",
     "watch": "tsc -w",
-    "dev": "pnpm run build && concurrently -k -p \"[{name}]\" -n \"TypeScript,App\" -c \"yellow.bold,cyan.bold\" \"pnpm:watch\" \"pnpm:dev:start\"",
-    "dev:start": "fastify start --ignore-watch=.ts$ -w -l info -p 10003 -P dist/app.js",
+    "dev": "tsc-watch --onSuccess \"pnpm run dev:start\"",
+    "dev:start": "fastify start -P -l info -p 10003 dist/app.js",
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0"
   },
@@ -41,6 +41,7 @@
     "c8": "^10.1.2",
     "concurrently": "^9.0.0",
     "eslint": "^9.39.1",
+    "tsc-watch": "^6.3.1",
     "ts-node": "^10.4.0",
     "typescript": "~5.9.2"
   }
