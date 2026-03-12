@@ -50,7 +50,7 @@
 
 - [x] Setup Fastify Server Instanz für den Worker (Healthcheck, Logging).
 - [x] Setup Google Cloud Pub/Sub Client Plugin für Subscribe.
-- [ ] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
+- [x] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
 - [ ] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
 - [ ] Implementiere Drizzle-Transaktion im Worker: `INSERT INTO tickets` und `UPDATE events SET sold_count_...`.
 - [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
