@@ -1,27 +1,13 @@
 import { Message, PubSub } from "@google-cloud/pubsub";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
 
 export type MessageHandler = (message: Message) => Promise<void>;
 
 export interface PubSubSubscriber {
-  /**
-   * Register a handler for incoming messages.
-   * The handler is responsible for calling message.ack() or message.nack().
-   */
   onMessage(handler: MessageHandler): void;
-
-  /**
-   * Start listening for messages.
-   * Call this after registering your handler.
-   */
   start(): void;
-
-  /**
-   * Stop listening for messages.
-   * Called automatically on server close.
-   */
   stop(): Promise<void>;
 }
 
@@ -54,147 +40,136 @@ export interface PubSubSubscriberPluginOptions {
   autoCreateSubscription?: boolean;
 }
 
-function isGrpcNotFoundError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  return "code" in error && typeof error.code === "number" && error.code === 5;
-}
+const isGrpcCode = (err: unknown, code: number): boolean =>
+  err instanceof Error && "code" in err && err.code === code;
 
-function isGrpcAlreadyExistsError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
+async function ensureSubscription(
+  subscription: SubscriptionLike,
+  client: PubSubClientLike,
+  subscriptionName: string,
+  topicName: string,
+  autoCreate: boolean,
+  log: FastifyBaseLogger,
+): Promise<void> {
+  if (!subscription.exists) {
+    log.warn(
+      { subscription: subscriptionName },
+      "Skipping Pub/Sub subscription existence check — client does not support exists()",
+    );
+    return;
   }
-  return "code" in error && typeof error.code === "number" && error.code === 6;
+
+  let exists = false;
+  try {
+    [exists] = await subscription.exists();
+  } catch (err) {
+    if (!isGrpcCode(err, 5)) throw err;
+  }
+
+  if (exists) return;
+
+  if (!autoCreate) {
+    throw new Error(
+      `Configured Pub/Sub subscription "${subscriptionName}" does not exist. Create it before starting the worker.`,
+    );
+  }
+
+  const topic = client.topic(topicName);
+
+  if (topic.exists) {
+    let topicExists = false;
+    try {
+      [topicExists] = await topic.exists();
+    } catch (err) {
+      if (!isGrpcCode(err, 5)) throw err;
+    }
+
+    if (!topicExists && client.createTopic) {
+      try {
+        await client.createTopic(topicName);
+        log.info({ topic: topicName }, "Created missing Pub/Sub topic");
+      } catch (err) {
+        if (!isGrpcCode(err, 6)) throw err;
+      }
+    }
+  }
+
+  if (!topic.createSubscription) {
+    throw new Error(
+      `Configured Pub/Sub subscription "${subscriptionName}" does not exist and topic.createSubscription is unavailable.`,
+    );
+  }
+
+  try {
+    await topic.createSubscription(subscriptionName);
+    log.info(
+      { subscription: subscriptionName, topic: topicName },
+      "Created missing Pub/Sub subscription",
+    );
+  } catch (err) {
+    if (!isGrpcCode(err, 6)) throw err;
+  }
 }
 
 const pubSubSubscriberPlugin: FastifyPluginAsync<
   PubSubSubscriberPluginOptions
 > = async (fastify, opts) => {
-  const client =
-    opts.client ?? new PubSub({ projectId: env.GOOGLE_CLOUD_PROJECT });
+  const client: PubSubClientLike =
+    opts.client ??
+    (new PubSub({
+      projectId: env.GOOGLE_CLOUD_PROJECT,
+    }) as unknown as PubSubClientLike);
   const subscriptionName =
     opts.subscriptionName ?? env.PUBSUB_SUBSCRIPTION_BUY_TICKET;
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;
   const subscription = client.subscription(subscriptionName);
-  const ensureSubscriptionExists = opts.ensureSubscriptionExists ?? true;
-  const autoCreateSubscription =
+  const autoCreate =
     opts.autoCreateSubscription ?? Boolean(env.PUBSUB_EMULATOR_HOST);
+
+  if (opts.ensureSubscriptionExists !== false) {
+    await ensureSubscription(
+      subscription,
+      client,
+      subscriptionName,
+      topicName,
+      autoCreate,
+      fastify.log,
+    );
+  }
 
   let messageHandler: MessageHandler | null = null;
   let isListening = false;
 
-  // Ensure subscription exists (and create if needed in emulator mode)
-  if (ensureSubscriptionExists) {
-    if (!subscription.exists) {
-      fastify.log.warn(
-        { subscription: subscriptionName },
-        "Skipping Pub/Sub subscription existence check because the client does not support subscription.exists",
-      );
-    } else {
-      let exists = false;
-
-      try {
-        [exists] = await subscription.exists();
-      } catch (error) {
-        if (!isGrpcNotFoundError(error)) {
-          throw error;
-        }
-      }
-
-      if (!exists) {
-        if (!autoCreateSubscription) {
-          throw new Error(
-            `Configured Pub/Sub subscription "${subscriptionName}" does not exist. Create it before starting the worker.`,
-          );
-        }
-
-        // In emulator mode, we also need to ensure the topic exists first
-        const topic = client.topic(topicName);
-
-        if (topic.exists) {
-          let topicExists = false;
-
-          try {
-            [topicExists] = await topic.exists();
-          } catch (error) {
-            if (!isGrpcNotFoundError(error)) {
-              throw error;
-            }
-          }
-
-          if (!topicExists && client.createTopic) {
-            try {
-              await client.createTopic(topicName);
-              fastify.log.info(
-                { topic: topicName },
-                "Created missing Pub/Sub topic",
-              );
-            } catch (error) {
-              if (!isGrpcAlreadyExistsError(error)) {
-                throw error;
-              }
-            }
-          }
-        }
-
-        // Create subscription attached to topic
-        if (topic.createSubscription) {
-          try {
-            await topic.createSubscription(subscriptionName);
-            fastify.log.info(
-              { subscription: subscriptionName, topic: topicName },
-              "Created missing Pub/Sub subscription",
-            );
-          } catch (error) {
-            if (!isGrpcAlreadyExistsError(error)) {
-              throw error;
-            }
-          }
-        } else {
-          throw new Error(
-            `Configured Pub/Sub subscription "${subscriptionName}" does not exist and topic.createSubscription is unavailable.`,
-          );
-        }
-      }
-    }
-  }
-
-  const handleMessage = async (message: Message): Promise<void> => {
-    if (!messageHandler) {
-      fastify.log.warn(
-        { messageId: message.id },
-        "Received message but no handler registered, nacking",
-      );
-      message.nack();
-      return;
-    }
-
-    try {
-      await messageHandler(message);
-    } catch (error) {
-      fastify.log.error(
-        { messageId: message.id, error },
-        "Error processing message",
-      );
-      message.nack();
-    }
-  };
-
   const subscriber: PubSubSubscriber = {
-    onMessage(handler: MessageHandler): void {
+    onMessage(handler) {
       messageHandler = handler;
     },
 
-    start(): void {
-      if (isListening) {
-        return;
-      }
+    start() {
+      if (isListening) return;
 
-      subscription.on("message", handleMessage);
-      subscription.on("error", (error) => {
-        fastify.log.error({ error }, "Pub/Sub subscription error");
+      subscription.on("message", async (message) => {
+        if (!messageHandler) {
+          fastify.log.warn(
+            { messageId: message.id },
+            "Received message but no handler registered, nacking",
+          );
+          message.nack();
+          return;
+        }
+        try {
+          await messageHandler(message);
+        } catch (err) {
+          fastify.log.error(
+            { messageId: message.id, error: err },
+            "Error processing message",
+          );
+          message.nack();
+        }
       });
+      subscription.on("error", (err) =>
+        fastify.log.error({ error: err }, "Pub/Sub subscription error"),
+      );
 
       isListening = true;
       fastify.log.info(
@@ -203,11 +178,8 @@ const pubSubSubscriberPlugin: FastifyPluginAsync<
       );
     },
 
-    async stop(): Promise<void> {
-      if (!isListening) {
-        return;
-      }
-
+    async stop() {
+      if (!isListening) return;
       subscription.removeAllListeners();
       await subscription.close();
       isListening = false;
@@ -219,11 +191,7 @@ const pubSubSubscriberPlugin: FastifyPluginAsync<
   };
 
   fastify.decorate("pubsubSubscriber", subscriber);
-
-  // Clean up on server close
-  fastify.addHook("onClose", async () => {
-    await subscriber.stop();
-  });
+  fastify.addHook("onClose", () => subscriber.stop());
 
   fastify.log.info(
     {
