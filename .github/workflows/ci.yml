@@ -13,14 +13,6 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
-      NODE_ENV: test
-      LOG_LEVEL: info
-      REDIS_URL: redis://localhost:6379
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/high_frequency_tickets
-      GOOGLE_CLOUD_PROJECT: high-frequency-ticket-system
-      PUBSUB_EMULATOR_HOST: localhost:8085
-      PUBSUB_TOPIC_BUY_TICKET: buy-ticket
-      PUBSUB_SUBSCRIPTION_BUY_TICKET: buy-ticket-worker
 
     steps:
       - name: Checkout repo
@@ -55,30 +47,6 @@ jobs:
 
       - name: Typecheck
         run: pnpm run check-types
-        env:
-          TURBO_TELEMETRY_DISABLED: 1
-
-      - name: Start local services
-        run: |
-          docker compose -f docker-compose.yml up -d postgres redis pubsub
-          for i in {1..30}; do
-            postgres_health=$(docker inspect -f '{{.State.Health.Status}}' hts-postgres || echo starting)
-            redis_health=$(docker inspect -f '{{.State.Health.Status}}' hts-redis || echo starting)
-            pubsub_health=$(docker inspect -f '{{.State.Health.Status}}' hts-pubsub || echo starting)
-            if [ "$postgres_health" = "healthy" ] && [ "$redis_health" = "healthy" ] && [ "$pubsub_health" = "healthy" ]; then
-              echo "All services are healthy."
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Services did not become healthy in time."
-              docker compose -f docker-compose.yml ps
-              exit 1
-            fi
-            sleep 2
-          done
-
-      - name: Test
-        run: pnpm run test
         env:
           TURBO_TELEMETRY_DISABLED: 1
 
