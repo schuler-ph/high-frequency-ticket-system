@@ -1,3 +1,4 @@
+import { setTimeout } from "node:timers/promises";
 import type { FastifyPluginAsync } from "fastify";
 import { buyTicketRequestSchema } from "@repo/types/tickets";
 
@@ -31,6 +32,8 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
       { messageId: message.id, eventId: parsed.data.eventId },
       "Received BuyTicketEvent",
     );
+
+    await setTimeout(1000);
 
     message.ack();
   });
