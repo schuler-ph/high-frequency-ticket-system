@@ -28,6 +28,7 @@
 ## Phase 2: Data Layer & Infrastructure (Local)
 
 - [x] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
+- [x] Definiere PostgreSQL Verbindungs-URL in `.env` (Docker-Compose kompatibel).
 - [x] Setze Drizzle ORM in `packages/db` auf.
 - [x] Definiere Schema für `tickets` und `orders` in Drizzle.
 - [x] Definiere Zod DTOs für `BuyTicketRequest` in `packages/types`.
@@ -52,7 +53,7 @@
 - [x] Setup Google Cloud Pub/Sub Client Plugin für Subscribe.
 - [x] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
 - [ ] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
-- [ ] Implementiere Drizzle-Transaktion im Worker: `INSERT INTO tickets` und `UPDATE events SET sold_count_...`.
+- [ ] Implementiere Drizzle-Transaktion im Worker: pro erfolgreichem Kauf `INSERT INTO tickets` (eine Zeile pro Ticket) und `UPDATE events SET sold_count_...`.
 - [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
 ## Phase 4: Interface & Testing
