@@ -171,3 +171,16 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 - **Entscheidung:** Pino wird so konfiguriert, dass das Standardfeld `level` (ein Integer bei Pino) zu einem GCP-kompatiblen Feld `severity` (z.B. "INFO", "ERROR") umgeschrieben wird.
 - **Begründung:** Cloud Logging parst Pino's rohes JSON automatisch. Wenn jedoch das `severity`-Feld fehlt, werden alle Logs in der GCP UI standardmäßig als wertloses "DEFAULT" oder "INFO" klassifiziert, auch wenn es fatale Fehler sind. Die Mapping-Config sichert 100%ige Kompatibilität zur GCP-Log-Analyse ohne Performance-Verlust. Alle Logs enthalten zudem automatisch die Fastify `reqId`, um Requests über API und Worker tracebar zu machen.
 - **Alternativen:** Winston oder Morgan statt Pino (unnötiger Overhead, Pino ist in Fastify integriert und der schnellste Node Logger), externer Log-Agent (zu viel DevOps Overhead für dieses Setup).
+
+---
+
+## ADR-017: Order-Status via Polling (kein SSE)
+
+- **Datum:** 2026-03-12
+- **Kontext:** Das Ticket-Kaufen ist asynchron (Pub/Sub + Worker). Der Client braucht eine verlässliche Rueckmeldung, ob der Kauf abgeschlossen ist, ohne die API-Request-Latenz zu erhoehen oder den Worker direkt mit dem Browser zu verbinden.
+- **Entscheidung:** Die API liefert beim Kauf ein `orderId` (z.B. aus dem Request oder generiert) und der Client pollt einen Status-Endpunkt (`GET /api/orders/{orderId}`) bis `completed|failed` erreicht ist.
+- **Begruendung:** Polling ist einfach, robust und passt zur entkoppelten Architektur. Der Worker schreibt den finalen Status in die Datenbank (und optional in Redis) und die API liest den Status fuer den Client. Kein direkter Worker-Client-Kanal, keine zusaetzliche Persistenz fuer SSE-Verbindungszustand.
+- **Alternativen:**
+  - **Server-Sent Events:** wuerde einen dauerhaften API-Client-Kanal erfordern und zusaetzliche Infrastruktur/State-Management (Reconnect, Lastverteilung) benoetigen.
+  - **WebSockets:** aehnlich wie SSE, aber komplexer im Betrieb, besonders unter Lastspitzen.
+  - **Kein Status-Feedback:** schlechter UX und fuer das Demo-Szenario unzureichend.

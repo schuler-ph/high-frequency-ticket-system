@@ -52,7 +52,7 @@
 - [x] Setup Fastify Server Instanz für den Worker (Healthcheck, Logging).
 - [x] Setup Google Cloud Pub/Sub Client Plugin für Subscribe.
 - [x] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
-- [ ] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
+- [x] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
 - [ ] Implementiere Drizzle-Transaktion im Worker: pro erfolgreichem Kauf `INSERT INTO tickets` (eine Zeile pro Ticket) und `UPDATE events SET sold_count_...`.
 - [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
@@ -99,3 +99,4 @@
 - [ ] Füge Rate Limiting in Fastify (via Redis) als Bot-Protection hinzu.
 - [ ] Integriere den k6 Lasttest als Quality Gate in GitHub Actions (Fail bei großer Latenz oder hohen Error-Rates).
 - [ ] Simuliere Chaos Engineering (z.B. Redis oder Worker Ausfälle während des Lasttests) um zu testen, ob das System graceful degradiert.
+- [ ] Definiere Polling-Strategie fuer Order-Status (Backoff + Jitter, optional Long-Polling) zur Load-Reduktion.
