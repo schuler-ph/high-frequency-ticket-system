@@ -13,6 +13,7 @@ export const env = createEnv({
     GOOGLE_CLOUD_PROJECT: z.string().min(1),
     PUBSUB_EMULATOR_HOST: z.string().min(1),
     PUBSUB_TOPIC_BUY_TICKET: z.string().min(1),
+    PUBSUB_SUBSCRIPTION_BUY_TICKET: z.string().min(1),
   },
 
   /**

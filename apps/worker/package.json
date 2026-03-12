@@ -23,6 +23,7 @@
   "dependencies": {
     "@fastify/autoload": "^6.0.0",
     "@fastify/sensible": "^6.0.0",
+    "@google-cloud/pubsub": "^5.3.0",
     "@repo/env": "workspace:*",
     "@repo/types": "workspace:*",
     "fastify": "^5.0.0",
