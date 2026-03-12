@@ -185,10 +185,9 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
   - **WebSockets:** aehnlich wie SSE, aber komplexer im Betrieb, besonders unter Lastspitzen.
   - **Kein Status-Feedback:** schlechter UX und fuer das Demo-Szenario unzureichend.
 
-  ---
+  ***
 
   ## ADR-018: Ticket-Kauf via SQL-Function im Worker
-
   - **Datum:** 2026-03-12
   - **Kontext:** Der Worker hat zuvor eine Drizzle-Transaktion mit `INSERT` und `UPDATE` ausgefuehrt. Die Logik soll atomar und nah an der DB bleiben.
   - **Entscheidung:** Der Worker ruft eine PostgreSQL-Function `buy_ticket(event_id, first_name, last_name)` auf.
