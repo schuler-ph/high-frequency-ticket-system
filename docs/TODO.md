@@ -53,7 +53,7 @@
 - [x] Setup Google Cloud Pub/Sub Client Plugin für Subscribe.
 - [x] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
 - [x] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
-- [ ] Implementiere Drizzle-Transaktion im Worker: pro erfolgreichem Kauf `INSERT INTO tickets` (eine Zeile pro Ticket) und `UPDATE events SET sold_count_...`.
+- [x] Implementiere SQL-Function im Worker: `buy_ticket(...)` fuer `INSERT INTO tickets` + `UPDATE events.sold_count`.
 - [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
 ## Phase 4: Interface & Testing

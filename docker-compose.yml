@@ -32,6 +32,7 @@ services:
 
   pubsub:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    platform: linux/amd64
     container_name: hts-pubsub
     ports:
       - "8085:8085"

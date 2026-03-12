@@ -1,5 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import type { FastifyPluginAsync } from "fastify";
+import { sql } from "drizzle-orm";
+import { db } from "@repo/db";
 import { buyTicketRequestSchema } from "@repo/types/tickets";
 
 const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
@@ -34,6 +36,10 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
     );
 
     await setTimeout(1000);
+
+    await db.execute(
+      sql`SELECT buy_ticket(${parsed.data.eventId}, ${parsed.data.firstName}, ${parsed.data.lastName})`,
+    );
 
     message.ack();
   });
