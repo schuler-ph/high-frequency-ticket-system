@@ -47,6 +47,11 @@ jobs:
         env:
           TURBO_TELEMETRY_DISABLED: 1
 
+      - name: Test
+        run: pnpm run test
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
+
       - name: Build
         run: pnpm run build
         env:
