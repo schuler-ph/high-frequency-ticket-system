@@ -10,6 +10,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify, _opts) => {
     url: "/health",
     schema: healthSchema,
     handler: async (_req, res) => {
+      console.log("Health check endpoint called");
       return res.status(200).send({
         status: "ok",
         timestamp: new Date().toISOString(),
