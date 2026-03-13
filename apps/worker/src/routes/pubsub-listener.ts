@@ -35,10 +35,34 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
       "Received BuyTicketEvent",
     );
 
-    await setTimeout(1000);
+    // await setTimeout(1000);
 
-    await db.execute(
-      sql`SELECT buy_ticket(${parsed.data.eventId}, ${parsed.data.firstName}, ${parsed.data.lastName})`,
+    try {
+      await db.execute(
+        sql`SELECT buy_ticket(${parsed.data.eventId}, ${parsed.data.firstName}, ${parsed.data.lastName})`,
+      );
+    } catch (error) {
+      const cause = (error as { cause?: { code?: string } }).cause;
+      if (cause?.code === "P0001") {
+        fastify.log.warn(
+          { messageId: message.id, eventId: parsed.data.eventId, error },
+          "Event not found while processing BuyTicketEvent",
+        );
+        message.ack();
+        return;
+      }
+
+      fastify.log.error(
+        { messageId: message.id, eventId: parsed.data.eventId, error },
+        "Error processing BuyTicketEvent",
+      );
+      message.nack();
+      return;
+    }
+
+    fastify.log.info(
+      { messageId: message.id, eventId: parsed.data.eventId },
+      "Successfully processed BuyTicketEvent",
     );
 
     message.ack();
