@@ -56,6 +56,38 @@
 - [x] Implementiere SQL-Function im Worker: `buy_ticket(...)` fuer `INSERT INTO tickets` + `UPDATE events.sold_count`.
 - [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
+## Phase 3.5: Flow Hardening (Korrektheit + Performance)
+
+### Redis Keying & Datenmodell
+
+- [ ] Ersetze globale Redis-Keys durch event-spezifische Keys (`tickets:event:{eventId}:total`, `tickets:event:{eventId}:available`).
+- [ ] Definiere ein zentrales Naming-Utility für Redis-Keys in API und Worker, um Tippfehler/Drift zu vermeiden.
+- [ ] Erweitere Availability-Route auf event-spezifische Abfrage (`GET /api/tickets/:eventId/availability`).
+
+### Reservation-Flow in der API
+
+- [ ] Implementiere atomare Reservierung in Redis (decrement nur wenn `available > 0`).
+- [ ] Speichere pro Kauf eine Reservation (`orderId`) mit TTL in Redis.
+- [ ] Rolle Reservation sauber zurück, wenn Pub/Sub Publish fehlschlägt.
+
+### Worker Finalisierung & Kompensation
+
+- [ ] Validiere und dokumentiere ACK/NACK-Regeln (transienter Fehler = NACK, permanenter Business-Fehler = ACK).
+- [ ] Füge Kompensation hinzu: bei terminalem Fehler Reservation freigeben (Redis `INCR`).
+- [ ] Mache Worker-Processing idempotent über `orderId` (keine doppelte DB-Verarbeitung bei Redelivery).
+
+### Sync-Strategie Redis ↔ DB
+
+- [ ] Implementiere Reconcile-Job (API oder Worker), der `available = total_capacity - sold_count - active_reservations` prüft.
+- [ ] Starte Reconcile beim Service-Start und zyklisch im Betrieb.
+- [ ] Definiere Intervalle: Peak-Last 5–10s, Normalbetrieb 30–60s.
+
+### Tests & Observability für den Flow
+
+- [ ] Schreibe Integrationstests für Reserve/Publish-Rollback/Compensation (Happy + Failure Paths).
+- [ ] Ergänze Metriken: Reservierungen erstellt, Rollbacks, Kompensationen, Redis-DB-Drift.
+- [ ] Dokumentiere den finalen End-to-End-Flow in `ARCHITECTURE.md` und ADR in `DECISIONS.md`.
+
 ## Phase 4: Interface & Testing
 
 ### Frontend (`apps/web`)
