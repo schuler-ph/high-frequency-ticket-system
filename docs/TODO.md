@@ -54,7 +54,7 @@
 - [x] Implementiere Pull-Subscription Listener in Pub/Sub für `BuyTicketEvent` Topic.
 - [x] Konsumiere Nachrichten: Simuliere Payment-Provider Latenz (z.B. 1s Sleep).
 - [x] Implementiere SQL-Function im Worker: `buy_ticket(...)` fuer `INSERT INTO tickets` + `UPDATE events.sold_count`.
-- [ ] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
+- [x] Bestätige (ACK) erfolgreiche Messages, NACK bei Fehlern im Worker.
 
 ## Phase 3.5: Flow Hardening (Korrektheit + Performance)
 
