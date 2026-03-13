@@ -56,6 +56,36 @@ flowchart TD
 7. Worker ruft SQL-Function auf: `buy_ticket(event_id, first_name, last_name)` (INSERT + sold_count Update)
 8. Nutzer pollt GET /api/orders/{orderId} für finalen Status
 
+## Worker ACK/NACK-Regeln (Stand 2026-03-13)
+
+Der Worker behandelt Pub/Sub-Nachrichten mit folgenden Regeln:
+
+| Fall                                                      | Verhalten | Begründung                                                                          |
+| --------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------- |
+| Erfolgreiche Verarbeitung (`buy_ticket(...)` erfolgreich) | ACK       | Nachricht ist final verarbeitet, keine Redelivery nötig                             |
+| Ungültiges JSON im Payload                                | NACK      | Technischer Fehler im Message-Format, Retry/Redelivery möglich                      |
+| Payload verletzt Zod-Schema                               | NACK      | Nachricht ist im aktuellen Flow nicht verarbeitbar; aktuell als Retry klassifiziert |
+| Technischer Fehler beim DB-Write                          | NACK      | Transienter Infrastrukturfehler, Redelivery soll erneut versuchen                   |
+| Business-Fehler `P0001` (Event nicht gefunden)            | ACK       | Terminaler Fachfehler, Retry würde deterministisch erneut fehlschlagen              |
+
+Abgesichert durch Tests in:
+
+- `apps/worker/test/routes/pubsub-listener.test.ts`
+- `apps/worker/test/plugins/pubsub.test.ts`
+
+## DTO-Vertrag für Code und Tests
+
+Um wiederkehrende Testfehler durch Typ-Drift zu vermeiden, gilt projektweit:
+
+1. Payload-Interfaces für API/Worker niemals lokal duplizieren.
+2. Test-Fixtures für Request-/Event-Payloads immer aus den zentralen DTO-Typen ableiten.
+3. Quelle ist ausschließlich `packages/types` (Typ-Export oder Zod-Schema).
+
+Beispiel im Worker-Flow:
+
+- `apps/worker/src/routes/pubsub-listener.ts` nutzt den zentralen DTO-Typ für den Handler-Contract.
+- `apps/worker/test/routes/pubsub-listener.test.ts` erstellt gültige Payloads über den Shared-Type statt über lokale ad-hoc Objekte.
+
 ## Datenfluss: Verfügbarkeits-Check
 
 1. Frontend sendet GET /api/tickets/availability

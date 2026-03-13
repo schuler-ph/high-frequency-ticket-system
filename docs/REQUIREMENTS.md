@@ -61,3 +61,4 @@ Das k6-Skript simuliert einen realistischen Ticket-Sale-Lifecycle:
 3.  **Type Safety:** Zod-Schemas generieren die Request-Typen. Drizzle generiert die Datenbank-Typen. Keine doppelten manuellen Typ-Deklarationen.
 4.  **Database Agnosticism:** Die Datenbankschicht muss so in Drizzle abstrahiert werden, dass ein späterer Wechsel von Cloud SQL zu Cloud Spanner mit minimalem Refactoring möglich ist.
 5.  **DB Write Encapsulation:** Der Worker nutzt die PostgreSQL-Function `buy_ticket(...)` fuer Ticket-Writes (INSERT + sold_count Update).
+6.  **DTO Contract Discipline (inkl. Tests):** Payload-Typen für API/Worker und Test-Fixtures dürfen nicht lokal nachgebaut werden. Verwende immer die zentralen DTO-Typen oder Schemas aus `packages/types` (z.B. `BuyTicketRequest` oder `buyTicketRequestSchema`).
