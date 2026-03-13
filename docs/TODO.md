@@ -76,6 +76,15 @@
 - [ ] Füge Kompensation hinzu: bei terminalem Fehler Reservation freigeben (Redis `INCR`).
 - [ ] Mache Worker-Processing idempotent über `orderId` (keine doppelte DB-Verarbeitung bei Redelivery).
 
+### Orders ↔ Tickets Verknüpfung
+
+- [ ] Definiere persistentes `orders` Datenmodell (Status: `pending|completed|failed`, Bezug zu `eventId`, Zeitstempel).
+- [ ] Speichere `orderId` aus der API dauerhaft in der Datenbank (nicht nur in Pub/Sub Payload).
+- [ ] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
+- [ ] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
+- [ ] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
+- [ ] Baue gezielte Tests: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /orders/:orderId` zeigt finalen Zustand inkl. Ticket-Referenz.
+
 ### Sync-Strategie Redis ↔ DB
 
 - [ ] Implementiere Reconcile-Job (API oder Worker), der `available = total_capacity - sold_count - active_reservations` prüft.

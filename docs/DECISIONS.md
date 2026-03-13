@@ -6,26 +6,26 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der Stelle in `docs/TODO.md`, in der die Umsetzung erledigt wurde oder geplant ist.
 
-| ADR | Status | TODO-Abbildung |
-| --- | --- | --- |
-| ADR-001 Monorepo mit Turborepo | Fertig | Phase 1 (Foundation & Tooling) erledigt |
-| ADR-002 Fastify statt Express | Fertig | Phase 3 (Core Logic) API + Worker Setup erledigt |
-| ADR-003 Drizzle ORM statt Prisma | Fertig | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt |
-| ADR-004 Asynchrone Writes über Pub/Sub | Teilweise fertig | Phase 3 Buy-Flow erledigt; Härtung in Phase 3.5 (Reservation/ACK-NACK-Klarheit) geplant |
-| ADR-005 Redis als Read-Cache | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant |
-| ADR-006 Prometheus + Grafana | Geplant | Phase 4.5 (Monitoring & Observability) |
-| ADR-007 GitHub Actions für CI/CD | Fertig | Phase 1 (`.github/workflows/ci.yml`) erledigt |
-| ADR-008 Zod für Validation & DTOs | Fertig | Phase 2 DTOs + Phase 3 Route-Schemas erledigt |
-| ADR-009 Husky für Git Hooks | Fertig | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv) |
-| ADR-010 Terraform für IaC | Geplant | Phase 5 (Cloud Deployment) |
-| ADR-011 Capacity Model vs. Pre-generated Tickets | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant |
-| ADR-012 Guest Checkout | Fertig | Phase 3 Buy-Request ohne Auth umgesetzt |
-| ADR-013 Payment Flow Mocking | Geplant | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5 |
-| ADR-014 Cloud Provider GCP | Geplant | Phase 5 (GCP Terraform + Deployment) |
-| ADR-015 Custom Error Classes & Secure Error Handling | Fertig | Phase 3 Error Handler und typed errors umgesetzt |
-| ADR-016 GCP-ready Structured Logging mit Pino | Fertig | API/Worker Logger-Konfiguration umgesetzt |
-| ADR-017 Order-Status via Polling | Geplant | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling |
-| ADR-018 Ticket-Kauf via SQL-Function im Worker | Fertig | Phase 3 Worker nutzt `buy_ticket(...)` |
+| ADR                                                  | Status           | TODO-Abbildung                                                                              |
+| ---------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------- |
+| ADR-001 Monorepo mit Turborepo                       | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                     |
+| ADR-002 Fastify statt Express                        | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                            |
+| ADR-003 Drizzle ORM statt Prisma                     | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                     |
+| ADR-004 Asynchrone Writes über Pub/Sub               | Teilweise fertig | Phase 3 Buy-Flow erledigt; Härtung in Phase 3.5 (Reservation/ACK-NACK-Klarheit) geplant     |
+| ADR-005 Redis als Read-Cache                         | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant |
+| ADR-006 Prometheus + Grafana                         | Geplant          | Phase 4.5 (Monitoring & Observability)                                                      |
+| ADR-007 GitHub Actions für CI/CD                     | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                               |
+| ADR-008 Zod für Validation & DTOs                    | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt                                               |
+| ADR-009 Husky für Git Hooks                          | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                   |
+| ADR-010 Terraform für IaC                            | Geplant          | Phase 5 (Cloud Deployment)                                                                  |
+| ADR-011 Capacity Model vs. Pre-generated Tickets     | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                 |
+| ADR-012 Guest Checkout                               | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                     |
+| ADR-013 Payment Flow Mocking                         | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                 |
+| ADR-014 Cloud Provider GCP                           | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                        |
+| ADR-015 Custom Error Classes & Secure Error Handling | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                            |
+| ADR-016 GCP-ready Structured Logging mit Pino        | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                   |
+| ADR-017 Order-Status via Polling                     | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                      |
+| ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                      |
 
 ### Status-Definitionen
 
