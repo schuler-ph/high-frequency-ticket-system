@@ -35,7 +35,7 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
       "Received BuyTicketEvent",
     );
 
-    // await setTimeout(1000);
+    await setTimeout(1000);
 
     try {
       await db.execute(
