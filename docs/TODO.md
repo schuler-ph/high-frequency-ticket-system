@@ -42,9 +42,9 @@
 - [x] Integriere `fastify-type-provider-zod` für Request/Response Validierung.
 - [x] Implementiere Healthcheck-Route (`GET /health`).
 - [x] Setup Redis-Client Plugin für die Verbindung zum lokalen Redis.
-- [x] Implementiere `GET /api/tickets/availability` Route (liest `tickets:available` aus Redis, liefert Sub-Millisekunden Response).
+- [x] Implementiere `GET /api/tickets/:eventId/availability` Route (liest `tickets:event:{eventId}:available` aus Redis, liefert Sub-Millisekunden Response).
 - [x] Setup Google Cloud Pub/Sub Client Plugin für Publish.
-- [x] Implementiere `POST /api/tickets/buy` Route inkl. Zod Validierung (`BuyTicketRequest`).
+- [x] Implementiere `POST /api/tickets/:eventId/buy` Route inkl. Zod Validierung (`BuyTicketRequest`).
 - [x] Logik für Kauf: Prüfe Redis `tickets:available` > 0. Wenn ok: Publish an Pub/Sub & HTTP 202. Wenn nicht: HTTP 409.
 
 ### Worker Service (`apps/worker`)
@@ -60,9 +60,9 @@
 
 ### Redis Keying & Datenmodell
 
-- [ ] Ersetze globale Redis-Keys durch event-spezifische Keys (`tickets:event:{eventId}:total`, `tickets:event:{eventId}:available`).
+- [x] Ersetze globale Redis-Keys durch event-spezifische Keys (`tickets:event:{eventId}:total`, `tickets:event:{eventId}:available`).
 - [ ] Definiere ein zentrales Naming-Utility für Redis-Keys in API und Worker, um Tippfehler/Drift zu vermeiden.
-- [ ] Erweitere Availability-Route auf event-spezifische Abfrage (`GET /api/tickets/:eventId/availability`).
+- [x] Erweitere Availability-Route auf event-spezifische Abfrage (`GET /api/tickets/:eventId/availability`).
 
 ### Reservation-Flow in der API
 
@@ -102,9 +102,9 @@
 ### Frontend (`apps/web`)
 
 - [ ] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
-- [ ] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/availability`).
+- [ ] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/:eventId/availability`).
 - [ ] Implementiere Kaufen-Button mit Loading State und Error-Handling.
-- [ ] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/buy`.
+- [ ] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/:eventId/buy`.
 - [ ] Baue UI Feedback ein (Toast/Alert für Erfolg "In Warteschlange" vs. "Ausverkauft").
 
 ### Lasttests (`load-tests/`)

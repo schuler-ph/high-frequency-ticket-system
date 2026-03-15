@@ -97,6 +97,13 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Begründung:** Redis liefert konsistente Reads im Mikrosekunden-Bereich. Atomic Decrement (`DECR`) verhindert Overselling. Eventual Consistency ist akzeptabel für Verfügbarkeitsanzeige.
 - **Alternativen:** DB-Read-Replicas (teurer, höhere Latenz), Application-Level Cache (nicht cluster-fähig).
 
+### Update 2026-03-15: Event-spezifische Redis-Key-Namenskonvention
+
+- **Kontext:** Globale Redis-Keys (`tickets:total`, `tickets:available`) mischen bei mehreren Events die Verfuegbarkeiten und erschweren parallele Sales.
+- **Entscheidung:** Ticket-Counter werden event-spezifisch gespeichert: `tickets:event:{eventId}:total` und `tickets:event:{eventId}:available`.
+- **Begruendung:** Klare Isolation pro Event, korrekte Availability-Reads bei Multi-Event-Szenarien, und weniger Risiko fuer Key-Kollisionen.
+- **Umsetzung:** API nutzt ab sofort event-spezifische Keys in Buy-/Availability-/Reset-Flow.
+
 ---
 
 ## ADR-006: Prometheus + Grafana für Monitoring
@@ -135,6 +142,13 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Umsetzung:**
   - `apps/worker/src/routes/pubsub-listener.ts`
   - `apps/worker/test/routes/pubsub-listener.test.ts`
+
+### Update 2026-03-15: EventId als fixer URL-Parameter in der API
+
+- **Kontext:** `eventId` war inkonsistent verteilt (teils Request-Body, teils Querystring), was API-Clients und Doku unnoetig verkompliziert.
+- **Entscheidung:** Ticket-Endpunkte verwenden einheitlich einen festen URL-Parameter `:eventId` (`/api/tickets/:eventId/buy`, `/api/tickets/:eventId/availability`, `/api/tickets/:eventId/reset`).
+- **Begruendung:** Einheitlicher API-Contract, klare Ressourcenadressierung und bessere Lesbarkeit der Endpunkte.
+- **Umsetzung:** API-Routen in `apps/api/src/routes/api/tickets/*` auf `params`-Schema mit `ticketEventIdSchema` umgestellt.
 
 ---
 

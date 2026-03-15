@@ -29,6 +29,9 @@ type RedisMock = {
   incr: (key: string) => Promise<number>;
 };
 
+const ticketAvailabilityKey = (eventId: string) =>
+  `tickets:event:${eventId}:available`;
+
 async function setupBuyRouteTest(
   redis: RedisMock,
   publishBuyTicket: (payload: unknown) => Promise<string>,
@@ -49,18 +52,21 @@ async function setupBuyRouteTest(
   return fastify;
 }
 
-void test("POST /api/tickets/buy returns 202 and publishes event", async () => {
+void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", async () => {
   let decrCalls = 0;
   let incrCalls = 0;
   let publishedPayload: unknown;
+  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(_key: string) {
+      async decr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         decrCalls += 1;
         return 999_999;
       },
-      async incr(_key: string) {
+      async incr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         incrCalls += 1;
         return 1_000_000;
       },
@@ -73,9 +79,8 @@ void test("POST /api/tickets/buy returns 202 and publishes event", async () => {
 
   const res = await fastify.inject({
     method: "POST",
-    url: "/api/tickets/buy",
+    url: `/api/tickets/${eventId}/buy`,
     payload: {
-      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
       firstName: "Ada",
       lastName: "Lovelace",
     },
@@ -92,7 +97,7 @@ void test("POST /api/tickets/buy returns 202 and publishes event", async () => {
   assert.equal(incrCalls, 0);
   assert.deepEqual(publishedPayload, {
     orderId: body.orderId,
-    eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
+    eventId,
     firstName: "Ada",
     lastName: "Lovelace",
   });
@@ -100,17 +105,20 @@ void test("POST /api/tickets/buy returns 202 and publishes event", async () => {
   await fastify.close();
 });
 
-void test("POST /api/tickets/buy returns 409 when sold out", async () => {
+void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () => {
   let decrCalls = 0;
   let incrCalls = 0;
+  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(_key: string) {
+      async decr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         decrCalls += 1;
         return -1;
       },
-      async incr(_key: string) {
+      async incr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         incrCalls += 1;
         return 0;
       },
@@ -122,9 +130,8 @@ void test("POST /api/tickets/buy returns 409 when sold out", async () => {
 
   const res = await fastify.inject({
     method: "POST",
-    url: "/api/tickets/buy",
+    url: `/api/tickets/${eventId}/buy`,
     payload: {
-      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
       firstName: "Ada",
       lastName: "Lovelace",
     },
@@ -139,7 +146,8 @@ void test("POST /api/tickets/buy returns 409 when sold out", async () => {
   await fastify.close();
 });
 
-void test("POST /api/tickets/buy validates BuyTicketRequest body", async () => {
+void test("POST /api/tickets/:eventId/buy validates BuyTicketRequest body", async () => {
+  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
   const fastify = await setupBuyRouteTest(
     {
       async decr(_key: string) {
@@ -154,9 +162,8 @@ void test("POST /api/tickets/buy validates BuyTicketRequest body", async () => {
 
   const res = await fastify.inject({
     method: "POST",
-    url: "/api/tickets/buy",
+    url: `/api/tickets/${eventId}/buy`,
     payload: {
-      eventId: "not-a-uuid",
       firstName: "",
       lastName: "Lovelace",
     },
@@ -167,15 +174,18 @@ void test("POST /api/tickets/buy validates BuyTicketRequest body", async () => {
   await fastify.close();
 });
 
-void test("POST /api/tickets/buy rolls back reservation on publish failure", async () => {
+void test("POST /api/tickets/:eventId/buy rolls back reservation on publish failure", async () => {
   let incrCalls = 0;
+  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(_key: string) {
+      async decr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         return 999_999;
       },
-      async incr(_key: string) {
+      async incr(key: string) {
+        assert.equal(key, ticketAvailabilityKey(eventId));
         incrCalls += 1;
         return 1_000_000;
       },
@@ -187,9 +197,8 @@ void test("POST /api/tickets/buy rolls back reservation on publish failure", asy
 
   const res = await fastify.inject({
     method: "POST",
-    url: "/api/tickets/buy",
+    url: `/api/tickets/${eventId}/buy`,
     payload: {
-      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
       firstName: "Ada",
       lastName: "Lovelace",
     },

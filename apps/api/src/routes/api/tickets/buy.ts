@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
-  buyTicketRequestSchema,
+  buyTicketBodySchema,
   buyTicketResponseSchema,
+  ticketEventIdSchema,
 } from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
 import {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
+import { ticketRedisKeys } from "../../../lib/redis-keys.js";
 
 type TicketRedisClient = {
   decr: (key: string) => Promise<number>;
@@ -21,9 +23,10 @@ type TicketPublisher = {
 const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
-    url: "/buy",
+    url: "/:eventId/buy",
     schema: {
-      body: buyTicketRequestSchema,
+      params: ticketEventIdSchema,
+      body: buyTicketBodySchema,
       response: {
         202: buyTicketResponseSchema,
       },
@@ -33,12 +36,13 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
         redis: TicketRedisClient;
         pubsubPublisher: TicketPublisher;
       };
+      const keys = ticketRedisKeys(req.params.eventId);
 
       // Redis DECR is atomic; negative values mean sold-out and are compensated.
-      const availableAfterReserve = await redis.decr("tickets:available");
+      const availableAfterReserve = await redis.decr(keys.available);
 
       if (availableAfterReserve < 0) {
-        await redis.incr("tickets:available");
+        await redis.incr(keys.available);
         throw new ConflictError("Tickets sold out");
       }
 
@@ -47,11 +51,12 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       try {
         await pubsubPublisher.publishBuyTicket({
           orderId,
+          eventId: req.params.eventId,
           ...req.body,
         });
       } catch (error) {
         // Rollback the reservation when publish fails.
-        await redis.incr("tickets:available");
+        await redis.incr(keys.available);
         throw error;
       }
 

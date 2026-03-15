@@ -1,8 +1,12 @@
-import { ticketAvailabilityResponseSchema } from "@repo/types/tickets";
+import {
+  ticketAvailabilityResponseSchema,
+  ticketEventIdSchema,
+} from "@repo/types/tickets";
 import {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
+import { ticketRedisKeys } from "../../../lib/redis-keys.js";
 
 const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
   fastify,
@@ -10,17 +14,20 @@ const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
 ) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "GET",
-    url: "/availability",
+    url: "/:eventId/availability",
     schema: {
+      params: ticketEventIdSchema,
       response: {
         200: ticketAvailabilityResponseSchema,
       },
     },
-    handler: async (_req, res) => {
+    handler: async (req, res) => {
+      const keys = ticketRedisKeys(req.params.eventId);
+
       // API liest Ticket-Verfügbarkeiten ausschließlich aus dem Redis-Cache
       const [totalStr, availableStr] = await fastify.redis.mget(
-        "tickets:total",
-        "tickets:available",
+        keys.total,
+        keys.available,
       );
 
       return res.status(200).send({

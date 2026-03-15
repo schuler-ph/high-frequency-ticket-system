@@ -14,6 +14,18 @@ export const buyTicketRequestSchema = z.object({
 
 export type BuyTicketRequest = z.infer<typeof buyTicketRequestSchema>;
 
+export const buyTicketBodySchema = buyTicketRequestSchema.omit({
+  eventId: true,
+});
+
+export type BuyTicketBody = z.infer<typeof buyTicketBodySchema>;
+
+export const ticketEventIdSchema = z.object({
+  eventId: z.uuid("Invalid event ID format"),
+});
+
+export type TicketEventId = z.infer<typeof ticketEventIdSchema>;
+
 export const buyTicketResponseSchema = z.object({
   message: z.string(),
   orderId: z.uuid().optional(),

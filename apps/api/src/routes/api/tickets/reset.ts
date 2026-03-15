@@ -1,22 +1,31 @@
-import { ticketResetResponseSchema } from "@repo/types/tickets";
+import {
+  ticketEventIdSchema,
+  ticketResetResponseSchema,
+} from "@repo/types/tickets";
 import {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
+import { ticketRedisKeys } from "../../../lib/redis-keys.js";
+
+const INITIAL_TICKET_CAPACITY = "1000000";
 
 const ticketResetRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
-    url: "/reset",
+    url: "/:eventId/reset",
     schema: {
+      params: ticketEventIdSchema,
       response: {
         200: ticketResetResponseSchema,
       },
     },
-    handler: async (_req, res) => {
+    handler: async (req, res) => {
+      const keys = ticketRedisKeys(req.params.eventId);
+
       await fastify.redis.mset({
-        "tickets:total": "1000000",
-        "tickets:available": "1000000",
+        [keys.total]: INITIAL_TICKET_CAPACITY,
+        [keys.available]: INITIAL_TICKET_CAPACITY,
       });
 
       return res.status(200).send({

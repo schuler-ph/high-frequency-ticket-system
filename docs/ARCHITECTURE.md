@@ -30,7 +30,7 @@ flowchart TD
     end
 
     User --> Frontend
-    Frontend -->|"HTTP POST /api/tickets/buy<br/>HTTP GET /api/tickets/availability"| API
+    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP GET /api/tickets/:eventId/availability"| API
 
     API_metrics --> Prometheus
     API_avail --> Redis
@@ -47,8 +47,8 @@ flowchart TD
 ## Datenfluss: Ticket-Kauf (Happy Path)
 
 1. Nutzer klickt "Ticket kaufen" im Frontend
-2. Frontend sendet POST /api/tickets/buy { userId: "..." }
-3. API Gateway prüft Redis: tickets:available > 0 ?
+2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
+3. API Gateway prüft Redis: tickets:event:{eventId}:available > 0 ?
 4. ✅ Ja → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted
    ❌ Nein → HTTP 409 Conflict (Sold Out)
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
@@ -88,8 +88,8 @@ Beispiel im Worker-Flow:
 
 ## Datenfluss: Verfügbarkeits-Check
 
-1. Frontend sendet GET /api/tickets/availability
-2. API liest Redis Key tickets:available
+1. Frontend sendet GET /api/tickets/{eventId}/availability
+2. API liest Redis Key tickets:event:{eventId}:available
 3. API antwortet HTTP 200 { available: 843291, total: 1000000 }
    → Kein DB-Zugriff, Sub-Millisekunden Antwortzeit
 
