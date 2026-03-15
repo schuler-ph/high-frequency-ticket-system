@@ -28,5 +28,5 @@ Nutze diesen Workflow jedes Mal, wenn du eine neue Entwicklungs-Session mit dem 
    - Nach Erstellung des Plans, pausiere und warte auf die Freigabe, bevor du mit dem eigentlichen Schreiben des Codes beginnst.
 
 6. **Lokale Validierung (immer ausführen nach Code-Änderungen):**
-   - Prüfe deinen geschriebenen Code, indem du `pnpm run format`, `pnpm run lint`, `pnpm run check-types` und `pnpm run test` aufrufst.
+   - Prüfe deinen geschriebenen Code, indem du `pnpm run format`, `pnpm run lint`, `pnpm run check-types` und `pnpm run test` aufrufst. Rufe alle mit "CI=1", damit man die Logs besser lesen kann.
    - Stelle sicher, dass die Applikation fehlerfrei startet durch `pnpm run dev`.
