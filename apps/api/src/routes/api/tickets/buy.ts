@@ -11,8 +11,21 @@ import {
 } from "fastify-type-provider-zod";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
 
+const ATOMIC_RESERVE_TICKET_SCRIPT = `
+local current = tonumber(redis.call("GET", KEYS[1]) or "0")
+if current <= 0 then
+  return -1
+end
+
+return redis.call("DECR", KEYS[1])
+`;
+
 type TicketRedisClient = {
-  decr: (key: string) => Promise<number>;
+  eval: (
+    script: string,
+    numKeys: number,
+    ...args: string[]
+  ) => Promise<number | string>;
   incr: (key: string) => Promise<number>;
 };
 
@@ -38,11 +51,14 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       };
       const keys = ticketRedisKeys(req.params.eventId);
 
-      // Redis DECR is atomic; negative values mean sold-out and are compensated.
-      const availableAfterReserve = await redis.decr(keys.available);
+      const reserveResult = await redis.eval(
+        ATOMIC_RESERVE_TICKET_SCRIPT,
+        1,
+        keys.available,
+      );
+      const availableAfterReserve = Number(reserveResult);
 
       if (availableAfterReserve < 0) {
-        await redis.incr(keys.available);
         throw new ConflictError("Tickets sold out");
       }
 

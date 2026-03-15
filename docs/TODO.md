@@ -66,7 +66,7 @@
 
 ### Reservation-Flow in der API
 
-- [ ] Implementiere atomare Reservierung in Redis (decrement nur wenn `available > 0`).
+- [x] Implementiere atomare Reservierung in Redis (decrement nur wenn `available > 0`).
 - [ ] Speichere pro Kauf eine Reservation (`orderId`) mit TTL in Redis.
 - [ ] Rolle Reservation sauber zurück, wenn Pub/Sub Publish fehlschlägt.
 

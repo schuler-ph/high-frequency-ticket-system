@@ -49,6 +49,7 @@ flowchart TD
 1. Nutzer klickt "Ticket kaufen" im Frontend
 2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
 3. API Gateway prüft Redis: tickets:event:{eventId}:available > 0 ?
+   - Umsetzung: atomar via Redis Lua (`EVAL`) in einem Schritt (Check + Decrement), damit nur bei `available > 0` reduziert wird.
 4. ✅ Ja → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted
    ❌ Nein → HTTP 409 Conflict (Sold Out)
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub

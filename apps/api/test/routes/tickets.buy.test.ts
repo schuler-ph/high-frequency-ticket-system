@@ -25,7 +25,11 @@ function registerLocalErrorHandler(fastify: ReturnType<typeof Fastify>) {
 }
 
 type RedisMock = {
-  decr: (key: string) => Promise<number>;
+  eval: (
+    script: string,
+    numKeys: number,
+    ...args: string[]
+  ) => Promise<number | string>;
   incr: (key: string) => Promise<number>;
 };
 
@@ -53,16 +57,17 @@ async function setupBuyRouteTest(
 }
 
 void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", async () => {
-  let decrCalls = 0;
+  let evalCalls = 0;
   let incrCalls = 0;
   let publishedPayload: unknown;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(key: string) {
-        assert.equal(key, ticketAvailabilityKey(eventId));
-        decrCalls += 1;
+      async eval(_script: string, numKeys: number, ...args: string[]) {
+        assert.equal(numKeys, 1);
+        assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
+        evalCalls += 1;
         return 999_999;
       },
       async incr(key: string) {
@@ -93,7 +98,7 @@ void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", asyn
     body.orderId,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   );
-  assert.equal(decrCalls, 1);
+  assert.equal(evalCalls, 1);
   assert.equal(incrCalls, 0);
   assert.deepEqual(publishedPayload, {
     orderId: body.orderId,
@@ -106,15 +111,16 @@ void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", asyn
 });
 
 void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () => {
-  let decrCalls = 0;
+  let evalCalls = 0;
   let incrCalls = 0;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(key: string) {
-        assert.equal(key, ticketAvailabilityKey(eventId));
-        decrCalls += 1;
+      async eval(_script: string, numKeys: number, ...args: string[]) {
+        assert.equal(numKeys, 1);
+        assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
+        evalCalls += 1;
         return -1;
       },
       async incr(key: string) {
@@ -140,8 +146,8 @@ void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () =
   assert.equal(res.statusCode, 409);
   const body = JSON.parse(res.body) as { message: string };
   assert.equal(body.message, "Tickets sold out");
-  assert.equal(decrCalls, 1);
-  assert.equal(incrCalls, 1);
+  assert.equal(evalCalls, 1);
+  assert.equal(incrCalls, 0);
 
   await fastify.close();
 });
@@ -150,7 +156,7 @@ void test("POST /api/tickets/:eventId/buy validates BuyTicketRequest body", asyn
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
   const fastify = await setupBuyRouteTest(
     {
-      async decr(_key: string) {
+      async eval(_script: string, _numKeys: number, ..._args: string[]) {
         return 999_999;
       },
       async incr(_key: string) {
@@ -180,8 +186,9 @@ void test("POST /api/tickets/:eventId/buy rolls back reservation on publish fail
 
   const fastify = await setupBuyRouteTest(
     {
-      async decr(key: string) {
-        assert.equal(key, ticketAvailabilityKey(eventId));
+      async eval(_script: string, numKeys: number, ...args: string[]) {
+        assert.equal(numKeys, 1);
+        assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
         return 999_999;
       },
       async incr(key: string) {

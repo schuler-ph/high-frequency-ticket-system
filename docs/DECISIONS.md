@@ -111,6 +111,13 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Begruendung:** Ein gemeinsamer, typisierter Einstiegspunkt reduziert Drift, vereinfacht Refactorings und erzwingt konsistente Key-Schemata ueber Service-Grenzen hinweg.
 - **Umsetzung:** Shared Utility in `packages/types/src/redis-keys.ts`; API-Routen verwenden den Import aus `@repo/types/redis-keys`.
 
+### Update 2026-03-15: Atomare Reservierung ohne Negative Counter
+
+- **Kontext:** Der bisherige Buy-Flow verwendete `DECR` mit nachgelagertem Rollback bei negativen Werten. Dadurch wurde kurzfristig auch bei Sold-Out dekrementiert und erst danach kompensiert.
+- **Entscheidung:** Die API reserviert Tickets atomar per Redis-Lua-Skript: dekrementiere nur, wenn `available > 0`, sonst liefere sofort Sold-Out ohne Counter-Aenderung.
+- **Begruendung:** Striktere Sold-Out-Korrektheit unter hoher Konkurrenz, kein temporaer negativer Zaehlerstand und keine unnoetige Kompensationsoperation im Konfliktfall.
+- **Umsetzung:** `apps/api/src/routes/api/tickets/buy.ts` nutzt `EVAL` fuer Check+Decrement in einem atomaren Redis-Schritt.
+
 ---
 
 ## ADR-006: Prometheus + Grafana für Monitoring
