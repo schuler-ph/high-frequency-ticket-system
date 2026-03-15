@@ -104,6 +104,13 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Begruendung:** Klare Isolation pro Event, korrekte Availability-Reads bei Multi-Event-Szenarien, und weniger Risiko fuer Key-Kollisionen.
 - **Umsetzung:** API nutzt ab sofort event-spezifische Keys in Buy-/Availability-/Reset-Flow.
 
+### Update 2026-03-15: Zentrales Redis-Key-Naming-Utility
+
+- **Kontext:** Redis-Key-Strings wurden initial service-lokal gepflegt. Dadurch steigt bei weiteren Flows (z.B. Kompensation im Worker) das Risiko fuer Tippfehler und Drift zwischen API und Worker.
+- **Entscheidung:** Redis-Key-Namen werden zentral in `@repo/types/redis-keys` definiert und in den Services importiert, statt lokal als String-Literale gepflegt.
+- **Begruendung:** Ein gemeinsamer, typisierter Einstiegspunkt reduziert Drift, vereinfacht Refactorings und erzwingt konsistente Key-Schemata ueber Service-Grenzen hinweg.
+- **Umsetzung:** Shared Utility in `packages/types/src/redis-keys.ts`; API-Routen verwenden den Import aus `@repo/types/redis-keys`.
+
 ---
 
 ## ADR-006: Prometheus + Grafana für Monitoring

@@ -9,7 +9,7 @@ import {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { ticketRedisKeys } from "../../../lib/redis-keys.js";
+import { ticketRedisKeys } from "@repo/types/redis-keys";
 
 type TicketRedisClient = {
   decr: (key: string) => Promise<number>;

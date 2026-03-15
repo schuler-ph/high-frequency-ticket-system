@@ -6,7 +6,8 @@
   "exports": {
     "./tickets": "./src/tickets.ts",
     "./errors": "./src/errors.ts",
-    "./health": "./src/health.ts"
+    "./health": "./src/health.ts",
+    "./redis-keys": "./src/redis-keys.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
