@@ -6,26 +6,27 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der Stelle in `docs/TODO.md`, in der die Umsetzung erledigt wurde oder geplant ist.
 
-| ADR                                                  | Status           | TODO-Abbildung                                                                                             |
-| ---------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| ADR-001 Monorepo mit Turborepo                       | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                    |
-| ADR-002 Fastify statt Express                        | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                           |
-| ADR-003 Drizzle ORM statt Prisma                     | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                    |
-| ADR-004 Asynchrone Writes über Pub/Sub               | Teilweise fertig | Phase 3 Buy-Flow erledigt; ACK/NACK-Regeln dokumentiert und getestet; weitere Härtung in Phase 3.5 geplant |
-| ADR-005 Redis als Read-Cache                         | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant                |
-| ADR-006 Prometheus + Grafana                         | Geplant          | Phase 4.5 (Monitoring & Observability)                                                                     |
-| ADR-007 GitHub Actions für CI/CD                     | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                              |
-| ADR-008 Zod für Validation & DTOs                    | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                          |
-| ADR-009 Husky für Git Hooks                          | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                  |
-| ADR-010 Terraform für IaC                            | Geplant          | Phase 5 (Cloud Deployment)                                                                                 |
-| ADR-011 Capacity Model vs. Pre-generated Tickets     | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                                |
-| ADR-012 Guest Checkout                               | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                    |
-| ADR-013 Payment Flow Mocking                         | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                                |
-| ADR-014 Cloud Provider GCP                           | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                       |
-| ADR-015 Custom Error Classes & Secure Error Handling | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                           |
-| ADR-016 GCP-ready Structured Logging mit Pino        | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                  |
-| ADR-017 Order-Status via Polling                     | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                     |
-| ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                     |
+| ADR                                                  | Status           | TODO-Abbildung                                                                                                  |
+| ---------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| ADR-001 Monorepo mit Turborepo                       | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                         |
+| ADR-002 Fastify statt Express                        | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                |
+| ADR-003 Drizzle ORM statt Prisma                     | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                         |
+| ADR-004 Asynchrone Writes über Pub/Sub               | Teilweise fertig | Phase 3 Buy-Flow erledigt; ACK/NACK-Regeln dokumentiert und getestet; weitere Härtung in Phase 3.5 geplant      |
+| ADR-005 Redis als Read-Cache                         | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant                     |
+| ADR-006 Prometheus + Grafana                         | Geplant          | Phase 4.5 (Monitoring & Observability)                                                                          |
+| ADR-007 GitHub Actions für CI/CD                     | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                   |
+| ADR-008 Zod für Validation & DTOs                    | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                               |
+| ADR-009 Husky für Git Hooks                          | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                       |
+| ADR-010 Terraform für IaC                            | Geplant          | Phase 5 (Cloud Deployment)                                                                                      |
+| ADR-011 Capacity Model vs. Pre-generated Tickets     | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                                     |
+| ADR-012 Guest Checkout                               | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                         |
+| ADR-013 Payment Flow Mocking                         | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                                     |
+| ADR-014 Cloud Provider GCP                           | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                            |
+| ADR-015 Custom Error Classes & Secure Error Handling | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                |
+| ADR-016 GCP-ready Structured Logging mit Pino        | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                       |
+| ADR-017 Order-Status via Polling                     | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                          |
+| ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                          |
+| ADR-019 TypeScript CLI via tsgo                      | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen |
 
 ### Status-Definitionen
 
@@ -275,3 +276,17 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - **Entscheidung:** Der Worker ruft eine PostgreSQL-Function `buy_ticket(event_id, first_name, last_name)` auf.
   - **Begruendung:** Die DB kapselt die gesamte Write-Logik in einer atomaren Operation. Das reduziert Roundtrips und vereinfacht den Worker-Code.
   - **Alternativen:** Drizzle-Transaktion im Worker (mehr ORM-Code, gleiche Semantik), separate Stored Procedures pro Schritt (mehr Komplexitaet).
+
+---
+
+## ADR-019: TypeScript CLI via tsgo
+
+- **Datum:** 2026-03-21
+- **Kontext:** Monorepo-Builds und Typechecks laufen bisher ueber `tsc` und zeigen bei Full-Runs vermeidbare Laufzeitkosten. Das Projekt nutzt bereits `@typescript/native-preview` und will die Compiler-CLI schrittweise auf `tsgo` migrieren.
+- **Entscheidung:** Direkte `tsc`-Aufrufe in Workspace-Skripten werden weitgehend durch `tsgo` ersetzt (`build`, `check-types`, Teile von `test` und `watch`).
+- **Begruendung:** `tsgo` ist kompatibel zum bisherigen CLI-Flow und reduziert die Dauer von uncacheten Full-Builds. Die Umstellung erfolgt inkrementell, um Risiko in Dev-Watch-Flows klein zu halten. Eine temporaere Ausnahme bleibt fuer `apps/web` `check-types`, weil Side-Effect-CSS-Imports (`./globals.css`) im aktuellen Preview-Stand noch nicht sauber aufgeloest werden.
+- **Alternativen:**
+  - Bei `tsc` bleiben (kein Performance-Gewinn in CLI-Builds).
+  - Big-Bang-Migration inklusive aller Watch/Restart-Workflows (hoeheres Integrationsrisiko).
+- **Status:** Teilweise fertig
+- **TODO-Mapping:** `docs/TODO.md` Phase 1 Tooling (`tsc`-CLI weitgehend migriert, Ausnahmen fuer Web-Checktypes und `tsc-watch` offen)

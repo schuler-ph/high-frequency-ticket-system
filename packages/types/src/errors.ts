@@ -1,4 +1,11 @@
 // Base application error extending the standard Error
+const errorWithCaptureStackTrace = Error as ErrorConstructor & {
+  captureStackTrace?: (
+    targetObject: object,
+    constructorOpt?: abstract new (...args: never[]) => object,
+  ) => void;
+};
+
 export abstract class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
@@ -8,7 +15,10 @@ export abstract class AppError extends Error {
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.isOperational = isOperational; // true = predictable error, false = internal bug
-    Error.captureStackTrace(this, this.constructor);
+    errorWithCaptureStackTrace.captureStackTrace?.(
+      this,
+      this.constructor as abstract new (...args: never[]) => object,
+    );
   }
 }
 

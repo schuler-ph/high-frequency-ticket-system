@@ -8,13 +8,13 @@
     "test": "test"
   },
   "scripts": {
-    "test": "pnpm run build && tsc -p test/tsconfig.json && c8 node --loader ts-node/esm --test \"test/**/*.ts\"",
+    "test": "pnpm run build && tsgo -p test/tsconfig.json && c8 node --loader ts-node/esm --test \"test/**/*.ts\"",
     "start": "pnpm run build && fastify start -l info -p 10003 dist/app.js",
-    "build": "pnpm --filter @repo/db run build && tsc",
-    "watch": "tsc -w",
+    "build": "pnpm --filter @repo/db run build && tsgo",
+    "watch": "tsgo -w",
     "dev": "tsc-watch --onSuccess \"pnpm run dev:start\"",
     "dev:start": "fastify start -P -l info -p 10003 dist/app.js",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsgo --noEmit",
     "lint": "eslint . --max-warnings 0"
   },
   "keywords": [],

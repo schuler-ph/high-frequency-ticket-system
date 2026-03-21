@@ -17,6 +17,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Repository Strategy:** Monorepo (Turborepo)
 - **Package Manager:** pnpm (v10+)
 - **Language:** TypeScript (Fullstack, 100%)
+- **TypeScript CLI Compiler:** `tsgo` via `@typescript/native-preview` (transition from `tsc`, mit temporaerer Ausnahme fuer `apps/web` `check-types`)
 - **Frontend:** Next.js, Tailwind CSS
 - **Backend Runtime:** Node.js (v20+)
 - **Backend Framework:** Fastify (API Gateway & Worker Services)

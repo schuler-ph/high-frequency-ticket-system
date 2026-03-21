@@ -14,14 +14,14 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsgo",
     "seed": "node --import tsx src/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:test": "node --import tsx --test test/**/*.test.ts",
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsgo --noEmit"
   },
   "dependencies": {
     "@repo/env": "workspace:*",
