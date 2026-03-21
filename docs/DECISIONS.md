@@ -98,6 +98,19 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/plugins/redis.ts`
   - `apps/worker/test/routes/pubsub-listener.test.ts`
 
+### Update 2026-03-21: Worker-Idempotenz via `orderId`
+
+- **Kontext:** Pub/Sub liefert Nachrichten mindestens einmal aus. Bei Redelivery derselben `orderId` darf der Worker keinen zweiten DB-Write ausfuehren.
+- **Entscheidung:** Der Worker verwendet Redis-Keys pro `eventId` + `orderId` fuer Idempotenz:
+  - `processing`: kurzlebiger Lock waehrend aktiver Verarbeitung
+  - `processed`: Marker fuer bereits final verarbeitete Orders
+- **Begruendung:** Redeliveries mit vorhandenem `processed`-Marker werden sofort ge-ACKt, ohne erneuten DB-Aufruf. Gleichzeitige Zustellungen derselben Order konkurrieren ueber den `processing`-Lock; nicht gewinnende Zustellungen werden ge-NACKt und spaeter erneut zugestellt.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts`
+  - `packages/env/src/index.ts`
+  - `apps/worker/src/routes/pubsub-listener.ts`
+  - `apps/worker/test/routes/pubsub-listener.test.ts`
+
 ---
 
 ## ADR-005: Redis als Read-Cache

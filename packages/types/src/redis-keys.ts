@@ -3,4 +3,8 @@ export const ticketRedisKeys = (eventId: string) => ({
   available: `tickets:event:${eventId}:available`,
   reservation: (orderId: string) =>
     `tickets:event:${eventId}:reservation:${orderId}`,
+  processing: (orderId: string) =>
+    `tickets:event:${eventId}:processing:${orderId}`,
+  processed: (orderId: string) =>
+    `tickets:event:${eventId}:processed:${orderId}`,
 });

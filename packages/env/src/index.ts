@@ -19,6 +19,16 @@ export const env = createEnv({
       .int()
       .positive()
       .default(120),
+    REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60),
+    REDIS_WORKER_PROCESSED_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(86400),
   },
 
   /**

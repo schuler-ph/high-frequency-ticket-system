@@ -4,6 +4,7 @@ import type { FastifyPluginAsync } from "fastify";
 import type { FastifyBaseLogger } from "fastify";
 import { sql } from "drizzle-orm";
 import { db } from "@repo/db";
+import { env } from "@repo/env";
 import { buyTicketEventSchema, type BuyTicketEvent } from "@repo/types/tickets";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
 import type {} from "../plugins/pubsub.js";
@@ -25,6 +26,15 @@ type BuyTicketPayload = BuyTicketEvent;
 type CompensationResult = "released" | "already-released";
 
 type TicketRedisClient = {
+  get: (key: string) => Promise<string | null>;
+  set: (
+    key: string,
+    value: string,
+    mode: "EX",
+    seconds: number,
+    condition?: "NX",
+  ) => Promise<"OK" | null>;
+  del: (key: string) => Promise<number>;
   eval: (
     script: string,
     numKeys: number,
@@ -38,6 +48,10 @@ export type BuyTicketMessageHandlerDeps = {
   compensateReservation: (
     payload: BuyTicketPayload,
   ) => Promise<CompensationResult>;
+  isOrderProcessed: (payload: BuyTicketPayload) => Promise<boolean>;
+  tryAcquireProcessingLock: (payload: BuyTicketPayload) => Promise<boolean>;
+  markOrderProcessed: (payload: BuyTicketPayload) => Promise<void>;
+  releaseProcessingLock: (payload: BuyTicketPayload) => Promise<void>;
   sleep?: (ms: number) => Promise<unknown>;
 };
 
@@ -86,10 +100,49 @@ export async function handleBuyTicketMessage(
     "Received BuyTicketEvent",
   );
 
-  await (deps.sleep ?? setTimeout)(1000);
+  if (await deps.isOrderProcessed(parsed.data)) {
+    deps.logger.info(
+      {
+        messageId: message.id,
+        eventId: parsed.data.eventId,
+        orderId: parsed.data.orderId,
+      },
+      "Skipping already processed BuyTicketEvent",
+    );
+    message.ack();
+    return;
+  }
+
+  const processingLockAcquired = await deps.tryAcquireProcessingLock(
+    parsed.data,
+  );
+
+  if (!processingLockAcquired) {
+    deps.logger.warn(
+      {
+        messageId: message.id,
+        eventId: parsed.data.eventId,
+        orderId: parsed.data.orderId,
+      },
+      "BuyTicketEvent is already being processed, nacking for redelivery",
+    );
+    message.nack();
+    return;
+  }
 
   try {
+    await (deps.sleep ?? setTimeout)(1000);
+
     await deps.executeBuyTicket(parsed.data);
+    await deps.markOrderProcessed(parsed.data);
+
+    deps.logger.info(
+      { messageId: message.id, eventId: parsed.data.eventId },
+      "Successfully processed BuyTicketEvent",
+    );
+
+    message.ack();
+    return;
   } catch (error) {
     if (getCauseCode(error) === "P0001") {
       try {
@@ -121,6 +174,23 @@ export async function handleBuyTicketMessage(
         return;
       }
 
+      try {
+        await deps.markOrderProcessed(parsed.data);
+      } catch (markProcessedError) {
+        deps.logger.error(
+          {
+            messageId: message.id,
+            eventId: parsed.data.eventId,
+            orderId: parsed.data.orderId,
+            error,
+            markProcessedError,
+          },
+          "Failed to mark terminal BuyTicketEvent as processed",
+        );
+        message.nack();
+        return;
+      }
+
       deps.logger.warn(
         {
           messageId: message.id,
@@ -140,14 +210,21 @@ export async function handleBuyTicketMessage(
     );
     message.nack();
     return;
+  } finally {
+    try {
+      await deps.releaseProcessingLock(parsed.data);
+    } catch (lockReleaseError) {
+      deps.logger.error(
+        {
+          messageId: message.id,
+          eventId: parsed.data.eventId,
+          orderId: parsed.data.orderId,
+          lockReleaseError,
+        },
+        "Failed to release BuyTicketEvent processing lock",
+      );
+    }
   }
-
-  deps.logger.info(
-    { messageId: message.id, eventId: parsed.data.eventId },
-    "Successfully processed BuyTicketEvent",
-  );
-
-  message.ack();
 }
 
 const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
@@ -172,6 +249,39 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
         return Number(releaseResult) === 1 ? "released" : "already-released";
+      },
+      isOrderProcessed: async (payload) => {
+        const keys = ticketRedisKeys(payload.eventId);
+        return (await redis.get(keys.processed(payload.orderId))) !== null;
+      },
+      tryAcquireProcessingLock: async (payload) => {
+        const keys = ticketRedisKeys(payload.eventId);
+        const lockResult = await redis.set(
+          keys.processing(payload.orderId),
+          payload.orderId,
+          "EX",
+          env.REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS,
+          "NX",
+        );
+
+        return lockResult === "OK";
+      },
+      markOrderProcessed: async (payload) => {
+        const keys = ticketRedisKeys(payload.eventId);
+        const setResult = await redis.set(
+          keys.processed(payload.orderId),
+          payload.orderId,
+          "EX",
+          env.REDIS_WORKER_PROCESSED_TTL_SECONDS,
+        );
+
+        if (setResult !== "OK") {
+          throw new Error("Failed to write processed marker");
+        }
+      },
+      releaseProcessingLock: async (payload) => {
+        const keys = ticketRedisKeys(payload.eventId);
+        await redis.del(keys.processing(payload.orderId));
       },
     });
   });

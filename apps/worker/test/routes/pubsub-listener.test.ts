@@ -49,12 +49,18 @@ function createDeps(
   executeBuyTicket: BuyTicketMessageHandlerDeps["executeBuyTicket"],
   compensateReservation: BuyTicketMessageHandlerDeps["compensateReservation"] = async () =>
     "already-released",
+  overrides: Partial<BuyTicketMessageHandlerDeps> = {},
 ): BuyTicketMessageHandlerDeps {
   return {
     logger: noopLogger,
     executeBuyTicket,
     compensateReservation,
+    isOrderProcessed: async () => false,
+    tryAcquireProcessingLock: async () => true,
+    markOrderProcessed: async () => undefined,
+    releaseProcessingLock: async () => undefined,
     sleep: async () => undefined,
+    ...overrides,
   };
 }
 
@@ -70,17 +76,71 @@ function createValidPayload(): BuyTicketEvent {
 void test("pubsub-listener ACKs successful messages", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
+  let markedProcessed = 0;
 
   await handleBuyTicketMessage(
     message,
-    createDeps(async () => {
-      executeCalls += 1;
-    }),
+    createDeps(
+      async () => {
+        executeCalls += 1;
+      },
+      async () => "already-released",
+      {
+        markOrderProcessed: async () => {
+          markedProcessed += 1;
+        },
+      },
+    ),
   );
 
   assert.equal(executeCalls, 1);
+  assert.equal(markedProcessed, 1);
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
+});
+
+void test("pubsub-listener ACKs and skips duplicate already-processed messages", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+  let executeCalls = 0;
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => {
+        executeCalls += 1;
+      },
+      async () => "already-released",
+      {
+        isOrderProcessed: async () => true,
+      },
+    ),
+  );
+
+  assert.equal(executeCalls, 0);
+  assert.equal(message.acked, true);
+  assert.equal(message.nacked, false);
+});
+
+void test("pubsub-listener NACKs when processing lock cannot be acquired", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+  let executeCalls = 0;
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => {
+        executeCalls += 1;
+      },
+      async () => "already-released",
+      {
+        tryAcquireProcessingLock: async () => false,
+      },
+    ),
+  );
+
+  assert.equal(executeCalls, 0);
+  assert.equal(message.acked, false);
+  assert.equal(message.nacked, true);
 });
 
 void test("pubsub-listener NACKs messages when DB execution fails", async () => {
@@ -101,6 +161,7 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   const payload = createValidPayload();
   const message = createMessage(JSON.stringify(payload));
   let compensationPayload: BuyTicketEvent | undefined;
+  let markedProcessed = 0;
 
   await handleBuyTicketMessage(
     message,
@@ -113,10 +174,16 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
         compensationPayload = receivedPayload;
         return "released";
       },
+      {
+        markOrderProcessed: async () => {
+          markedProcessed += 1;
+        },
+      },
     ),
   );
 
   assert.deepEqual(compensationPayload, payload);
+  assert.equal(markedProcessed, 1);
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
 });
