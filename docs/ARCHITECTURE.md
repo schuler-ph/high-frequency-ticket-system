@@ -52,12 +52,14 @@ flowchart TD
 2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
 3. API Gateway prüft Redis: tickets:event:{eventId}:available > 0 ?
    - Umsetzung: atomar via Redis Lua (`EVAL`) in einem Schritt (Check + Decrement), damit nur bei `available > 0` reduziert wird.
-4. ✅ Ja → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted
-   ❌ Nein → HTTP 409 Conflict (Sold Out)
-5. Worker konsumiert BuyTicketEvent aus Pub/Sub
-6. Worker simuliert Payment-Processing (Sleep 1s)
-7. Worker ruft SQL-Function auf: `buy_ticket(event_id, first_name, last_name)` (INSERT + sold_count Update)
-8. Nutzer pollt GET /api/orders/{orderId} für finalen Status
+4. ✅ Ja → API legt Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL in Redis an.
+5. ✅ Reservation gesetzt → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
+   ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out)
+   ❌ Publish-Fehler bei Schritt 5 → API löscht Reservation-Key und rollt `available` per `INCR` zurück.
+6. Worker konsumiert BuyTicketEvent aus Pub/Sub
+7. Worker simuliert Payment-Processing (Sleep 1s)
+8. Worker ruft SQL-Function auf: `buy_ticket(event_id, first_name, last_name)` (INSERT + sold_count Update)
+9. Nutzer pollt GET /api/orders/{orderId} für finalen Status
 
 ## Worker ACK/NACK-Regeln (Stand 2026-03-13)
 

@@ -25,8 +25,6 @@
 - [x] Caching in GitHub Actions aktivieren
 - [x] Erstelle `@repo/env` Paket mit `@t3-oss/env-core` & Zod für strikte Laufzeit-Konfigurationsvalidierung.
 - [x] Migriere direkte `tsc`-CLI-Aufrufe in Workspace-Skripten (`build`, `check-types`, Teile von `test`, `watch`) auf `tsgo`.
-- [ ] Schließe die letzte Ausnahme in `apps/web` (`check-types`) auf `tsgo`, sobald Side-Effect-CSS-Imports (`./globals.css`) im Native-Preview kompatibel sind.
-- [ ] Migriere Dev-Watch-Restart-Flow von `tsc-watch` auf einen `tsgo`-basierten Restart-Workflow (API + Worker).
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
@@ -70,8 +68,9 @@
 ### Reservation-Flow in der API
 
 - [x] Implementiere atomare Reservierung in Redis (decrement nur wenn `available > 0`).
-- [ ] Speichere pro Kauf eine Reservation (`orderId`) mit TTL in Redis.
-- [ ] Rolle Reservation sauber zurück, wenn Pub/Sub Publish fehlschlägt.
+- [x] Erweitere das zentrale Redis-Key-Naming um Reservation-Keys pro `eventId` + `orderId`.
+- [x] Speichere pro Kauf eine Reservation (`orderId`) mit TTL in Redis.
+- [x] Rolle Reservation sauber zurück, wenn Pub/Sub Publish fehlschlägt.
 
 ### Worker Finalisierung & Kompensation
 
@@ -144,3 +143,5 @@
 - [ ] Integriere den k6 Lasttest als Quality Gate in GitHub Actions (Fail bei großer Latenz oder hohen Error-Rates).
 - [ ] Simuliere Chaos Engineering (z.B. Redis oder Worker Ausfälle während des Lasttests) um zu testen, ob das System graceful degradiert.
 - [ ] Definiere Polling-Strategie fuer Order-Status (Backoff + Jitter, optional Long-Polling) zur Load-Reduktion.
+- [ ] Schließe die letzte Ausnahme in `apps/web` (`check-types`) auf `tsgo`, sobald Side-Effect-CSS-Imports (`./globals.css`) im Native-Preview kompatibel sind.
+- [ ] Migriere Dev-Watch-Restart-Flow von `tsc-watch` auf einen `tsgo`-basierten Restart-Workflow (API + Worker).

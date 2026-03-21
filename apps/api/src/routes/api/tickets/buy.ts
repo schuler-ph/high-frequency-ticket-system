@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { env } from "@repo/env";
 import {
   buyTicketBodySchema,
   buyTicketResponseSchema,
@@ -26,6 +27,13 @@ type TicketRedisClient = {
     numKeys: number,
     ...args: string[]
   ) => Promise<number | string>;
+  set: (
+    key: string,
+    value: string,
+    mode: "EX",
+    seconds: number,
+  ) => Promise<"OK" | null>;
+  del: (key: string) => Promise<number>;
   incr: (key: string) => Promise<number>;
 };
 
@@ -63,15 +71,23 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       }
 
       const orderId = randomUUID();
+      const reservationKey = keys.reservation(orderId);
 
       try {
+        await redis.set(
+          reservationKey,
+          orderId,
+          "EX",
+          env.REDIS_RESERVATION_TTL_SECONDS,
+        );
+
         await pubsubPublisher.publishBuyTicket({
           orderId,
           eventId: req.params.eventId,
           ...req.body,
         });
       } catch (error) {
-        // Rollback the reservation when publish fails.
+        await redis.del(reservationKey);
         await redis.incr(keys.available);
         throw error;
       }

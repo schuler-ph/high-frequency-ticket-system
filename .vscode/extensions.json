@@ -6,6 +6,7 @@
     "googlecloudtools.cloudcode",
     "esbenp.prettier-vscode",
     "bierner.markdown-mermaid",
-    "firsttris.vscode-jest-runner"
+    "firsttris.vscode-jest-runner",
+    "ms-azuretools.vscode-containers"
   ]
 }

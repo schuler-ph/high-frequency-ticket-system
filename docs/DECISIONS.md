@@ -119,6 +119,17 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Begruendung:** Striktere Sold-Out-Korrektheit unter hoher Konkurrenz, kein temporaer negativer Zaehlerstand und keine unnoetige Kompensationsoperation im Konfliktfall.
 - **Umsetzung:** `apps/api/src/routes/api/tickets/buy.ts` nutzt `EVAL` fuer Check+Decrement in einem atomaren Redis-Schritt.
 
+### Update 2026-03-21: Reservation-Key pro Order mit TTL
+
+- **Kontext:** Nach erfolgreicher atomarer Reservierung musste der temporäre Reservierungszustand pro Kauf nachvollziehbar in Redis gehalten werden, um spaetere Kompensation/Reconcile konsistent aufbauen zu koennen.
+- **Entscheidung:** Die API schreibt pro Kauf einen Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL in Redis.
+- **Begruendung:** Die explizite Reservation entkoppelt temporaeren Kaufzustand von persistenten Orders und laesst stale Reservierungen automatisch auslaufen. Bei Publish-Fehlern wird die Reservation sofort geloescht und der Availability-Counter per `INCR` kompensiert.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts`
+  - `packages/env/src/index.ts`
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/api/test/routes/tickets.buy.test.ts`
+
 ---
 
 ## ADR-006: Prometheus + Grafana für Monitoring

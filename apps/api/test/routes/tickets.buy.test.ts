@@ -30,11 +30,20 @@ type RedisMock = {
     numKeys: number,
     ...args: string[]
   ) => Promise<number | string>;
+  set: (
+    key: string,
+    value: string,
+    mode: "EX",
+    seconds: number,
+  ) => Promise<"OK" | null>;
+  del: (key: string) => Promise<number>;
   incr: (key: string) => Promise<number>;
 };
 
 const ticketAvailabilityKey = (eventId: string) =>
   `tickets:event:${eventId}:available`;
+const ticketReservationKey = (eventId: string, orderId: string) =>
+  `tickets:event:${eventId}:reservation:${orderId}`;
 
 async function setupBuyRouteTest(
   redis: RedisMock,
@@ -58,8 +67,11 @@ async function setupBuyRouteTest(
 
 void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", async () => {
   let evalCalls = 0;
+  let setCalls = 0;
+  let delCalls = 0;
   let incrCalls = 0;
   let publishedPayload: unknown;
+  let reservationOrderId: string | undefined;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
@@ -69,6 +81,18 @@ void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", asyn
         assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
         evalCalls += 1;
         return 999_999;
+      },
+      async set(key: string, value: string, mode: "EX", seconds: number) {
+        assert.equal(mode, "EX");
+        assert.equal(seconds, 120);
+        reservationOrderId = value;
+        assert.equal(key, ticketReservationKey(eventId, value));
+        setCalls += 1;
+        return "OK";
+      },
+      async del(_key: string) {
+        delCalls += 1;
+        return 1;
       },
       async incr(key: string) {
         assert.equal(key, ticketAvailabilityKey(eventId));
@@ -99,7 +123,10 @@ void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", asyn
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   );
   assert.equal(evalCalls, 1);
+  assert.equal(setCalls, 1);
+  assert.equal(delCalls, 0);
   assert.equal(incrCalls, 0);
+  assert.equal(reservationOrderId, body.orderId);
   assert.deepEqual(publishedPayload, {
     orderId: body.orderId,
     eventId,
@@ -112,6 +139,8 @@ void test("POST /api/tickets/:eventId/buy returns 202 and publishes event", asyn
 
 void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () => {
   let evalCalls = 0;
+  let setCalls = 0;
+  let delCalls = 0;
   let incrCalls = 0;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
@@ -122,6 +151,14 @@ void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () =
         assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
         evalCalls += 1;
         return -1;
+      },
+      async set(_key: string, _value: string, _mode: "EX", _seconds: number) {
+        setCalls += 1;
+        return "OK";
+      },
+      async del(_key: string) {
+        delCalls += 1;
+        return 1;
       },
       async incr(key: string) {
         assert.equal(key, ticketAvailabilityKey(eventId));
@@ -147,6 +184,8 @@ void test("POST /api/tickets/:eventId/buy returns 409 when sold out", async () =
   const body = JSON.parse(res.body) as { message: string };
   assert.equal(body.message, "Tickets sold out");
   assert.equal(evalCalls, 1);
+  assert.equal(setCalls, 0);
+  assert.equal(delCalls, 0);
   assert.equal(incrCalls, 0);
 
   await fastify.close();
@@ -158,6 +197,12 @@ void test("POST /api/tickets/:eventId/buy validates BuyTicketRequest body", asyn
     {
       async eval(_script: string, _numKeys: number, ..._args: string[]) {
         return 999_999;
+      },
+      async set(_key: string, _value: string, _mode: "EX", _seconds: number) {
+        return "OK";
+      },
+      async del(_key: string) {
+        return 1;
       },
       async incr(_key: string) {
         return 1_000_000;
@@ -181,7 +226,9 @@ void test("POST /api/tickets/:eventId/buy validates BuyTicketRequest body", asyn
 });
 
 void test("POST /api/tickets/:eventId/buy rolls back reservation on publish failure", async () => {
+  let delCalls = 0;
   let incrCalls = 0;
+  let reservationOrderId: string | undefined;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const fastify = await setupBuyRouteTest(
@@ -190,6 +237,18 @@ void test("POST /api/tickets/:eventId/buy rolls back reservation on publish fail
         assert.equal(numKeys, 1);
         assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
         return 999_999;
+      },
+      async set(key: string, value: string, mode: "EX", seconds: number) {
+        assert.equal(mode, "EX");
+        assert.equal(seconds, 120);
+        reservationOrderId = value;
+        assert.equal(key, ticketReservationKey(eventId, value));
+        return "OK";
+      },
+      async del(key: string) {
+        assert.equal(key, ticketReservationKey(eventId, reservationOrderId!));
+        delCalls += 1;
+        return 1;
       },
       async incr(key: string) {
         assert.equal(key, ticketAvailabilityKey(eventId));
@@ -212,6 +271,7 @@ void test("POST /api/tickets/:eventId/buy rolls back reservation on publish fail
   });
 
   assert.equal(res.statusCode, 500);
+  assert.equal(delCalls, 1);
   assert.equal(incrCalls, 1);
 
   await fastify.close();

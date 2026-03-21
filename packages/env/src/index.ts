@@ -14,6 +14,11 @@ export const env = createEnv({
     PUBSUB_EMULATOR_HOST: z.string().min(1),
     PUBSUB_TOPIC_BUY_TICKET: z.string().min(1),
     PUBSUB_SUBSCRIPTION_BUY_TICKET: z.string().min(1),
+    REDIS_RESERVATION_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(120),
   },
 
   /**
