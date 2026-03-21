@@ -75,7 +75,7 @@
 ### Worker Finalisierung & Kompensation
 
 - [x] Validiere und dokumentiere ACK/NACK-Regeln (transienter Fehler = NACK, permanenter Business-Fehler = ACK).
-- [ ] Füge Kompensation hinzu: bei terminalem Fehler Reservation freigeben (Redis `INCR`).
+- [x] Füge Kompensation hinzu: bei terminalem Fehler Reservation freigeben (Redis `INCR`).
 - [ ] Mache Worker-Processing idempotent über `orderId` (keine doppelte DB-Verarbeitung bei Redelivery).
 
 ### Orders ↔ Tickets Verknüpfung

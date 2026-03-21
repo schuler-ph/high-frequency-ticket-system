@@ -4,6 +4,7 @@ import {
   buyTicketBodySchema,
   buyTicketResponseSchema,
   ticketEventIdSchema,
+  type BuyTicketEvent,
 } from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
 import {
@@ -38,7 +39,7 @@ type TicketRedisClient = {
 };
 
 type TicketPublisher = {
-  publishBuyTicket: (payload: unknown) => Promise<string>;
+  publishBuyTicket: (payload: BuyTicketEvent) => Promise<string>;
 };
 
 const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {

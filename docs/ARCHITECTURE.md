@@ -59,19 +59,21 @@ flowchart TD
 6. Worker konsumiert BuyTicketEvent aus Pub/Sub
 7. Worker simuliert Payment-Processing (Sleep 1s)
 8. Worker ruft SQL-Function auf: `buy_ticket(event_id, first_name, last_name)` (INSERT + sold_count Update)
+   - Bei terminalem Business-Fehler (z.B. Event nicht gefunden) kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`) und ACKt die Nachricht.
 9. Nutzer pollt GET /api/orders/{orderId} für finalen Status
 
-## Worker ACK/NACK-Regeln (Stand 2026-03-13)
+## Worker ACK/NACK-Regeln (Stand 2026-03-21)
 
 Der Worker behandelt Pub/Sub-Nachrichten mit folgenden Regeln:
 
-| Fall                                                      | Verhalten | Begründung                                                                          |
-| --------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------- |
-| Erfolgreiche Verarbeitung (`buy_ticket(...)` erfolgreich) | ACK       | Nachricht ist final verarbeitet, keine Redelivery nötig                             |
-| Ungültiges JSON im Payload                                | NACK      | Technischer Fehler im Message-Format, Retry/Redelivery möglich                      |
-| Payload verletzt Zod-Schema                               | NACK      | Nachricht ist im aktuellen Flow nicht verarbeitbar; aktuell als Retry klassifiziert |
-| Technischer Fehler beim DB-Write                          | NACK      | Transienter Infrastrukturfehler, Redelivery soll erneut versuchen                   |
-| Business-Fehler `P0001` (Event nicht gefunden)            | ACK       | Terminaler Fachfehler, Retry würde deterministisch erneut fehlschlagen              |
+| Fall                                                                                               | Verhalten | Begründung                                                                            |
+| -------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------- |
+| Erfolgreiche Verarbeitung (`buy_ticket(...)` erfolgreich)                                          | ACK       | Nachricht ist final verarbeitet, keine Redelivery nötig                               |
+| Ungültiges JSON im Payload                                                                         | NACK      | Technischer Fehler im Message-Format, Retry/Redelivery möglich                        |
+| Payload verletzt Zod-Schema                                                                        | NACK      | Nachricht ist im aktuellen Flow nicht verarbeitbar; aktuell als Retry klassifiziert   |
+| Technischer Fehler beim DB-Write                                                                   | NACK      | Transienter Infrastrukturfehler, Redelivery soll erneut versuchen                     |
+| Business-Fehler `P0001` (Event nicht gefunden) + Kompensation erfolgreich/optional bereits erfolgt | ACK       | Terminaler Fachfehler; Reservation wurde freigegeben oder war bereits freigegeben     |
+| Business-Fehler `P0001` (Event nicht gefunden) + Kompensation fehlgeschlagen                       | NACK      | Reservation konnte nicht sicher freigegeben werden; Retry soll Kompensation nachholen |
 
 Abgesichert durch Tests in:
 

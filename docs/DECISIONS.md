@@ -88,6 +88,16 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/test/routes/pubsub-listener.test.ts`
   - `apps/worker/test/plugins/pubsub.test.ts`
 
+### Update 2026-03-21: Kompensation bei terminalem Worker-Fehler
+
+- **Kontext:** Bei terminalen Business-Fehlern (z.B. `P0001` Event nicht gefunden) darf die Nachricht nicht erneut dauerhaft redelivered werden, gleichzeitig muss eine zuvor in der API gesetzte Reservation korrekt freigegeben werden.
+- **Entscheidung:** Der Worker fuehrt im terminalen Fehlerpfad eine atomare Redis-Kompensation aus (`DEL reservationKey` + `INCR available`) und ACKt nur bei erfolgreicher (oder bereits erfolgter) Freigabe.
+- **Begruendung:** So bleibt der Availability-Counter konsistent ohne Double-Increment bei Redelivery. Falls die Kompensation technisch fehlschlaegt, wird NACK gesendet, damit ein Retry die Freigabe nachholen kann.
+- **Umsetzung:**
+  - `apps/worker/src/routes/pubsub-listener.ts`
+  - `apps/worker/src/plugins/redis.ts`
+  - `apps/worker/test/routes/pubsub-listener.test.ts`
+
 ---
 
 ## ADR-005: Redis als Read-Cache
