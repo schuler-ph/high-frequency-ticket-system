@@ -29,4 +29,7 @@ Nutze diesen Workflow jedes Mal, wenn du eine neue Entwicklungs-Session mit dem 
 
 6. **Lokale Validierung (immer ausführen nach Code-Änderungen):**
    - Prüfe deinen geschriebenen Code, indem du `pnpm run format`, `pnpm run lint`, `pnpm run check-types` und `pnpm run test` aufrufst. Rufe alle mit "CI=1", damit man die Logs besser lesen kann.
-   - Stelle sicher, dass die Applikation fehlerfrei startet durch `pnpm run dev`.
+   - Vor `pnpm run dev` pruefe, dass die lokalen Infrastruktur-Container laufen: `hts-postgres`, `hts-redis`, `hts-pubsub`.
+   - Geeignete Checks sind `docker compose ps` oder `docker inspect -f '{{.State.Running}}' hts-postgres hts-redis hts-pubsub`.
+   - Falls Container fehlen oder gestoppt sind, starte sie zuerst mit `docker compose up -d`.
+   - Stelle danach sicher, dass die Applikation fehlerfrei startet durch `pnpm run dev`.

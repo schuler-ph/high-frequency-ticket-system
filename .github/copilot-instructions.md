@@ -18,11 +18,13 @@ Bevor du Code generierst oder Architektur-Fragen beantwortest, MUSST du deinen i
 
 - **Fastify only.** Kein Express.js. Keine Express-Patterns (z.B. `app.use()`, `req.body` ohne Schema).
 - **Drizzle Inference.** Keine manuellen Datenbank-Typen. Nutze `$inferSelect` und `$inferInsert` aus dem Drizzle-Schema.
+- **Drizzle Apply Step.** Bei jeder Schema-Aenderung in `packages/db` nicht nur `db:generate`, sondern immer auch `pnpm --filter @repo/db run db:push` gegen die Ziel-Datenbank ausfuehren und den Effekt in PostgreSQL verifizieren. Lokal ist die Standard-DB der Container `hts-postgres` mit Datenbank `high_frequency_tickets`.
 - **Zod für DTOs.** Request/Response-Typen werden aus Zod-Schemas inferiert (`z.infer<>`). Keine doppelten Typ-Deklarationen.
 - **Tailwind CSS.** Kein Frontend-Code ohne Tailwind. Keine CSS Modules, kein Styled-Components.
 - **pnpm only.** Kein npm, kein yarn. Workspace-Packages über `workspace:*` referenzieren.
 - **Async Writes.** Die API schreibt NIEMALS direkt in die Datenbank. Alle Writes gehen über Pub/Sub → Worker.
 - **Redis für Reads.** Die API liest Verfügbarkeiten ausschließlich aus Redis, nie direkt aus PostgreSQL.
+- **Dev Prerequisites.** Vor `pnpm run dev` sicherstellen, dass die lokalen Infrastruktur-Container laufen: `hts-postgres`, `hts-redis`, `hts-pubsub`. Vor dem Start mit `docker compose ps` oder `docker inspect -f '{{.State.Running}}' hts-postgres hts-redis hts-pubsub` prüfen; falls nicht alle laufen, zuerst `docker compose up -d` ausführen.
 
 ## Code-Stil
 
