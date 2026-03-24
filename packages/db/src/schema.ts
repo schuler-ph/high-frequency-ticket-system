@@ -1,10 +1,17 @@
 import {
   pgTable,
+  pgEnum,
   uuid,
   varchar,
   integer,
   timestamp,
 } from "drizzle-orm/pg-core";
+
+export const orderStatusEnum = pgEnum("order_status", [
+  "pending",
+  "completed",
+  "failed",
+]);
 
 export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -23,4 +30,14 @@ export const tickets = pgTable("tickets", {
   lastName: varchar("last_name", { length: 255 }).notNull(),
   status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id")
+    .references(() => events.id)
+    .notNull(),
+  status: orderStatusEnum("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
