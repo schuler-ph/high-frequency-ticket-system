@@ -81,7 +81,7 @@
 ### Orders ↔ Tickets Verknüpfung
 
 - [x] Definiere persistentes `orders` Datenmodell (Status: `pending|completed|failed`, Bezug zu `eventId`, Zeitstempel).
-- [ ] Speichere `orderId` aus der API dauerhaft in der Datenbank (nicht nur in Pub/Sub Payload).
+- [x] Speichere `orderId` aus der API dauerhaft in der Datenbank (nicht nur in Pub/Sub Payload).
 - [ ] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
 - [ ] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
 - [ ] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
@@ -96,7 +96,11 @@
 ### Tests & Observability für den Flow
 
 - [ ] Schreibe Integrationstests für Reserve/Publish-Rollback/Compensation (Happy + Failure Paths).
-- [ ] Ergänze Metriken: Reservierungen erstellt, Rollbacks, Kompensationen, Redis-DB-Drift.
+- [ ] Ergänze Metriken für den Order-Lifecycle: `accepted`, `pending`, `completed`, `failed`.
+- [ ] Ergänze Metriken für Reservationen und Fehlerpfade: Reservierungen erstellt, Publish-Rollbacks, Worker-Kompensationen.
+- [ ] Ergänze Metriken für Worker-Robustheit: Redeliveries, Idempotenz-Kurzschlüsse, Processing-Lock-Konflikte.
+- [ ] Messe End-to-End-Latenz von `POST /buy` bis `order completed|failed`.
+- [ ] Ergänze Metriken für Redis-DB-Drift (`available` vs. `capacity - sold_count - active_reservations`).
 - [ ] Dokumentiere den finalen End-to-End-Flow in `ARCHITECTURE.md` und ADR in `DECISIONS.md`.
 
 ## Phase 4: Interface & Testing
@@ -123,8 +127,12 @@
 - [ ] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
 - [ ] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
 - [ ] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).
+- [ ] Erstelle Grafana-Dashboard: Order Lifecycle (`accepted`, `pending`, `completed`, `failed`, Completion-Rate).
+- [ ] Erstelle Grafana-Dashboard: Order Completion Latency (`buy accepted` → `completed|failed`, p50/p95/p99).
 - [ ] Erstelle Grafana-Dashboard: Redis Performance (Hit/Miss Ratio).
 - [ ] Erstelle Grafana-Dashboard: Pub/Sub Queue Depth & Worker Processing Rate.
+- [ ] Erstelle Grafana-Dashboard: Worker Reliability (Redeliveries, Idempotenz-Hits, Processing-Lock-Konflikte, Kompensationen).
+- [ ] Erstelle Grafana-Dashboard: Reservation & Consistency (aktive Reservations, Publish-Rollbacks, Redis-DB-Drift).
 - [ ] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views.
 - [ ] Erzeuge Screenshots der Dashboards unter extremer Last für die README.
 

@@ -236,7 +236,7 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
       logger: fastify.log,
       executeBuyTicket: async (payload) => {
         await db.execute(
-          sql`SELECT buy_ticket(${payload.eventId}, ${payload.firstName}, ${payload.lastName})`,
+          sql`SELECT buy_ticket(${payload.eventId}, ${payload.orderId}, ${payload.firstName}, ${payload.lastName})`,
         );
       },
       compensateReservation: async (payload) => {

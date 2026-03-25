@@ -221,3 +221,47 @@ void test("pubsub-listener NACKs invalid JSON payloads", async () => {
   assert.equal(message.acked, false);
   assert.equal(message.nacked, true);
 });
+
+void test("pubsub-listener NACKs payloads that fail schema validation", async () => {
+  const invalidPayload = {
+    orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
+    firstName: "Max",
+    lastName: "Mustermann",
+  };
+  const message = createMessage(JSON.stringify(invalidPayload));
+  let executeCalls = 0;
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(async () => {
+      executeCalls += 1;
+    }),
+  );
+
+  assert.equal(executeCalls, 0);
+  assert.equal(message.acked, false);
+  assert.equal(message.nacked, true);
+});
+
+void test("pubsub-listener NACKs terminal P0001 error when marking processed fails", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => {
+        const cause = { code: "P0001" };
+        throw new Error("event not found", { cause });
+      },
+      async () => "released",
+      {
+        markOrderProcessed: async () => {
+          throw new Error("processed marker write failed");
+        },
+      },
+    ),
+  );
+
+  assert.equal(message.acked, false);
+  assert.equal(message.nacked, true);
+});

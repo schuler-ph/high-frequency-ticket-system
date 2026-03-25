@@ -1,11 +1,12 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import pg from "pg";
 import { env } from "@repo/env";
 import * as schema from "../src/schema.js";
-import { events, tickets } from "../src/schema.js";
+import { events, orders, tickets } from "../src/schema.js";
 
 const DATABASE_URL = env.DATABASE_URL;
 
@@ -65,5 +66,80 @@ void describe("database integration", () => {
     // cleanup
     await db.delete(tickets).where(sql`${tickets.id} = ${ticket.id}`);
     await db.delete(events).where(sql`${events.id} = ${inserted.id}`);
+  });
+
+  void it("buy_ticket should raise P0001 when event does not exist", async () => {
+    const missingEventId = randomUUID();
+    const orderId = randomUUID();
+
+    await assert.rejects(
+      async () => {
+        await db.execute(
+          sql`SELECT buy_ticket(${missingEventId}, ${orderId}, ${"Missing"}, ${"Event"})`,
+        );
+      },
+      (error: unknown) => {
+        if (!error || typeof error !== "object") {
+          return false;
+        }
+
+        const directCode =
+          "code" in error && typeof error.code === "string"
+            ? error.code
+            : undefined;
+
+        const causeCode =
+          "cause" in error &&
+          error.cause &&
+          typeof error.cause === "object" &&
+          "code" in error.cause &&
+          typeof error.cause.code === "string"
+            ? error.cause.code
+            : undefined;
+
+        return directCode === "P0001" || causeCode === "P0001";
+      },
+    );
+  });
+
+  void it("buy_ticket should be idempotent for duplicate orderId", async () => {
+    const [insertedEvent] = await db
+      .insert(events)
+      .values({
+        name: "Idempotent Order Event",
+        totalCapacity: 10,
+      })
+      .returning();
+
+    assert.ok(insertedEvent);
+    const orderId = randomUUID();
+
+    const firstCall = await db.execute(
+      sql`SELECT buy_ticket(${insertedEvent.id}, ${orderId}, ${"First"}, ${"Buyer"}) AS ticket_id`,
+    );
+    const secondCall = await db.execute(
+      sql`SELECT buy_ticket(${insertedEvent.id}, ${orderId}, ${"First"}, ${"Buyer"}) AS ticket_id`,
+    );
+
+    assert.ok(firstCall.rows[0]?.ticket_id);
+    assert.equal(secondCall.rows[0]?.ticket_id, null);
+
+    const [eventAfter] = await db
+      .select({ soldCount: events.soldCount })
+      .from(events)
+      .where(eq(events.id, insertedEvent.id));
+
+    assert.equal(eventAfter?.soldCount, 1);
+
+    const ticketsForEvent = await db
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.eventId, insertedEvent.id));
+
+    assert.equal(ticketsForEvent.length, 1);
+
+    await db.delete(tickets).where(eq(tickets.eventId, insertedEvent.id));
+    await db.delete(orders).where(eq(orders.id, orderId));
+    await db.delete(events).where(eq(events.id, insertedEvent.id));
   });
 });

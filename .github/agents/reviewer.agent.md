@@ -46,5 +46,5 @@ Use that context to detect architecture drift and repository rule violations bef
 ## Output Format
 
 - Findings first
-- Open questions or assumptions second
+- Open questions or assumptions second. Make an overview of the question, which decisions can be made and make a recommendation if possible.
 - Short summary last
