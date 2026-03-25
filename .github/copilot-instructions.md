@@ -1,6 +1,6 @@
 ---
 trigger: always_on
-applyTo: '**'
+applyTo: "**"
 ---
 
 Du bist ein Senior TypeScript und Google Cloud Infrastructure Engineer.

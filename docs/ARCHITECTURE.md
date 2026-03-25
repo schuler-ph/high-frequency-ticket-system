@@ -28,6 +28,7 @@ flowchart TD
 
     subgraph DB [PostgreSQL Cloud SQL]
         events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
+        orders[("orders<br/>- id (= orderId)<br/>- event_id<br/>- status<br/>- created_at<br/>- updated_at")]
         tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- first_name<br/>- last_name<br/>- status")]
     end
 
