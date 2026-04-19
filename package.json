@@ -7,7 +7,14 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "test": "turbo run test",
+    "preflight:test": "node scripts/debug/preflight-test.mjs",
+    "test": "pnpm run preflight:test && turbo run test",
+    "debug:runtime": "node scripts/debug/print-runtime.mjs",
+    "debug:migrations": "node scripts/debug/check-migrations.mjs",
+    "debug:buy-ticket-contract": "node scripts/debug/check-buy-ticket-contract.mjs",
+    "debug:db:ticket-order-fk": "pnpm --filter @repo/db run debug:ticket-order-fk",
+    "debug:db:buy-ticket-function": "pnpm --filter @repo/db run debug:buy-ticket-function",
+    "debug:all": "pnpm run debug:runtime && pnpm run debug:migrations && pnpm run debug:buy-ticket-contract",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -20,6 +20,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:test": "node --import tsx --test test/**/*.test.ts",
+    "debug:ticket-order-fk": "node --import tsx scripts/debug-ticket-order-fk.ts",
+    "debug:buy-ticket-function": "node --import tsx scripts/debug-buy-ticket-function.ts",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsgo --noEmit"
   },

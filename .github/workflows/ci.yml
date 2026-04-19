@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
 
 jobs:
   build:
-    name: Lint, Typecheck & Build
+    name: Lint, Typecheck, Build & Guardrails
     runs-on: ubuntu-latest
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -39,6 +39,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Migration journal guardrail
+        run: pnpm run debug:migrations
+
+      - name: buy_ticket contract guardrail
+        run: pnpm run debug:buy-ticket-contract
 
       - name: Lint
         run: pnpm run lint

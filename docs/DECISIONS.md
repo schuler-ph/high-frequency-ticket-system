@@ -27,6 +27,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-017 Order-Status via Polling                     | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                          |
 | ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                          |
 | ADR-019 TypeScript CLI via tsgo                      | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen |
+| ADR-020 Deterministische Tests & Debug-Guardrails    | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                     |
 
 ### Status-Definitionen
 
@@ -324,3 +325,22 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - Big-Bang-Migration inklusive aller Watch/Restart-Workflows (hoeheres Integrationsrisiko).
 - **Status:** Teilweise fertig
 - **TODO-Mapping:** `docs/TODO.md` Phase 1 Tooling (`tsc`-CLI weitgehend migriert, Ausnahmen fuer Web-Checktypes und `tsc-watch` offen)
+
+---
+
+## ADR-020: Deterministische Tests & Debug-Guardrails
+
+- **Datum:** 2026-03-22
+- **Kontext:** Unter Node 24 + `ts-node/esm` waren glob-basierte `node --test` Aufrufe in API/Worker wiederholt instabil (opaque Top-Level-Fehler), was die Fehlersuche verlangsamt hat. Gleichzeitig wurden wiederkehrende Diagnosen oft als Inline-Einzeiler ausgefuehrt und waren dadurch schwer reproduzierbar.
+- **Entscheidung:**
+  - API und Worker nutzen feste Test-Entrypoints (`test/run-tests.ts`) statt glob-basierter Discovery.
+  - Testskripte setzen `NODE_OPTIONS=''`, um Debug-Bootloader-Injektionen als Fehlerquelle zu eliminieren.
+  - Wiederkehrende Diagnosen werden als versionierte Skripte bereitgestellt (`debug:*`, inkl. Migrations- und `buy_ticket`-Vertragschecks).
+  - CI fuehrt Guardrail-Checks fuer Migrations-Journal und `buy_ticket`-Vertrag vor Lint/Typecheck/Build aus.
+  - Ein kurzes Runbook dokumentiert den reproduzierbaren Debug-Ablauf.
+- **Begruendung:** Deterministische Entrypoints reduzieren nicht-deterministische Testloader-Effekte. Versionierte Debug-Skripte sparen Debug-Zeit, da sie ad-hoc Shell-Einzeiler durch wiederholbare Checks ersetzen. Fruehe CI-Guardrails verhindern Drift zwischen Drizzle-Schema, Migrationsjournal und SQL-Function-Vertrag.
+- **Alternativen:**
+  - Bei glob-basierter Test-Discovery bleiben und nur bei Bedarf manuell debuggen (langsamer, fehleranfaelliger).
+  - Nur lokale Checks ohne CI-Guardrails (Drift wird spaet erkannt).
+- **Status:** Fertig
+- **TODO-Mapping:** `docs/TODO.md` Phase 1 (Test-Entrypoints, Debug-Skripte, Runbook) + Phase 3.5 (CI-Guardrails)

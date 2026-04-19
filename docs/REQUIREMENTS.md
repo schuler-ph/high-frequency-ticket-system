@@ -19,7 +19,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Language:** TypeScript (Fullstack, 100%)
 - **TypeScript CLI Compiler:** `tsgo` via `@typescript/native-preview` (transition from `tsc`, mit temporaerer Ausnahme fuer `apps/web` `check-types`)
 - **Frontend:** Next.js, Tailwind CSS
-- **Backend Runtime:** Node.js (v20+)
+- **Backend Runtime:** Node.js (v24+)
 - **Backend Framework:** Fastify (API Gateway & Worker Services)
 - **Database:** PostgreSQL (Cloud SQL, architected for future Cloud Spanner migration)
 - **ORM:** Drizzle ORM (Code-First)
@@ -30,8 +30,9 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Infrastructure as Code:** Terraform
 - **Deployment:** Docker & Google Kubernetes Engine (GKE)
 - **Load Testing:** k6
-- **CI/CD:** GitHub Actions (lint, typecheck, build)
+- **CI/CD:** GitHub Actions (migration/function guardrails, lint, typecheck, build)
 - **Git Hooks:** Husky (pre-commit: format, pre-push: lint + typecheck)
+- **Debugging Guardrails:** Deterministic test entrypoints + versioned `debug:*` scripts + short runbook
 
 ## Load-Test Szenario (k6)
 

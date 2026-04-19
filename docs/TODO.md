@@ -25,6 +25,9 @@
 - [x] Caching in GitHub Actions aktivieren
 - [x] Erstelle `@repo/env` Paket mit `@t3-oss/env-core` & Zod für strikte Laufzeit-Konfigurationsvalidierung.
 - [x] Migriere direkte `tsc`-CLI-Aufrufe in Workspace-Skripten (`build`, `check-types`, Teile von `test`, `watch`) auf `tsgo`.
+- [x] Stabilisiere API/Worker-Tests mit deterministischen Test-Entrypoints (`test/run-tests.ts`) statt glob-basierter Discovery.
+- [x] Ersetze ad-hoc Debug-Einzeiler durch versionierte Debug-Skripte (`debug:*`) fuer Runtime-, Migrations- und DB-Vertragschecks.
+- [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
@@ -103,6 +106,7 @@
 - [ ] Messe End-to-End-Latenz von `POST /buy` bis `order completed|failed`.
 - [ ] Ergänze Metriken für Redis-DB-Drift (`available` vs. `capacity - sold_count - active_reservations`).
 - [ ] Dokumentiere den finalen End-to-End-Flow in `ARCHITECTURE.md` und ADR in `DECISIONS.md`.
+- [x] Ergaenze CI-Guardrails fuer Migrations-Journal und `buy_ticket`-Vertrag vor Lint/Typecheck/Build.
 
 ## Phase 4: Interface & Testing
 
