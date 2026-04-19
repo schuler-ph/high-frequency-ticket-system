@@ -29,6 +29,7 @@
 ## Phase 2: Data Layer & Infrastructure (Local)
 
 - [x] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
+- [ ] Erstelle ein lokales Reset/Seeding-Skript für PostgreSQL, Redis und Pub/Sub Emulator (inkl. reproducible Testdaten-Setup).
 - [x] Definiere PostgreSQL Verbindungs-URL in `.env` (Docker-Compose kompatibel).
 - [x] Setze Drizzle ORM in `packages/db` auf.
 - [x] Definiere Schema für `tickets` und `orders` in Drizzle.
@@ -82,7 +83,7 @@
 
 - [x] Definiere persistentes `orders` Datenmodell (Status: `pending|completed|failed`, Bezug zu `eventId`, Zeitstempel).
 - [x] Speichere `orderId` aus der API dauerhaft in der Datenbank (nicht nur in Pub/Sub Payload).
-- [ ] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
+- [x] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
 - [ ] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
 - [ ] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
 - [ ] Baue gezielte Tests: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /orders/:orderId` zeigt finalen Zustand inkl. Ticket-Referenz.

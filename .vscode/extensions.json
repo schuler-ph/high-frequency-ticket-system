@@ -1,12 +1,13 @@
 {
   "recommendations": [
     "yzhang.markdown-all-in-one",
-    "hediet.vscode-drawio",
     "hashicorp.terraform",
     "googlecloudtools.cloudcode",
     "esbenp.prettier-vscode",
     "bierner.markdown-mermaid",
     "firsttris.vscode-jest-runner",
-    "ms-azuretools.vscode-containers"
+    "ms-azuretools.vscode-containers",
+    "dunn.redis",
+    "ckolkman.vscode-postgres"
   ]
 }

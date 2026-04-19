@@ -49,11 +49,22 @@ void describe("database integration", () => {
     assert.ok(inserted.id);
     assert.ok(inserted.createdAt);
 
+    const [order] = await db
+      .insert(orders)
+      .values({
+        eventId: inserted.id,
+      })
+      .returning();
+
+    assert.ok(order);
+    assert.equal(order.eventId, inserted.id);
+
     // insert a ticket for this event
     const [ticket] = await db
       .insert(tickets)
       .values({
         eventId: inserted.id,
+        orderId: order.id,
         firstName: "Test",
         lastName: "User",
       })
@@ -61,10 +72,12 @@ void describe("database integration", () => {
 
     assert.ok(ticket);
     assert.equal(ticket.eventId, inserted.id);
+    assert.equal(ticket.orderId, order.id);
     assert.equal(ticket.status, "valid");
 
     // cleanup
     await db.delete(tickets).where(sql`${tickets.id} = ${ticket.id}`);
+    await db.delete(orders).where(sql`${orders.id} = ${order.id}`);
     await db.delete(events).where(sql`${events.id} = ${inserted.id}`);
   });
 
@@ -132,11 +145,23 @@ void describe("database integration", () => {
     assert.equal(eventAfter?.soldCount, 1);
 
     const ticketsForEvent = await db
-      .select({ id: tickets.id })
+      .select({
+        id: tickets.id,
+        orderId: tickets.orderId,
+      })
       .from(tickets)
       .where(eq(tickets.eventId, insertedEvent.id));
 
     assert.equal(ticketsForEvent.length, 1);
+    assert.equal(ticketsForEvent[0]?.orderId, orderId);
+
+    const [persistedOrder] = await db
+      .select({ id: orders.id, status: orders.status })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+
+    assert.equal(persistedOrder?.id, orderId);
+    assert.equal(persistedOrder?.status, "pending");
 
     await db.delete(tickets).where(eq(tickets.eventId, insertedEvent.id));
     await db.delete(orders).where(eq(orders.id, orderId));

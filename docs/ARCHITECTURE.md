@@ -29,7 +29,7 @@ flowchart TD
     subgraph DB [PostgreSQL Cloud SQL]
         events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
         orders[("orders<br/>- id (= orderId)<br/>- event_id<br/>- status<br/>- created_at<br/>- updated_at")]
-        tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- first_name<br/>- last_name<br/>- status")]
+        tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- order_id (FK -> orders.id)<br/>- first_name<br/>- last_name<br/>- status")]
     end
 
     User --> Frontend
@@ -59,7 +59,7 @@ flowchart TD
    ❌ Publish-Fehler bei Schritt 5 → API löscht Reservation-Key und rollt `available` per `INCR` zurück.
 6. Worker konsumiert BuyTicketEvent aus Pub/Sub
 7. Worker simuliert Payment-Processing (Sleep 1s)
-8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders`, macht Ticket-INSERT + sold_count Update)
+8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update)
    - Vor dem DB-Write prueft der Worker Idempotenz ueber Redis (`processed`-Marker) und setzt einen kurzlebigen `processing`-Lock pro `orderId`.
    - Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Write).
    - Bei terminalem Business-Fehler (z.B. Event nicht gefunden) kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`) und ACKt die Nachricht.

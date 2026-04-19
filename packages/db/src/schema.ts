@@ -21,17 +21,6 @@ export const events = pgTable("events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const tickets = pgTable("tickets", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  eventId: uuid("event_id")
-    .references(() => events.id)
-    .notNull(),
-  firstName: varchar("first_name", { length: 255 }).notNull(),
-  lastName: varchar("last_name", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 export const orders = pgTable("orders", {
   id: uuid("id").primaryKey().defaultRandom(),
   eventId: uuid("event_id")
@@ -40,4 +29,18 @@ export const orders = pgTable("orders", {
   status: orderStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const tickets = pgTable("tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id")
+    .references(() => events.id)
+    .notNull(),
+  orderId: uuid("order_id")
+    .references(() => orders.id)
+    .notNull(),
+  firstName: varchar("first_name", { length: 255 }).notNull(),
+  lastName: varchar("last_name", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
