@@ -28,6 +28,10 @@
 - [x] Stabilisiere API/Worker-Tests mit deterministischen Test-Entrypoints (`test/run-tests.ts`) statt glob-basierter Discovery.
 - [x] Ersetze ad-hoc Debug-Einzeiler durch versionierte Debug-Skripte (`debug:*`) fuer Runtime-, Migrations- und DB-Vertragschecks.
 - [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
+- [x] Erweitere CI auf Node-Kompatibilitaetsmatrix (22 + 24) und definiere Node 24 als primaere Test-Runtime.
+- [x] Modernisiere API/Worker-Testskripte von `--loader ts-node/esm` auf `--import register(ts-node/esm)` inkl. `TS_NODE_TRANSPILE_ONLY` und reduziertem Warning-Noise.
+- [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne `c8`, `test:ci`/`test:coverage` mit `c8`) fuer schnellere lokale Feedback-Loops.
+- [x] Lagere das gemeinsame Test-Setup aus `package.json` in ein versioniertes Runner-Skript aus (`scripts/testing/run-package-tests.mjs`).
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 

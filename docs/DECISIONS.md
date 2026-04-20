@@ -174,6 +174,20 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Begründung:** Native GitHub-Integration. Kostenlose Minuten für Open-Source-Repos. Turborepo-Cache beschleunigt CI-Runs erheblich.
 - **Alternativen:** GitLab CI (anderer Hoster), Cloud Build (GCP-only Lock-in).
 
+### Update 2026-04-19: Node-Kompatibilitaetsmatrix und primäre Test-Runtime
+
+- **Kontext:** Das Projekt war bisher praktisch auf Node 24 festgelegt. Gewuenscht war eine explizite Kompatibilitaetsabsicherung fuer eine weitere LTS-Linie, ohne den stabilen Hauptpfad zu verwässern.
+- **Entscheidung:**
+  - CI-Quality-Gates (Guardrails, Lint, Typecheck, Build) laufen als Matrix auf Node 22 und Node 24.
+  - Die komplette Test-Suite laeuft weiterhin auf Node 24 als primaerer Runtime.
+  - Engine-Constraint im Root-Workspace wird auf `>=22` gesetzt.
+- **Begruendung:** So wird echte Laufzeit-Kompatibilitaet frueh erkannt, waehrend der Haupttestpfad stabil und reproduzierbar auf der primären Runtime bleibt.
+- **Umsetzung:**
+  - `.github/workflows/ci.yml`
+  - `package.json`
+  - `docs/REQUIREMENTS.md`
+  - `docs/DEBUGGING.md`
+
 ---
 
 ## ADR-008: Zod für Schema Validation & DTOs
@@ -344,3 +358,36 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - Nur lokale Checks ohne CI-Guardrails (Drift wird spaet erkannt).
 - **Status:** Fertig
 - **TODO-Mapping:** `docs/TODO.md` Phase 1 (Test-Entrypoints, Debug-Skripte, Runbook) + Phase 3.5 (CI-Guardrails)
+
+### Update 2026-04-20: Modernisierung des TS-Loader-Pfads in Testskripten
+
+- **Kontext:** Der bisherige Testpfad nutzte `--loader ts-node/esm`. Dieser Pfad ist in neueren Node-Versionen als Legacy/abzuraten markiert und war in der Praxis anfaelliger fuer schwer lesbare Loader-Fehler.
+- **Entscheidung:** API- und Worker-Testskripte verwenden weiterhin deterministische Entrypoints (`test/run-tests.ts`), aber der Loader wird ueber `--import` + `register("ts-node/esm", ...)` initialisiert. Zusaetzlich setzen die Skripte `TS_NODE_TRANSPILE_ONLY=true`, `DOTENV_CONFIG_QUIET=true` und reduzieren Warning-Noise.
+- **Begruendung:** Der modernisierte Loader-Pfad ist mit Node-CLI-Empfehlungen konsistent, reduziert Start-/Transform-Overhead und verbessert die Lesbarkeit der Testausgaben, ohne den etablierten deterministischen Entrypoint-Flow aufzugeben.
+- **Umsetzung:**
+  - `apps/api/package.json`
+  - `apps/worker/package.json`
+
+### Update 2026-04-20: Schneller lokaler Testpfad ohne Coverage-Instrumentierung
+
+- **Kontext:** Die vereinheitlichten Testskripte mit `c8` lieferten reproduzierbare Coverage-Berichte, waren im lokalen Entwicklungs-Loop aber deutlich langsamer als nötig.
+- **Entscheidung:** Lokale Testläufe und Coverage/CI-Läufe werden getrennt:
+  - `test` in API/Worker läuft ohne `c8` (schneller Feedback-Loop).
+  - `test:coverage` und `test:ci` behalten den vollständigen Pfad mit `c8`.
+  - Root-Skripte und Turborepo-Tasks erhalten ein separates `test:ci`-Target mit Coverage-Outputs.
+- **Begruendung:** So bleibt die lokale Iteration schnell, während CI weiterhin Coverage-Artefakte und denselben vollständigen Sicherheits-Flow nutzt.
+- **Umsetzung:**
+  - `apps/api/package.json`
+  - `apps/worker/package.json`
+  - `package.json`
+  - `turbo.json`
+
+### Update 2026-04-20: Test-Setup aus `package.json` in Runner-Skript ausgelagert
+
+- **Kontext:** Die Testskripte in API und Worker enthielten identische, lange Inline-Kommandos (Build, Test-TS-Compile, Node-Import-Register, Env-Flags). Das erschwerte Wartung und driftete leicht auseinander.
+- **Entscheidung:** Das gemeinsame Setup wird in ein versioniertes Skript ausgelagert (`scripts/testing/run-package-tests.mjs`). `test` und `test:coverage` in API/Worker rufen nur noch dieses Skript auf (Coverage per Flag `--coverage`).
+- **Begruendung:** Weniger Duplikation, einfachere Pflege bei künftigen Loader/Env-Anpassungen und weiterhin deterministische Entrypoint-Ausfuehrung inkl. optionaler Argument-Weitergabe (`-- --no-cache`).
+- **Umsetzung:**
+  - `scripts/testing/run-package-tests.mjs`
+  - `apps/api/package.json`
+  - `apps/worker/package.json`

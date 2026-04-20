@@ -8,7 +8,9 @@
     "test": "test"
   },
   "scripts": {
-    "test": "pnpm run build && tsgo -p test/tsconfig.json && NODE_OPTIONS='' c8 node --loader ts-node/esm test/run-tests.ts",
+    "test": "node ../../scripts/testing/run-package-tests.mjs",
+    "test:coverage": "node ../../scripts/testing/run-package-tests.mjs --coverage",
+    "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10001 dist/app.js",
     "build": "tsgo",
     "watch": "tsgo -w",

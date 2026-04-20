@@ -75,9 +75,8 @@ Wichtige Hardening-Punkte:
 
 ## Node-Kompatibilitaet
 
-Aktuell ist das Repo auf Node 24 ausgerichtet:
+Aktuell ist das Repo auf Node 24 als Primär-Runtime ausgerichtet, unterstützt aber Node 22+:
 
-- `package.json` engines: `>=24`
-- CI-Runner: Node 24
-
-Wenn eine echte Multi-Version-Strategie (z.B. 22 + 24) gewuenscht ist, muss zuerst der Engine-Constraint angepasst und anschliessend ein eigener CI-Matrix-Job eingefuehrt werden.
+- `package.json` engines: `>=22`
+- CI-Quality-Job: Node 22 und 24 (Matrix)
+- CI-Test-Job: Node 24 (Primär-Runtime)
