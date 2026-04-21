@@ -1,9 +1,35 @@
 {
-  "id": "cedcb67b-e65f-4a67-ba2d-49c45d2f727d",
-  "prevId": "844ea01f-f2d2-4810-8cd4-d7b40679a9f6",
+  "id": "82a82094-5262-4759-9a24-8a1d0337bdc0",
+  "prevId": "cedcb67b-e65f-4a67-ba2d-49c45d2f727d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.drizzle_sql_migrations": {
+      "name": "drizzle_sql_migrations",
+      "schema": "",
+      "columns": {
+        "tag": {
+          "name": "tag",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.events": {
       "name": "events",
       "schema": "",

@@ -46,3 +46,10 @@ export const tickets = pgTable("tickets", {
   status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const drizzleSqlMigrations = pgTable("drizzle_sql_migrations", {
+  tag: text("tag").primaryKey(),
+  appliedAt: timestamp("applied_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});

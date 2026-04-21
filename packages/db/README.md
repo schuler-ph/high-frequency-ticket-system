@@ -23,6 +23,8 @@ pnpm run db:apply-sql -- 0005_complete_order_on_success
 
 Das Skript fuehrt die SQL-Migration in PostgreSQL aus und trackt angewendete Tags idempotent in `drizzle_sql_migrations`.
 
+Diese Ledger-Tabelle ist absichtlich Teil des Drizzle-Schemas in `src/schema.ts`, damit `db:push` sie nicht als fremde Tabelle erkennt und versehentlich loeschen will.
+
 ## Verification
 
 Nach Schema-Aenderungen immer gegen die echte lokale Datenbank verifizieren:
