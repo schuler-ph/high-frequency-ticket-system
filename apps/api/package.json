@@ -8,8 +8,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "vitest run test/**/*.test.ts",
-    "test:coverage": "vitest run --coverage test/**/*.test.ts",
+    "test": "node --conditions=source --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
     "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10001 dist/app.js",
     "build": "tsgo",
@@ -44,7 +44,6 @@
     "concurrently": "^9.0.0",
     "eslint": "^9.39.1",
     "tsc-watch": "^6.3.1",
-    "typescript": "~5.9.2",
-    "vitest": "^3.2.4"
+    "typescript": "~5.9.2"
   }
 }

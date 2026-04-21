@@ -1,5 +1,4 @@
-import { PubSub } from "@google-cloud/pubsub";
-import type { FastifyPluginCallback } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
 
@@ -32,16 +31,22 @@ export interface PubSubPluginOptions {
   autoCreateTopic?: boolean;
 }
 
+const createPubSubClient = async (): Promise<PubSubClientLike> => {
+  const { PubSub } = await import("@google-cloud/pubsub");
+
+  return new PubSub({
+    projectId: env.GOOGLE_CLOUD_PROJECT,
+  }) as unknown as PubSubClientLike;
+};
+
 const isGrpcCode = (err: unknown, code: number): boolean =>
   err instanceof Error && "code" in err && err.code === code;
 
-const pubSubPlugin: FastifyPluginCallback<PubSubPluginOptions> = (
+export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   fastify,
   opts,
-  done,
 ) => {
-  const client =
-    opts.client ?? new PubSub({ projectId: env.GOOGLE_CLOUD_PROJECT });
+  const client = opts.client ?? (await createPubSubClient());
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;
   const topic = client.topic(topicName);
   const autoCreate = opts.autoCreateTopic ?? Boolean(env.PUBSUB_EMULATOR_HOST);
@@ -97,8 +102,6 @@ const pubSubPlugin: FastifyPluginCallback<PubSubPluginOptions> = (
     },
     "Registered Pub/Sub publisher plugin",
   );
-
-  done();
 };
 
 export default fp(pubSubPlugin);

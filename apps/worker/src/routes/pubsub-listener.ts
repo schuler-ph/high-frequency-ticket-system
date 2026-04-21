@@ -6,8 +6,8 @@ import { ticketRedisKeys } from "@repo/types/redis-keys";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
-} from "../lib/handle-buy-ticket-message.js";
-import type {} from "../plugins/pubsub.js";
+} from "../lib/handle-buy-ticket-message.ts";
+import type {} from "../plugins/pubsub.ts";
 
 const RELEASE_RESERVATION_SCRIPT = `
 local deleted = redis.call("DEL", KEYS[1])

@@ -1,4 +1,4 @@
-import { Message, PubSub } from "@google-cloud/pubsub";
+import type { Message } from "@google-cloud/pubsub";
 import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
@@ -40,10 +40,18 @@ export interface PubSubSubscriberPluginOptions {
   autoCreateSubscription?: boolean;
 }
 
+const createPubSubClient = async (): Promise<PubSubClientLike> => {
+  const { PubSub } = await import("@google-cloud/pubsub");
+
+  return new PubSub({
+    projectId: env.GOOGLE_CLOUD_PROJECT,
+  }) as unknown as PubSubClientLike;
+};
+
 const isGrpcCode = (err: unknown, code: number): boolean =>
   err instanceof Error && "code" in err && err.code === code;
 
-async function ensureSubscription(
+export async function ensureSubscription(
   subscription: SubscriptionLike,
   client: PubSubClientLike,
   subscriptionName: string,
@@ -111,14 +119,10 @@ async function ensureSubscription(
   }
 }
 
-const pubSubSubscriberPlugin: FastifyPluginAsync<
+export const pubSubSubscriberPlugin: FastifyPluginAsync<
   PubSubSubscriberPluginOptions
 > = async (fastify, opts) => {
-  const client: PubSubClientLike =
-    opts.client ??
-    (new PubSub({
-      projectId: env.GOOGLE_CLOUD_PROJECT,
-    }) as unknown as PubSubClientLike);
+  const client = opts.client ?? (await createPubSubClient());
   const subscriptionName =
     opts.subscriptionName ?? env.PUBSUB_SUBSCRIPTION_BUY_TICKET;
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;

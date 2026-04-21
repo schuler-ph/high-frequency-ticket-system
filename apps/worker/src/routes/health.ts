@@ -1,4 +1,4 @@
-import {
+import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";

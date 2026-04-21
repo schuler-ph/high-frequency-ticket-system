@@ -5,8 +5,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql } from "drizzle-orm";
 import pg from "pg";
 import { env } from "@repo/env";
-import * as schema from "../src/schema.js";
-import { events, orders, tickets } from "../src/schema.js";
+import * as schema from "../src/schema.ts";
+import { events, orders, tickets } from "../src/schema.ts";
 
 const DATABASE_URL = env.DATABASE_URL;
 

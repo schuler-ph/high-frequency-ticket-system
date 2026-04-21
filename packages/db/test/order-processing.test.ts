@@ -1,18 +1,18 @@
-import { afterAll, describe, it } from "vitest";
+import { after, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@repo/env";
-import { events, orders, tickets } from "../src/schema.js";
-import { executeBuyTicket, markOrderFailed } from "../src/order-processing.js";
+import { events, orders, tickets } from "../src/schema.ts";
+import { executeBuyTicket, markOrderFailed } from "../src/order-processing.ts";
 
 void describe("order processing actions", () => {
   const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
   const database = drizzle(pool);
 
-  afterAll(async () => {
+  after(async () => {
     await pool.end();
   });
 

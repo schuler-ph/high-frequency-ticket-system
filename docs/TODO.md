@@ -29,10 +29,12 @@
 - [x] Ersetze ad-hoc Debug-Einzeiler durch versionierte Debug-Skripte (`debug:*`) fuer Runtime-, Migrations- und DB-Vertragschecks.
 - [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
 - [x] Erweitere CI auf Node-Kompatibilitaetsmatrix (22 + 24) und definiere Node 24 als primaere Test-Runtime.
-- [x] Ersetze den fragilen `ts-node/esm` Testpfad in API/Worker durch direkte `node --import tsx --test` Aufrufe.
+- [x] Ersetze den fragilen `ts-node/esm`/`tsx`-Testpfad in API/Worker/DB durch direkte paketlokale `node:test`-Aufrufe gegen native `.ts`-Quellen via `--conditions=source`.
 - [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne `c8`, `test:ci`/`test:coverage` mit `c8`) fuer schnellere lokale Feedback-Loops.
 - [x] Halte Testskripte paketlokal und direkt, statt Logik in Shared-Test-Runnern zu verstecken.
-- [x] Ersetze den ad-hoc Shared-Test-Runner wieder durch direkte `node --import tsx --test` Skripte in den Paketen und entferne die Wrapper-Entrypoints.
+- [x] Entferne Vitest- und Loader-Experimentpfade aus den Backend-Paketen und halte Tests wieder als direkte paketlokale `node:test`-Skripte ohne Shared Runner.
+- [x] Stabilisiere das lokale Root-Testkommando ueber `turbo run test --ui=stream --concurrency=1`, damit kleine Suites reproduzierbar im Sekundenbereich laufen.
+- [x] Entferne die verbleibenden flaky Fastify-Smoke-Tests aus API/Worker, flache den API-Buy-Route-Test auf pure Business-Logik ab und nutze fuer API/Worker den stabileren nativen Node-Coverage-Pfad statt `c8`.
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 

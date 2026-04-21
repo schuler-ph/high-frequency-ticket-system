@@ -1,12 +1,12 @@
 import * as assert from "node:assert";
-import { test } from "vitest";
+import { test } from "node:test";
 import type { FastifyBaseLogger } from "fastify";
 import type { BuyTicketEvent } from "@repo/types/tickets";
 import type { FailedOrderUpdateResult } from "@repo/db";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
-} from "../../src/lib/handle-buy-ticket-message.js";
+} from "../../src/lib/handle-buy-ticket-message.ts";
 
 type TestMessage = {
   id: string;

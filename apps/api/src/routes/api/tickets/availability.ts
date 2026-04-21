@@ -2,7 +2,7 @@ import {
   ticketAvailabilityResponseSchema,
   ticketEventIdSchema,
 } from "@repo/types/tickets";
-import {
+import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";

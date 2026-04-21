@@ -1,12 +1,40 @@
 import * as assert from "node:assert";
-import { test } from "vitest";
-import Fastify from "fastify";
-import { Message } from "@google-cloud/pubsub";
-import PubSubSubscriberPlugin, {
+import { test } from "node:test";
+import type { Message } from "@google-cloud/pubsub";
+import {
   type PubSubClientLike,
   type SubscriptionLike,
   type TopicLike,
-} from "../../src/plugins/pubsub.js";
+  type PubSubSubscriber,
+  pubSubSubscriberPlugin,
+} from "../../src/plugins/pubsub.ts";
+
+function createFakeFastify() {
+  const hooks: Record<string, Array<() => Promise<void>>> = {};
+  const instance = {
+    log: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+    },
+    addHook(name: string, hook: () => Promise<void>) {
+      hooks[name] ??= [];
+      hooks[name].push(hook);
+    },
+    decorate(name: string, value: unknown) {
+      Reflect.set(instance, name, value);
+    },
+    async runHook(name: string) {
+      for (const hook of hooks[name] ?? []) {
+        await hook();
+      }
+    },
+  };
+
+  return instance as typeof instance & {
+    pubsubSubscriber: PubSubSubscriber;
+  };
+}
 
 interface FakeMessage extends Partial<Message> {
   id: string;
@@ -37,7 +65,7 @@ function createFakeMessage(
 }
 
 type ListenerRegistry = {
-  message: Array<(message: Message) => void>;
+  message: Array<(message: Message) => void | Promise<void>>;
   error: Array<(error: Error) => void>;
 };
 
@@ -52,14 +80,21 @@ function createSubscriptionMock(
   listeners: ListenerRegistry,
   exists: boolean,
 ): SubscriptionLike {
-  function on(event: "message", listener: (message: Message) => void): void;
+  function on(
+    event: "message",
+    listener: (message: Message) => void | Promise<void>,
+  ): void;
   function on(event: "error", listener: (error: Error) => void): void;
   function on(
     event: "message" | "error",
-    listener: ((message: Message) => void) | ((error: Error) => void),
+    listener:
+      | ((message: Message) => void | Promise<void>)
+      | ((error: Error) => void),
   ): void {
     if (event === "message") {
-      listeners.message.push(listener as (message: Message) => void);
+      listeners.message.push(
+        listener as (message: Message) => void | Promise<void>,
+      );
       return;
     }
 
@@ -116,6 +151,13 @@ function createClientMock(options: {
   };
 }
 
+async function deliverMessage(
+  listeners: ListenerRegistry,
+  message: Message,
+): Promise<void> {
+  await Promise.all(listeners.message.map((listener) => listener(message)));
+}
+
 void test("pubsub subscriber plugin decorates fastify with subscriber methods", async () => {
   const listeners = createListenerRegistry();
   const fakeSubscription = createSubscriptionMock(listeners, true);
@@ -124,21 +166,17 @@ void test("pubsub subscriber plugin decorates fastify with subscriber methods", 
     topicExists: true,
   });
 
-  const fastify = Fastify({ logger: false });
-  void fastify.register(PubSubSubscriberPlugin, {
+  const fastify = createFakeFastify();
+  await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
     topicName: "buy-ticket",
   });
 
-  await fastify.ready();
-
   assert.ok(fastify.pubsubSubscriber);
   assert.equal(typeof fastify.pubsubSubscriber.onMessage, "function");
   assert.equal(typeof fastify.pubsubSubscriber.start, "function");
   assert.equal(typeof fastify.pubsubSubscriber.stop, "function");
-
-  await fastify.close();
 });
 
 void test("pubsub subscriber processes messages through registered handler", async () => {
@@ -149,39 +187,31 @@ void test("pubsub subscriber processes messages through registered handler", asy
     topicExists: true,
   });
 
-  const fastify = Fastify({ logger: false });
-  void fastify.register(PubSubSubscriberPlugin, {
+  const fastify = createFakeFastify();
+  await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
     topicName: "buy-ticket",
   });
 
-  await fastify.ready();
-
   const receivedMessages: unknown[] = [];
 
-  fastify.pubsubSubscriber.onMessage(async (message) => {
+  fastify.pubsubSubscriber.onMessage(async (message: Message) => {
     receivedMessages.push(JSON.parse(message.data.toString("utf8")));
     message.ack();
   });
 
   fastify.pubsubSubscriber.start();
 
-  // Simulate receiving a message
   const fakeMessage = createFakeMessage("msg-1", { userId: "user-123" });
-  for (const listener of listeners.message) {
-    listener(fakeMessage as unknown as Message);
-  }
-
-  // Give async handler time to process
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await deliverMessage(listeners, fakeMessage as unknown as Message);
 
   assert.equal(receivedMessages.length, 1);
   assert.deepEqual(receivedMessages[0], { userId: "user-123" });
   assert.ok(fakeMessage.acked);
   assert.ok(!fakeMessage.nacked);
 
-  await fastify.close();
+  await fastify.pubsubSubscriber.stop();
 });
 
 void test("pubsub subscriber auto-creates missing subscription when enabled", async () => {
@@ -203,20 +233,16 @@ void test("pubsub subscriber auto-creates missing subscription when enabled", as
     },
   });
 
-  const fastify = Fastify({ logger: false });
-  void fastify.register(PubSubSubscriberPlugin, {
+  const fastify = createFakeFastify();
+  await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
     topicName: "buy-ticket",
     autoCreateSubscription: true,
   });
 
-  await fastify.ready();
-
   assert.equal(createTopicCalls, 1);
   assert.equal(createSubscriptionCalls, 1);
-
-  await fastify.close();
 });
 
 void test("pubsub subscriber fails on startup when subscription is missing and auto-create is disabled", async () => {
@@ -229,21 +255,16 @@ void test("pubsub subscriber fails on startup when subscription is missing and a
     topicExists: true,
   });
 
-  const fastify = Fastify({ logger: false });
-  void fastify.register(PubSubSubscriberPlugin, {
-    client: fakeClient,
-    subscriptionName: "buy-ticket-worker",
-    topicName: "buy-ticket",
-    autoCreateSubscription: false,
-  });
+  const fastify = createFakeFastify();
 
-  try {
-    await assert.rejects(async () => {
-      await fastify.ready();
-    }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
-  } finally {
-    await fastify.close().catch(() => undefined);
-  }
+  await assert.rejects(async () => {
+    await pubSubSubscriberPlugin(fastify as never, {
+      client: fakeClient,
+      subscriptionName: "buy-ticket-worker",
+      topicName: "buy-ticket",
+      autoCreateSubscription: false,
+    });
+  }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
 });
 
 void test("pubsub subscriber nacks messages when handler throws", async () => {
@@ -254,14 +275,12 @@ void test("pubsub subscriber nacks messages when handler throws", async () => {
     topicExists: true,
   });
 
-  const fastify = Fastify({ logger: false });
-  void fastify.register(PubSubSubscriberPlugin, {
+  const fastify = createFakeFastify();
+  await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
     topicName: "buy-ticket",
   });
-
-  await fastify.ready();
 
   fastify.pubsubSubscriber.onMessage(async () => {
     throw new Error("Processing failed");
@@ -269,17 +288,11 @@ void test("pubsub subscriber nacks messages when handler throws", async () => {
 
   fastify.pubsubSubscriber.start();
 
-  // Simulate receiving a message
   const fakeMessage = createFakeMessage("msg-1", { userId: "user-123" });
-  for (const listener of listeners.message) {
-    listener(fakeMessage as unknown as Message);
-  }
-
-  // Give async handler time to process
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await deliverMessage(listeners, fakeMessage as unknown as Message);
 
   assert.ok(!fakeMessage.acked);
   assert.ok(fakeMessage.nacked);
 
-  await fastify.close();
+  await fastify.pubsubSubscriber.stop();
 });

@@ -1,7 +1,7 @@
 import { sql, eq } from "drizzle-orm";
 import type { BuyTicketEvent } from "@repo/types/tickets";
-import { db } from "./index.js";
-import { orders } from "./schema.js";
+import { db } from "./index.ts";
+import { orders } from "./schema.ts";
 
 export type FailedOrderUpdateResult = "updated" | "missing";
 

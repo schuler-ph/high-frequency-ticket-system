@@ -6,10 +6,12 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "source": "./src/index.ts",
       "default": "./dist/src/index.js"
     },
     "./schema": {
       "types": "./src/schema.ts",
+      "source": "./src/schema.ts",
       "default": "./dist/src/schema.js"
     }
   },
@@ -21,7 +23,9 @@
     "db:push": "drizzle-kit push",
     "db:apply-sql": "node --import tsx scripts/apply-sql-migration.ts",
     "db:studio": "drizzle-kit studio",
-    "db:test": "vitest run test/**/*.test.ts",
+    "db:test": "node --conditions=source --test \"test/**/*.test.ts\"",
+    "test:coverage": "c8 node --conditions=source --test \"test/**/*.test.ts\"",
+    "test:ci": "pnpm run test:coverage",
     "debug:ticket-order-fk": "node --import tsx scripts/debug-ticket-order-fk.ts",
     "debug:buy-ticket-function": "node --import tsx scripts/debug-buy-ticket-function.ts",
     "lint": "eslint . --max-warnings 0",
@@ -39,9 +43,9 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.16.0",
+    "c8": "^10.1.2",
     "drizzle-kit": "^0.31.9",
     "eslint": "^9.39.1",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "typescript": "^5.9.3"
   }
 }

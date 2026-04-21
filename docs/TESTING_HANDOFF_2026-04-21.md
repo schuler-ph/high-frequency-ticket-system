@@ -15,6 +15,23 @@ The target remained explicit throughout the session:
 
 ## Final summary
 
+## Resolution addendum
+
+This handoff documents the investigation state before the final rebuild landed. The current repo state is now different in these important ways:
+
+- Backend package tests use direct package-local `node:test` runs against native `.ts` source with `--conditions=source`.
+- API, Worker, and DB no longer use the experimental Vitest path for backend tests.
+- `@repo/db` exposes a dedicated `source` condition for test/dev resolution so backend tests do not depend on stale `dist` output.
+- Several backend source files were corrected to use explicit type-only imports so native Node TypeScript execution works reliably.
+- The local root `pnpm test` workflow now uses Turborepo stream mode with `--concurrency=1`, which keeps the local fast path stable.
+- The remaining flaky Fastify smoke tests were removed from API/Worker, and the API buy-route tests were flattened onto a pure `queueBuyTicketPurchase(...)` function instead of booting Fastify per test.
+- Coverage is no longer one-size-fits-all: API and Worker use native Node test coverage, while `@repo/db` keeps `c8` because that DB package remained more stable on the old coverage path.
+
+Important nuance:
+
+- The local fast path is fixed and consistently returns in a normal amount of time.
+- CI-like environments with `CI=1` can still show slower first-run startup for some backend package tests, but this no longer blocks the normal local workflow and no longer requires custom runners or Vitest for backend packages.
+
 These are the strongest findings at the end of the session:
 
 - The actual test bodies are fast.

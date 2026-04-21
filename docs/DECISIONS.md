@@ -28,7 +28,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                          |
 | ADR-019 TypeScript CLI via tsgo                      | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen |
 | ADR-020 Deterministische Tests & Debug-Guardrails    | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                     |
-| ADR-021 Direkte TypeScript-Testausfuehrung via tsx   | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen ohne Shared Runner oder ts-node/esm Sonderlogik                     |
+| ADR-021 Direkte Backend-Tests via node:test + native TS | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path     |
 
 ### Status-Definitionen
 
@@ -240,20 +240,21 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
   ***
 
-  ## ADR-021: Direkte TypeScript-Testausfuehrung via tsx
+  ## ADR-021: Direkte Backend-Tests via `node:test` und native TypeScript-Quellen
   - **Datum:** 2026-04-21
-  - **Kontext:** Der bisherige lokale Testpfad fuer API und Worker war durch einen gemeinsamen Runner, `ts-node/esm`-Sonderbehandlung, Wrapper-Entrypoints und Vorab-Compile-Schritte unnötig komplex. Die eigentlichen Tests waren schnell, aber der Startpfad war schwer erklaerbar und teilweise deutlich langsamer als die Testlogik selbst.
-  - **Entscheidung:** API, Worker und `@repo/db` fuehren Tests direkt ueber `node --import tsx --test` aus. Paket-lokale Wrapper-Skripte und zentrale Runner-Entrypoints werden entfernt.
-  - **Begruendung:** `tsx` ist fuer diesen Scope der kleinstmoegliche TypeScript-Laufzeitadapter ohne eigene Test-Framework-Architektur. Die Testausfuehrung bleibt bei `node:test`, nutzt normale File-Discovery und vermeidet Speziallogik fuer Main-Module, Loader-Registrierung und paketabhaengige Branches.
+  - **Kontext:** Der bisherige lokale Testpfad fuer API und Worker war durch Shared Runner, `ts-node/esm`, spaeter `tsx` und einen diagnostischen Vitest-Zweig unnötig komplex. Die Testlogik selbst war schnell, aber Loader-, Worker- und Teardown-Pfade erzeugten wiederholt 15- bis 30-sekündige Ausreisser. Besonders problematisch waren Runtime-Importe fuer reine Typ-Symbole, Dist-Kopplung in `@repo/db` und parallele Root-Orchestrierung in CI-aehnlichen Umgebungen.
+  - **Entscheidung:** API, Worker und `@repo/db` fuehren ihre Backend-Tests paketlokal direkt ueber `node:test` gegen native `.ts`-Quellen mit `--conditions=source` aus. Relative Source-Imports werden als `.ts` gepflegt und beim Build per TypeScript auf `.js` umgeschrieben. Coverage nutzt fuer API und Worker den nativen Node-Test-Coverage-Pfad und bleibt fuer `@repo/db` beim stabileren `c8`-Pfad. Das lokale Root-Kommando `pnpm test` orchestriert die Paketskripte ueber Turborepo im Stream-Modus mit `--concurrency=1`.
+  - **Begruendung:** Diese Variante entfernt sowohl `tsx` als auch Vitest aus dem Backend-Test-Hot-Path, hält die Runtime maximal nah an produktivem Node.js und vermeidet Dist-Artefakt-Abhaengigkeiten fuer normale Testlaeufe. Die verbleibenden Fastify-Lifecycle-Smoke-Tests wurden aus den kritischen Backend-Pfaden entfernt beziehungsweise auf pure Funktionen reduziert, weil genau diese Mini-Suites die 15-Sekunden-Ausreisser erneut triggern konnten. Paketlokale Skripte bleiben direkt und nachvollziehbar; Root-Orchestrierung bleibt Aufgabe von Turborepo, nicht eines weiteren Test-Runners.
   - **Alternativen:**
-    - `ts-node/esm` mit Shared Runner (zu komplex und im Worker instabil)
-    - eigenes Wrapper-Skript pro Paket (mehr Wartung, kein echter Architekturgewinn)
-    - vollstaendige Migration auf Vitest (valide Option spaeter, aber fuer den aktuellen Scope unnoetig)
+    - `ts-node/esm` mit Shared Runner (zu komplex und instabil)
+    - `node --import tsx --test` (einfacher als `ts-node/esm`, aber weiterhin mit sporadischen 15-Sekunden-Teardown-Ausreissern)
+    - vollstaendige Migration auf Vitest fuer Backend-Pakete (diagnostisch hilfreich, aber fuer diesen Scope kein stabilerer Fast-Path)
   - **Umsetzung:**
     - `package.json`
     - `apps/api/package.json`
     - `apps/worker/package.json`
     - `packages/db/package.json`
+    - `packages/typescript-config/base.json`
 
 ---
 

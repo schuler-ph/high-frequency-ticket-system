@@ -3,8 +3,9 @@ import { dirname, join } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-import AutoLoad, { AutoloadPluginOptions } from "@fastify/autoload";
-import { FastifyPluginAsync, FastifyServerOptions } from "fastify";
+import AutoLoad from "@fastify/autoload";
+import type { AutoloadPluginOptions } from "@fastify/autoload";
+import type { FastifyPluginAsync, FastifyServerOptions } from "fastify";
 import {
   serializerCompiler,
   validatorCompiler,
