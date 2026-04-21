@@ -91,6 +91,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: CI=1 pnpm run test
+        run: CI=1 pnpm run test:ci
         env:
           TURBO_TELEMETRY_DISABLED: 1

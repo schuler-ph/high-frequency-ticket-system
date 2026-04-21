@@ -2,7 +2,6 @@
   "recommendations": [
     "yzhang.markdown-all-in-one",
     "hashicorp.terraform",
-    "googlecloudtools.cloudcode",
     "esbenp.prettier-vscode",
     "bierner.markdown-mermaid",
     "firsttris.vscode-jest-runner",

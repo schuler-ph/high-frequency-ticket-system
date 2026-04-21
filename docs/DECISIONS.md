@@ -380,8 +380,8 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 ### Update 2026-04-21: Direkter Testpfad ohne Shared Runner
 
 - **Kontext:** Der zwischenzeitliche Shared Runner fuer API und Worker hat die eigentliche Ursache der Test-Langsamkeit nicht geloest, sondern die Testarchitektur weiter verkompliziert.
-- **Entscheidung:** API, Worker und `@repo/db` laufen wieder direkt ueber paketlokale `node --import tsx --test` Skripte ohne Wrapper-Entrypoints oder zentrales Runner-Skript.
-- **Begruendung:** Die direkte Paket-Ausfuehrung ist einfacher, erklaerbarer und schneller zu debuggen als jede zentrale Sonderlogik fuer Loader, Main-Module oder paketabhaengige Branches.
+- **Entscheidung:** API, Worker und `@repo/db` laufen wieder direkt ueber paketlokale `node --conditions=source --test` Skripte ohne Wrapper-Entrypoints oder zentrales Runner-Skript.
+- **Begruendung:** Die direkte Paket-Ausfuehrung gegen native `.ts`-Quellen ist einfacher, erklaerbarer und schneller zu debuggen als jede zentrale Sonderlogik fuer Loader, Main-Module oder paketabhaengige Branches.
 - **Umsetzung:**
   - `package.json`
   - `apps/api/package.json`
@@ -392,8 +392,9 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 - **Kontext:** Die vereinheitlichten Testskripte mit `c8` lieferten reproduzierbare Coverage-Berichte, waren im lokalen Entwicklungs-Loop aber deutlich langsamer als nötig.
 - **Entscheidung:** Lokale Testläufe und Coverage/CI-Läufe werden getrennt:
-  - `test` in API/Worker läuft ohne `c8` (schneller Feedback-Loop).
-  - `test:coverage` und `test:ci` behalten den vollständigen Pfad mit `c8`.
+  - `test` in API/Worker läuft ohne Coverage-Instrumentierung (schneller Feedback-Loop).
+  - `test:coverage` und `test:ci` nutzen in API/Worker die native Node-Coverage.
+  - `@repo/db` bleibt fuer Coverage und `test:ci` beim stabileren `c8`-Pfad.
   - Root-Skripte und Turborepo-Tasks erhalten ein separates `test:ci`-Target mit Coverage-Outputs.
 - **Begruendung:** So bleibt die lokale Iteration schnell, während CI weiterhin Coverage-Artefakte und denselben vollständigen Sicherheits-Flow nutzt.
 - **Umsetzung:**

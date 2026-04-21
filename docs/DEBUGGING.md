@@ -84,9 +84,9 @@ pnpm run test
 
 Wichtige Hardening-Punkte:
 
-- API, Worker und `@repo/db` laufen direkt ueber `node --import tsx --test`
+- API, Worker und `@repo/db` laufen direkt ueber `node --conditions=source --test`
 - keine Shared-Test-Runner oder Wrapper-Entrypoints zwischen Paketskript und Testdateien
-- Coverage bleibt in `test:coverage` oder `test:ci`, damit lokale `test`-Laeufe schnell bleiben
+- Coverage bleibt aus dem lokalen `test`-Hot-Path herausgezogen; API/Worker nutzen in `test:coverage` oder `test:ci` die native Node-Coverage, `@repo/db` weiter `c8`
 
 ## 7) Testdauer korrekt messen
 

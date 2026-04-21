@@ -17,7 +17,7 @@
 ## Phase 1: Foundation & Tooling
 
 - [x] Initialisiere Turborepo (`npx create-turbo@latest`) mit pnpm und Name "high-frequency-ticket-system".
-- [x] Füge `.vscode/extensions.json` mit Empfehlungen für Draw.io hinzu.
+- [x] Füge `.vscode/extensions.json` mit Empfehlungen für Mermaid-Diagramme hinzu.
 - [x] Generiere api und worker mit fastify-cli und passe sie auf unser turborepo an.
 - [x] Generiere drizzle ORM package
 - [x] Installiere und konfiguriere Tailwind CSS in `apps/web`.
@@ -30,7 +30,7 @@
 - [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
 - [x] Erweitere CI auf Node-Kompatibilitaetsmatrix (22 + 24) und definiere Node 24 als primaere Test-Runtime.
 - [x] Ersetze den fragilen `ts-node/esm`/`tsx`-Testpfad in API/Worker/DB durch direkte paketlokale `node:test`-Aufrufe gegen native `.ts`-Quellen via `--conditions=source`.
-- [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne `c8`, `test:ci`/`test:coverage` mit `c8`) fuer schnellere lokale Feedback-Loops.
+- [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne Coverage-Instrumentierung; API/Worker mit nativer Node-Coverage in `test:coverage`/`test:ci`, `@repo/db` weiter mit `c8`) fuer schnellere lokale Feedback-Loops.
 - [x] Halte Testskripte paketlokal und direkt, statt Logik in Shared-Test-Runnern zu verstecken.
 - [x] Entferne Vitest- und Loader-Experimentpfade aus den Backend-Paketen und halte Tests wieder als direkte paketlokale `node:test`-Skripte ohne Shared Runner.
 - [x] Stabilisiere das lokale Root-Testkommando ueber `turbo run test --ui=stream --concurrency=1`, damit kleine Suites reproduzierbar im Sekundenbereich laufen.
@@ -75,6 +75,7 @@
 - [x] Ersetze globale Redis-Keys durch event-spezifische Keys (`tickets:event:{eventId}:total`, `tickets:event:{eventId}:available`).
 - [x] Definiere ein zentrales Naming-Utility für Redis-Keys in API und Worker, um Tippfehler/Drift zu vermeiden.
 - [x] Erweitere Availability-Route auf event-spezifische Abfrage (`GET /api/tickets/:eventId/availability`).
+- [ ] Normalisiere die Availability-Response auf numerische Werte statt Redis-Strings, damit API-Contract und Architektur konsistent bleiben.
 
 ### Reservation-Flow in der API
 
@@ -96,6 +97,7 @@
 - [x] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
 - [x] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
 - [x] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
+- [ ] Mache `pending` Orders direkt nach `POST /api/tickets/:eventId/buy` beobachtbar, damit `GET /api/orders/:orderId` unmittelbar nach `202 Accepted` einen konsistenten Status liefern kann.
 - [ ] Implementiere `GET /api/orders/:orderId` inkl. Zod-Request/Response-Schemas und DB-Read fuer Order-Status plus Ticket-Referenz.
 - [ ] Schreibe gezielte API-Route-Tests fuer `GET /api/orders/:orderId` (`completed`, `pending`, `failed`).
 - [ ] Schreibe den fokussierten Flow-Test: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /api/orders/:orderId` zeigt den finalen Zustand inkl. Ticket-Referenz.
