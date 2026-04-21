@@ -7,6 +7,10 @@ import { db } from "@repo/db";
 import { env } from "@repo/env";
 import { buyTicketEventSchema, type BuyTicketEvent } from "@repo/types/tickets";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
+import {
+  markOrderFailed,
+  type FailedOrderUpdateResult,
+} from "../lib/order-failures.js";
 import type {} from "../plugins/pubsub.js";
 
 type BuyTicketMessage = Pick<Message, "id" | "data" | "ack" | "nack">;
@@ -48,6 +52,10 @@ export type BuyTicketMessageHandlerDeps = {
   compensateReservation: (
     payload: BuyTicketPayload,
   ) => Promise<CompensationResult>;
+  markOrderFailed: (
+    payload: BuyTicketPayload,
+    failureReason: string,
+  ) => Promise<FailedOrderUpdateResult>;
   isOrderProcessed: (payload: BuyTicketPayload) => Promise<boolean>;
   tryAcquireProcessingLock: (payload: BuyTicketPayload) => Promise<boolean>;
   markOrderProcessed: (payload: BuyTicketPayload) => Promise<void>;
@@ -65,6 +73,14 @@ const getCauseCode = (error: unknown): string | undefined => {
 
   const code = cause.code;
   return typeof code === "string" ? code : undefined;
+};
+
+const getFailureReason = (error: unknown): string => {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+
+  return "Terminal BuyTicketEvent processing error";
 };
 
 export async function handleBuyTicketMessage(
@@ -150,9 +166,17 @@ export async function handleBuyTicketMessage(
     return;
   } catch (error) {
     if (getCauseCode(error) === "P0001") {
+      const failureReason = getFailureReason(error);
+      let failedOrderUpdate: FailedOrderUpdateResult;
+
       try {
         const compensationResult = await deps.compensateReservation(
           parsed.data,
+        );
+
+        failedOrderUpdate = await deps.markOrderFailed(
+          parsed.data,
+          failureReason,
         );
 
         deps.logger.warn(
@@ -161,6 +185,8 @@ export async function handleBuyTicketMessage(
             eventId: parsed.data.eventId,
             orderId: parsed.data.orderId,
             compensation: compensationResult,
+            failedOrderUpdate,
+            failureReason,
           },
           "Compensated reservation after terminal BuyTicketEvent error",
         );
@@ -173,7 +199,7 @@ export async function handleBuyTicketMessage(
             error,
             compensationError,
           },
-          "Failed to compensate reservation after terminal BuyTicketEvent error",
+          "Failed to compensate reservation or persist failed order after terminal BuyTicketEvent error",
         );
         message.nack();
         return;
@@ -201,6 +227,7 @@ export async function handleBuyTicketMessage(
           messageId: message.id,
           eventId: parsed.data.eventId,
           orderId: parsed.data.orderId,
+          failureReason,
           error,
         },
         "Event not found while processing BuyTicketEvent",
@@ -257,6 +284,8 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
 
         return Number(releaseResult) === 1 ? "released" : "already-released";
       },
+      markOrderFailed: async (payload, failureReason) =>
+        markOrderFailed(payload.orderId, failureReason),
       isOrderProcessed: async (payload) => {
         const keys = ticketRedisKeys(payload.eventId);
         return (await redis.get(keys.processed(payload.orderId))) !== null;

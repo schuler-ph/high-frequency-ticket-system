@@ -36,6 +36,13 @@
       "when": 1776752400000,
       "tag": "0005_complete_order_on_success",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776762434185,
+      "tag": "0006_thin_roxanne_simpson",
+      "breakpoints": true
     }
   ]
 }

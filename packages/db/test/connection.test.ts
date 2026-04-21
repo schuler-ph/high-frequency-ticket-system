@@ -156,12 +156,17 @@ void describe("database integration", () => {
     assert.equal(ticketsForEvent[0]?.orderId, orderId);
 
     const [persistedOrder] = await db
-      .select({ id: orders.id, status: orders.status })
+      .select({
+        id: orders.id,
+        status: orders.status,
+        failureReason: orders.failureReason,
+      })
       .from(orders)
       .where(eq(orders.id, orderId));
 
     assert.equal(persistedOrder?.id, orderId);
     assert.equal(persistedOrder?.status, "completed");
+    assert.equal(persistedOrder?.failureReason, null);
 
     await db.delete(tickets).where(eq(tickets.eventId, insertedEvent.id));
     await db.delete(orders).where(eq(orders.id, orderId));

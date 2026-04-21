@@ -4,6 +4,7 @@ import {
   uuid,
   varchar,
   integer,
+  text,
   timestamp,
 } from "drizzle-orm/pg-core";
 
@@ -27,6 +28,7 @@ export const orders = pgTable("orders", {
     .references(() => events.id)
     .notNull(),
   status: orderStatusEnum("status").notNull().default("pending"),
+  failureReason: text("failure_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

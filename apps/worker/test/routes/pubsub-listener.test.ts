@@ -55,6 +55,7 @@ function createDeps(
     logger: noopLogger,
     executeBuyTicket,
     compensateReservation,
+    markOrderFailed: async () => "updated",
     isOrderProcessed: async () => false,
     tryAcquireProcessingLock: async () => true,
     markOrderProcessed: async () => undefined,
@@ -164,6 +165,8 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   const payload = createValidPayload();
   const message = createMessage(JSON.stringify(payload));
   let compensationPayload: BuyTicketEvent | undefined;
+  let failedOrderPayload: BuyTicketEvent | undefined;
+  let receivedFailureReason: string | undefined;
   let markedProcessed = 0;
 
   await handleBuyTicketMessage(
@@ -178,6 +181,11 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
         return "released";
       },
       {
+        markOrderFailed: async (receivedPayload, failureReason) => {
+          failedOrderPayload = receivedPayload;
+          receivedFailureReason = failureReason;
+          return "updated";
+        },
         markOrderProcessed: async () => {
           markedProcessed += 1;
         },
@@ -186,6 +194,34 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   );
 
   assert.deepEqual(compensationPayload, payload);
+  assert.deepEqual(failedOrderPayload, payload);
+  assert.equal(receivedFailureReason, "event not found");
+  assert.equal(markedProcessed, 1);
+  assert.equal(message.acked, true);
+  assert.equal(message.nacked, false);
+});
+
+void test("pubsub-listener ACKs terminal P0001 error when failed order row is missing", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+  let markedProcessed = 0;
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => {
+        const cause = { code: "P0001" };
+        throw new Error("event not found", { cause });
+      },
+      async () => "already-released",
+      {
+        markOrderFailed: async () => "missing",
+        markOrderProcessed: async () => {
+          markedProcessed += 1;
+        },
+      },
+    ),
+  );
+
   assert.equal(markedProcessed, 1);
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
@@ -203,6 +239,29 @@ void test("pubsub-listener NACKs terminal P0001 error when compensation fails", 
       },
       async () => {
         throw new Error("redis unavailable");
+      },
+    ),
+  );
+
+  assert.equal(message.acked, false);
+  assert.equal(message.nacked, true);
+});
+
+void test("pubsub-listener NACKs terminal P0001 error when failed order update fails", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => {
+        const cause = { code: "P0001" };
+        throw new Error("event not found", { cause });
+      },
+      async () => "released",
+      {
+        markOrderFailed: async () => {
+          throw new Error("failed order write failed");
+        },
       },
     ),
   );

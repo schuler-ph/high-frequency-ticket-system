@@ -92,7 +92,7 @@
 - [x] Speichere `orderId` aus der API dauerhaft in der Datenbank (nicht nur in Pub/Sub Payload).
 - [x] Verknüpfe jedes erzeugte Ticket mit der zugehörigen Order (`tickets.order_id` oder Join-Tabelle), inkl. Foreign Key.
 - [x] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
-- [ ] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
+- [x] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
 - [ ] Baue gezielte Tests: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /orders/:orderId` zeigt finalen Zustand inkl. Ticket-Referenz.
 
 ### Sync-Strategie Redis ↔ DB
