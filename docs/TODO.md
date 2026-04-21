@@ -24,17 +24,14 @@
 - [x] Erstelle `.github/workflows/ci.yml` für GitHub Actions (lint, typecheck, build).
 - [x] Caching in GitHub Actions aktivieren
 - [x] Erstelle `@repo/env` Paket mit `@t3-oss/env-core` & Zod für strikte Laufzeit-Konfigurationsvalidierung.
-- [x] Migriere direkte `tsc`-CLI-Aufrufe in Workspace-Skripten (`build`, `check-types`, Teile von `test`, `watch`) auf `tsgo`.
-- [x] Stabilisiere API/Worker-Tests mit reproduzierbarer Datei-Discovery und klarer Trennung zwischen Unit- und DB-Tests.
+- [x] Migriere direkte `tsc`-CLI-Aufrufe in Workspace-Skripten weitgehend auf `tsgo` (`build`, `check-types`, Teile von `test`); offene Ausnahmen bleiben `apps/web` `check-types` und der Dev-Restart-Flow via `tsc-watch`.
+- [x] Stabilisiere API/Worker-Tests mit reproduzierbarer Datei-Discovery und klarer Trennung zwischen Service-Unit-Tests und DB-Tests im `@repo/db` Paket.
 - [x] Ersetze ad-hoc Debug-Einzeiler durch versionierte Debug-Skripte (`debug:*`) fuer Runtime-, Migrations- und DB-Vertragschecks.
 - [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
 - [x] Erweitere CI auf Node-Kompatibilitaetsmatrix (22 + 24) und definiere Node 24 als primaere Test-Runtime.
-- [x] Ersetze den fragilen `ts-node/esm`/`tsx`-Testpfad in API/Worker/DB durch direkte paketlokale `node:test`-Aufrufe gegen native `.ts`-Quellen via `--conditions=source`.
-- [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne Coverage-Instrumentierung; API/Worker mit nativer Node-Coverage in `test:coverage`/`test:ci`, `@repo/db` weiter mit `c8`) fuer schnellere lokale Feedback-Loops.
-- [x] Halte Testskripte paketlokal und direkt, statt Logik in Shared-Test-Runnern zu verstecken.
-- [x] Entferne Vitest- und Loader-Experimentpfade aus den Backend-Paketen und halte Tests wieder als direkte paketlokale `node:test`-Skripte ohne Shared Runner.
-- [x] Stabilisiere das lokale Root-Testkommando ueber `turbo run test --ui=stream --concurrency=1`, damit kleine Suites reproduzierbar im Sekundenbereich laufen.
-- [x] Entferne die verbleibenden flaky Fastify-Smoke-Tests aus API/Worker, flache den API-Buy-Route-Test auf pure Business-Logik ab und nutze fuer API/Worker den stabileren nativen Node-Coverage-Pfad statt `c8`.
+- [x] Vereinfache den Backend-Testpfad auf direkte paketlokale `node:test`-Aufrufe gegen native `.ts`-Quellen via `--conditions=source` und entferne Shared-Runner-, Vitest- und Loader-Experimentpfade aus dem Test-Hot-Path.
+- [x] Trenne lokale Testskripte vom CI-/Coverage-Pfad: `test` bleibt schnell und direkt, `test:coverage`/`test:ci` liefern Coverage (API/Worker via native Node-Coverage, `@repo/db` weiter via `c8`).
+- [x] Stabilisiere das Root-Testkommando ueber `turbo run test --ui=stream --concurrency=1` und reduziere verbleibende Flake-Quellen in kleinen Backend-Suites.
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 
