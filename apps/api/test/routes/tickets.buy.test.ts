@@ -188,7 +188,10 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
             return "OK";
           },
           async del(key: string) {
-            assert.equal(key, ticketReservationKey(eventId, reservationOrderId!));
+            assert.equal(
+              key,
+              ticketReservationKey(eventId, reservationOrderId!),
+            );
             delCalls += 1;
             return 1;
           },

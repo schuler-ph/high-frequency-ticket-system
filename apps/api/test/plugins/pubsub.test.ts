@@ -54,7 +54,17 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
     topicName: "buy-ticket",
   });
 
-  const messageId = await (fastify as { pubsubPublisher: { publishBuyTicket: typeof fakeClient.topic extends (...args: never[]) => infer T ? never : never } }).pubsubPublisher.publishBuyTicket(
+  const messageId = await (
+    fastify as {
+      pubsubPublisher: {
+        publishBuyTicket: typeof fakeClient.topic extends (
+          ...args: never[]
+        ) => infer T
+          ? never
+          : never;
+      };
+    }
+  ).pubsubPublisher.publishBuyTicket(
     { userId: "user-123", quantity: 1 },
     { requestId: "req-123" },
   );
@@ -66,7 +76,6 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
     quantity: 1,
   });
   assert.deepEqual(capturedMessage.attributes, { requestId: "req-123" });
-
 });
 
 void test("pubsub plugin auto-creates missing topic when enabled", async () => {
