@@ -1,4 +1,3 @@
-import type { Message } from "@google-cloud/pubsub";
 import type { FastifyPluginAsync } from "fastify";
 import { executeBuyTicket, markOrderFailed } from "@repo/db";
 import { env } from "@repo/env";
@@ -18,8 +17,6 @@ end
 
 return 0
 `;
-
-type CompensationResult = "released" | "already-released";
 
 type TicketRedisClient = {
   get: (key: string) => Promise<string | null>;

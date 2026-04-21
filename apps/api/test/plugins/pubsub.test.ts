@@ -1,6 +1,9 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
-import { pubSubPlugin } from "../../src/plugins/pubsub.ts";
+import {
+  type PubSubPublisher,
+  pubSubPlugin,
+} from "../../src/plugins/pubsub.ts";
 
 function createFakeFastify() {
   const hooks: Record<string, Array<() => Promise<void>>> = {};
@@ -23,7 +26,9 @@ function createFakeFastify() {
     },
   };
 
-  return instance;
+  return instance as typeof instance & {
+    pubsubPublisher: PubSubPublisher;
+  };
 }
 
 void test("pubsub plugin decorates fastify with a publish method", async () => {
@@ -54,17 +59,7 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
     topicName: "buy-ticket",
   });
 
-  const messageId = await (
-    fastify as {
-      pubsubPublisher: {
-        publishBuyTicket: typeof fakeClient.topic extends (
-          ...args: never[]
-        ) => infer T
-          ? never
-          : never;
-      };
-    }
-  ).pubsubPublisher.publishBuyTicket(
+  const messageId = await fastify.pubsubPublisher.publishBuyTicket(
     { userId: "user-123", quantity: 1 },
     { requestId: "req-123" },
   );

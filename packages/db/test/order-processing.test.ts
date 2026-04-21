@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { env } from "@repo/env";
 import { events, orders, tickets } from "../src/schema.ts";
 import { executeBuyTicket, markOrderFailed } from "../src/order-processing.ts";
