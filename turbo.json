@@ -15,11 +15,11 @@
       "dependsOn": ["^check-types"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": [],
       "outputs": []
     },
     "test:ci": {
-      "dependsOn": ["^build"],
+      "dependsOn": [],
       "outputs": ["coverage/**"]
     },
     "dev": {

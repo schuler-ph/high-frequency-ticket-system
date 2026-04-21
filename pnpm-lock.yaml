@@ -212,6 +212,9 @@ importers:
       '@repo/env':
         specifier: workspace:*
         version: link:../env
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../types
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1

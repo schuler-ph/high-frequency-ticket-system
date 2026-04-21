@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsgo",
     "seed": "node --import tsx src/seed.ts",
+    "test": "pnpm run db:test",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:apply-sql": "node --import tsx scripts/apply-sql-migration.ts",
@@ -28,6 +29,7 @@
   },
   "dependencies": {
     "@repo/env": "workspace:*",
+    "@repo/types": "workspace:*",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "pg": "^8.19.0"

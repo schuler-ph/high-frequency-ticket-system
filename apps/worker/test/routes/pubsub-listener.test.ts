@@ -2,10 +2,11 @@ import * as assert from "node:assert";
 import { test } from "node:test";
 import type { FastifyBaseLogger } from "fastify";
 import type { BuyTicketEvent } from "@repo/types/tickets";
+import type { FailedOrderUpdateResult } from "@repo/db";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
-} from "../../src/routes/pubsub-listener.js";
+} from "../../src/lib/handle-buy-ticket-message.js";
 
 type TestMessage = {
   id: string;
@@ -55,7 +56,7 @@ function createDeps(
     logger: noopLogger,
     executeBuyTicket,
     compensateReservation,
-    markOrderFailed: async () => "updated",
+    markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
     isOrderProcessed: async () => false,
     tryAcquireProcessingLock: async () => true,
     markOrderProcessed: async () => undefined,

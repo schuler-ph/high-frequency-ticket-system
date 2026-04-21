@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
 import process from "node:process";
 
 const coverageFlag = "--coverage";
@@ -9,18 +11,13 @@ const passthroughArgs = cliArgs.filter((arg) => arg !== coverageFlag);
 const registerTsNodeImport =
   'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("ts-node/esm", pathToFileURL("./"));';
 
-const baseNodeArgs = [
-  "--disable-warning=ExperimentalWarning",
-  "--no-deprecation",
-  "--import",
-  registerTsNodeImport,
-  "test/run-tests.ts",
-  ...passthroughArgs,
-];
+async function getPackageName() {
+  const packageJsonPath = new URL("./package.json", `file://${process.cwd()}/`);
+  const packageJson = await readFile(packageJsonPath, "utf8");
+  const parsed = JSON.parse(packageJson);
 
-const testCommand = withCoverage
-  ? { command: "pnpm", args: ["exec", "c8", "node", ...baseNodeArgs] }
-  : { command: process.execPath, args: baseNodeArgs };
+  return typeof parsed.name === "string" ? parsed.name : undefined;
+}
 
 function envWithFallback(value, fallback) {
   if (typeof value !== "string") {
@@ -59,7 +56,22 @@ const testEnv = {
   ),
 };
 
+const shouldLogTimings =
+  process.env.TEST_RUNNER_TIMING === "1" ||
+  process.env.TEST_RUNNER_TIMING === "true";
+
+function logTiming(label, startedAt) {
+  if (!shouldLogTimings) {
+    return;
+  }
+
+  const durationMs = performance.now() - startedAt;
+  console.log(`[test runner timing] ${label}: ${durationMs.toFixed(1)}ms`);
+}
+
 async function runCommand(command, args, env = {}) {
+  const startedAt = performance.now();
+
   await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: "inherit",
@@ -68,6 +80,7 @@ async function runCommand(command, args, env = {}) {
 
     child.on("close", (code) => {
       if (code === 0) {
+        logTiming(`${command} ${args.join(" ")}`, startedAt);
         resolve(undefined);
         return;
       }
@@ -86,9 +99,26 @@ async function runCommand(command, args, env = {}) {
 }
 
 try {
-  await runCommand("pnpm", ["run", "build"]);
+  const totalStartedAt = performance.now();
+  const packageName = await getPackageName();
+  const shouldUseWrapperEntry = packageName === "worker";
+  const baseNodeArgs = [
+    "--disable-warning=ExperimentalWarning",
+    "--no-deprecation",
+    "--import",
+    registerTsNodeImport,
+    ...(shouldUseWrapperEntry
+      ? ["../../scripts/testing/run-test-entry.mjs", "test/run-tests.ts"]
+      : ["test/run-tests.ts"]),
+    ...passthroughArgs,
+  ];
+  const testCommand = withCoverage
+    ? { command: "pnpm", args: ["exec", "c8", "node", ...baseNodeArgs] }
+    : { command: process.execPath, args: baseNodeArgs };
+
   await runCommand("pnpm", ["exec", "tsgo", "-p", "test/tsconfig.json"]);
   await runCommand(testCommand.command, testCommand.args, testEnv);
+  logTiming("total", totalStartedAt);
 } catch (error) {
   if (error instanceof Error) {
     console.error(`[test runner] ${error.message}`);
