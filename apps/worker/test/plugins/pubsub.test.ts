@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { test } from "node:test";
+import { test } from "vitest";
 import Fastify from "fastify";
 import { Message } from "@google-cloud/pubsub";
 import PubSubSubscriberPlugin, {
@@ -237,9 +237,13 @@ void test("pubsub subscriber fails on startup when subscription is missing and a
     autoCreateSubscription: false,
   });
 
-  await assert.rejects(async () => {
-    await fastify.ready();
-  }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
+  try {
+    await assert.rejects(async () => {
+      await fastify.ready();
+    }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
+  } finally {
+    await fastify.close().catch(() => undefined);
+  }
 });
 
 void test("pubsub subscriber nacks messages when handler throws", async () => {

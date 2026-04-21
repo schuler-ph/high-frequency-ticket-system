@@ -18,6 +18,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Package Manager:** pnpm (v10+)
 - **Language:** TypeScript (Fullstack, 100%)
 - **TypeScript CLI Compiler:** `tsgo` via `@typescript/native-preview` (transition from `tsc`, mit temporaerer Ausnahme fuer `apps/web` `check-types`)
+- **Test Runner:** Node `node:test` + `tsx` import hook for direct TypeScript execution without custom wrapper scripts
 - **Frontend:** Next.js, Tailwind CSS
 - **Backend Runtime:** Node.js (v22+; primär v24)
 - **Backend Framework:** Fastify (API Gateway & Worker Services)

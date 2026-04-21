@@ -84,9 +84,27 @@ pnpm run test
 
 Wichtige Hardening-Punkte:
 
-- fester Test-Entrypoint pro Service (`test/run-tests.ts`)
-- `NODE_OPTIONS=''` in API/Worker-Testskripten
-- Top-Level-Logging fuer `uncaughtException`/`unhandledRejection`
+- API, Worker und `@repo/db` laufen direkt ueber `node --import tsx --test`
+- keine Shared-Test-Runner oder Wrapper-Entrypoints zwischen Paketskript und Testdateien
+- Coverage bleibt in `test:coverage` oder `test:ci`, damit lokale `test`-Laeufe schnell bleiben
+
+## 7) Testdauer korrekt messen
+
+Turbo kann bei Cache-Hits alte Paket-Logs inklusive historischer `duration_ms` Werte wiedergeben. Diese Werte sind dann nicht die Laufzeit des aktuellen Befehls.
+
+Fuer echte Laufzeitmessungen nutze:
+
+```bash
+env CI=1 pnpm exec turbo run test --ui=stream --force
+```
+
+Oder fuer den benutzerseitigen Root-Befehl:
+
+```bash
+/usr/bin/time -p pnpm test
+```
+
+Wenn `turbo` Cache-Hits replayt, ist die relevante Zahl die echte Shell-Zeit (`real`), nicht die alte `duration_ms` aus den wiedergegebenen Logs.
 
 ## Node-Kompatibilitaet
 

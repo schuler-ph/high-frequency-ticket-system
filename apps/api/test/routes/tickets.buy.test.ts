@@ -1,6 +1,6 @@
 // eslint-disable
 import * as assert from "node:assert";
-import { test } from "node:test";
+import { test } from "vitest";
 import Fastify from "fastify";
 import { AppError } from "@repo/types/errors";
 import {

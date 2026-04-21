@@ -28,6 +28,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-018 Ticket-Kauf via SQL-Function im Worker       | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                          |
 | ADR-019 TypeScript CLI via tsgo                      | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen |
 | ADR-020 Deterministische Tests & Debug-Guardrails    | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                     |
+| ADR-021 Direkte TypeScript-Testausfuehrung via tsx   | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen ohne Shared Runner oder ts-node/esm Sonderlogik                     |
 
 ### Status-Definitionen
 
@@ -237,6 +238,23 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - _Pulumi:_ Moderner (TypeScript), aber Terraform ist aktuell noch der de-facto Standard, den Recruiter/Seniors bevorzugen.
   - _ClickOps (GCP Console):_ Nicht reproduzierbar, keine Versionierung (absolutes No-Go für ein Showcase-Projekt).
 
+  ***
+
+  ## ADR-021: Direkte TypeScript-Testausfuehrung via tsx
+  - **Datum:** 2026-04-21
+  - **Kontext:** Der bisherige lokale Testpfad fuer API und Worker war durch einen gemeinsamen Runner, `ts-node/esm`-Sonderbehandlung, Wrapper-Entrypoints und Vorab-Compile-Schritte unnötig komplex. Die eigentlichen Tests waren schnell, aber der Startpfad war schwer erklaerbar und teilweise deutlich langsamer als die Testlogik selbst.
+  - **Entscheidung:** API, Worker und `@repo/db` fuehren Tests direkt ueber `node --import tsx --test` aus. Paket-lokale Wrapper-Skripte und zentrale Runner-Entrypoints werden entfernt.
+  - **Begruendung:** `tsx` ist fuer diesen Scope der kleinstmoegliche TypeScript-Laufzeitadapter ohne eigene Test-Framework-Architektur. Die Testausfuehrung bleibt bei `node:test`, nutzt normale File-Discovery und vermeidet Speziallogik fuer Main-Module, Loader-Registrierung und paketabhaengige Branches.
+  - **Alternativen:**
+    - `ts-node/esm` mit Shared Runner (zu komplex und im Worker instabil)
+    - eigenes Wrapper-Skript pro Paket (mehr Wartung, kein echter Architekturgewinn)
+    - vollstaendige Migration auf Vitest (valide Option spaeter, aber fuer den aktuellen Scope unnoetig)
+  - **Umsetzung:**
+    - `package.json`
+    - `apps/api/package.json`
+    - `apps/worker/package.json`
+    - `packages/db/package.json`
+
 ---
 
 ## ADR-011: Event Capacity Model vs. Pre-generated Tickets
@@ -347,26 +365,27 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Datum:** 2026-03-22
 - **Kontext:** Unter Node 24 + `ts-node/esm` waren glob-basierte `node --test` Aufrufe in API/Worker wiederholt instabil (opaque Top-Level-Fehler), was die Fehlersuche verlangsamt hat. Gleichzeitig wurden wiederkehrende Diagnosen oft als Inline-Einzeiler ausgefuehrt und waren dadurch schwer reproduzierbar.
 - **Entscheidung:**
-  - API und Worker nutzen feste Test-Entrypoints (`test/run-tests.ts`) statt glob-basierter Discovery.
   - Testskripte setzen `NODE_OPTIONS=''`, um Debug-Bootloader-Injektionen als Fehlerquelle zu eliminieren.
   - Wiederkehrende Diagnosen werden als versionierte Skripte bereitgestellt (`debug:*`, inkl. Migrations- und `buy_ticket`-Vertragschecks).
   - CI fuehrt Guardrail-Checks fuer Migrations-Journal und `buy_ticket`-Vertrag vor Lint/Typecheck/Build aus.
   - Ein kurzes Runbook dokumentiert den reproduzierbaren Debug-Ablauf.
-- **Begruendung:** Deterministische Entrypoints reduzieren nicht-deterministische Testloader-Effekte. Versionierte Debug-Skripte sparen Debug-Zeit, da sie ad-hoc Shell-Einzeiler durch wiederholbare Checks ersetzen. Fruehe CI-Guardrails verhindern Drift zwischen Drizzle-Schema, Migrationsjournal und SQL-Function-Vertrag.
+- **Begruendung:** Versionierte Debug-Skripte sparen Debug-Zeit, da sie ad-hoc Shell-Einzeiler durch wiederholbare Checks ersetzen. Fruehe CI-Guardrails verhindern Drift zwischen Drizzle-Schema, Migrationsjournal und SQL-Function-Vertrag.
 - **Alternativen:**
-  - Bei glob-basierter Test-Discovery bleiben und nur bei Bedarf manuell debuggen (langsamer, fehleranfaelliger).
+  - Bei ad-hoc Shell-Diagnosen bleiben und nur bei Bedarf manuell debuggen (langsamer, fehleranfaelliger).
   - Nur lokale Checks ohne CI-Guardrails (Drift wird spaet erkannt).
 - **Status:** Fertig
-- **TODO-Mapping:** `docs/TODO.md` Phase 1 (Test-Entrypoints, Debug-Skripte, Runbook) + Phase 3.5 (CI-Guardrails)
+- **TODO-Mapping:** `docs/TODO.md` Phase 1 (Debug-Skripte, Runbook) + Phase 3.5 (CI-Guardrails)
 
-### Update 2026-04-20: Modernisierung des TS-Loader-Pfads in Testskripten
+### Update 2026-04-21: Direkter Testpfad ohne Shared Runner
 
-- **Kontext:** Der bisherige Testpfad nutzte `--loader ts-node/esm`. Dieser Pfad ist in neueren Node-Versionen als Legacy/abzuraten markiert und war in der Praxis anfaelliger fuer schwer lesbare Loader-Fehler.
-- **Entscheidung:** API- und Worker-Testskripte verwenden weiterhin deterministische Entrypoints (`test/run-tests.ts`), aber der Loader wird ueber `--import` + `register("ts-node/esm", ...)` initialisiert. Zusaetzlich setzen die Skripte `TS_NODE_TRANSPILE_ONLY=true`, `DOTENV_CONFIG_QUIET=true` und reduzieren Warning-Noise.
-- **Begruendung:** Der modernisierte Loader-Pfad ist mit Node-CLI-Empfehlungen konsistent, reduziert Start-/Transform-Overhead und verbessert die Lesbarkeit der Testausgaben, ohne den etablierten deterministischen Entrypoint-Flow aufzugeben.
+- **Kontext:** Der zwischenzeitliche Shared Runner fuer API und Worker hat die eigentliche Ursache der Test-Langsamkeit nicht geloest, sondern die Testarchitektur weiter verkompliziert.
+- **Entscheidung:** API, Worker und `@repo/db` laufen wieder direkt ueber paketlokale `node --import tsx --test` Skripte ohne Wrapper-Entrypoints oder zentrales Runner-Skript.
+- **Begruendung:** Die direkte Paket-Ausfuehrung ist einfacher, erklaerbarer und schneller zu debuggen als jede zentrale Sonderlogik fuer Loader, Main-Module oder paketabhaengige Branches.
 - **Umsetzung:**
+  - `package.json`
   - `apps/api/package.json`
   - `apps/worker/package.json`
+  - `packages/db/package.json`
 
 ### Update 2026-04-20: Schneller lokaler Testpfad ohne Coverage-Instrumentierung
 
@@ -381,16 +400,6 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/package.json`
   - `package.json`
   - `turbo.json`
-
-### Update 2026-04-20: Test-Setup aus `package.json` in Runner-Skript ausgelagert
-
-- **Kontext:** Die Testskripte in API und Worker enthielten identische, lange Inline-Kommandos (Build, Test-TS-Compile, Node-Import-Register, Env-Flags). Das erschwerte Wartung und driftete leicht auseinander.
-- **Entscheidung:** Das gemeinsame Setup wird in ein versioniertes Skript ausgelagert (`scripts/testing/run-package-tests.mjs`). `test` und `test:coverage` in API/Worker rufen nur noch dieses Skript auf (Coverage per Flag `--coverage`).
-- **Begruendung:** Weniger Duplikation, einfachere Pflege bei künftigen Loader/Env-Anpassungen und weiterhin deterministische Entrypoint-Ausfuehrung inkl. optionaler Argument-Weitergabe (`-- --no-cache`).
-- **Umsetzung:**
-  - `scripts/testing/run-package-tests.mjs`
-  - `apps/api/package.json`
-  - `apps/worker/package.json`
 
   ### Update 2026-04-20: Deterministisches Local Reset/Seeding fuer Infrastruktur
   - **Kontext:** Fuer reproduzierbare lokale End-to-End-Tests fehlte ein einheitlicher One-Command-Reset ueber PostgreSQL, Redis und den Pub/Sub Emulator.

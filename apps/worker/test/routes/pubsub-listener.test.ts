@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { test } from "node:test";
+import { test } from "vitest";
 import type { FastifyBaseLogger } from "fastify";
 import type { BuyTicketEvent } from "@repo/types/tickets";
 import type { FailedOrderUpdateResult } from "@repo/db";

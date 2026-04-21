@@ -21,7 +21,7 @@
     "db:push": "drizzle-kit push",
     "db:apply-sql": "node --import tsx scripts/apply-sql-migration.ts",
     "db:studio": "drizzle-kit studio",
-    "db:test": "node --import tsx --test test/**/*.test.ts",
+    "db:test": "vitest run test/**/*.test.ts",
     "debug:ticket-order-fk": "node --import tsx scripts/debug-ticket-order-fk.ts",
     "debug:buy-ticket-function": "node --import tsx scripts/debug-buy-ticket-function.ts",
     "lint": "eslint . --max-warnings 0",
@@ -41,7 +41,7 @@
     "@types/pg": "^8.16.0",
     "drizzle-kit": "^0.31.9",
     "eslint": "^9.39.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

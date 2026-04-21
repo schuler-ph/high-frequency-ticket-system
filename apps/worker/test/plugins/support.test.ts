@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import * as assert from "node:assert";
 
 import Fastify from "fastify";
@@ -10,4 +10,6 @@ void test("support works standalone", async (_t) => {
   await fastify.ready();
 
   assert.equal(fastify.someSupport(), "hugs");
+
+  await fastify.close();
 });

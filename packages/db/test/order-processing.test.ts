@@ -1,4 +1,4 @@
-import { after, describe, it } from "node:test";
+import { afterAll, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
@@ -12,7 +12,7 @@ void describe("order processing actions", () => {
   const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
   const database = drizzle(pool);
 
-  after(async () => {
+  afterAll(async () => {
     await pool.end();
   });
 

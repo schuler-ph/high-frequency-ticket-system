@@ -25,13 +25,14 @@
 - [x] Caching in GitHub Actions aktivieren
 - [x] Erstelle `@repo/env` Paket mit `@t3-oss/env-core` & Zod für strikte Laufzeit-Konfigurationsvalidierung.
 - [x] Migriere direkte `tsc`-CLI-Aufrufe in Workspace-Skripten (`build`, `check-types`, Teile von `test`, `watch`) auf `tsgo`.
-- [x] Stabilisiere API/Worker-Tests mit deterministischen Test-Entrypoints (`test/run-tests.ts`) statt glob-basierter Discovery.
+- [x] Stabilisiere API/Worker-Tests mit reproduzierbarer Datei-Discovery und klarer Trennung zwischen Unit- und DB-Tests.
 - [x] Ersetze ad-hoc Debug-Einzeiler durch versionierte Debug-Skripte (`debug:*`) fuer Runtime-, Migrations- und DB-Vertragschecks.
 - [x] Ergaenze kurzes Debugging-Runbook (`docs/DEBUGGING.md`) fuer reproduzierbare Diagnoseablaeufe.
 - [x] Erweitere CI auf Node-Kompatibilitaetsmatrix (22 + 24) und definiere Node 24 als primaere Test-Runtime.
-- [x] Modernisiere API/Worker-Testskripte von `--loader ts-node/esm` auf `--import register(ts-node/esm)` inkl. `TS_NODE_TRANSPILE_ONLY` und reduziertem Warning-Noise.
+- [x] Ersetze den fragilen `ts-node/esm` Testpfad in API/Worker durch direkte `node --import tsx --test` Aufrufe.
 - [x] Trenne lokale Testskripte von Coverage-Läufen (`test` ohne `c8`, `test:ci`/`test:coverage` mit `c8`) fuer schnellere lokale Feedback-Loops.
-- [x] Lagere das gemeinsame Test-Setup aus `package.json` in ein versioniertes Runner-Skript aus (`scripts/testing/run-package-tests.mjs`).
+- [x] Halte Testskripte paketlokal und direkt, statt Logik in Shared-Test-Runnern zu verstecken.
+- [x] Ersetze den ad-hoc Shared-Test-Runner wieder durch direkte `node --import tsx --test` Skripte in den Paketen und entferne die Wrapper-Entrypoints.
 
 ## Phase 2: Data Layer & Infrastructure (Local)
 

@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { test } from "node:test";
+import { test } from "vitest";
 import Fastify from "fastify";
 import PubSubPlugin from "../../src/plugins/pubsub.js";
 
@@ -108,7 +108,11 @@ void test("pubsub plugin fails on startup when topic is missing and auto-create 
     autoCreateTopic: false,
   });
 
-  await assert.rejects(async () => {
-    await fastify.ready();
-  }, /Configured Pub\/Sub topic "buy-ticket" does not exist/);
+  try {
+    await assert.rejects(async () => {
+      await fastify.ready();
+    }, /Configured Pub\/Sub topic "buy-ticket" does not exist/);
+  } finally {
+    await fastify.close().catch(() => undefined);
+  }
 });
