@@ -8,6 +8,20 @@ import type {
 } from "fastify-type-provider-zod";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
 
+const parseRedisCount = (value: string | null | undefined): number | null => {
+  if (value == null) {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  if (!Number.isSafeInteger(parsedValue)) {
+    throw new Error(`Invalid Redis counter value: ${value}`);
+  }
+
+  return parsedValue;
+};
+
 const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
   fastify,
   _opts,
@@ -31,8 +45,8 @@ const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
       );
 
       return res.status(200).send({
-        available: availableStr ?? null,
-        total: totalStr ?? null,
+        available: parseRedisCount(availableStr),
+        total: parseRedisCount(totalStr),
       });
     },
   });

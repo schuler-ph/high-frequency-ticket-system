@@ -40,8 +40,8 @@ export const buyTicketResponseSchema = z.object({
 export type BuyTicketResponse = z.infer<typeof buyTicketResponseSchema>;
 
 export const ticketAvailabilityResponseSchema = z.object({
-  available: z.string().nullable(),
-  total: z.string().nullable(),
+  available: z.number().int().nullable(),
+  total: z.number().int().nullable(),
 });
 
 export type TicketAvailabilityResponse = z.infer<
