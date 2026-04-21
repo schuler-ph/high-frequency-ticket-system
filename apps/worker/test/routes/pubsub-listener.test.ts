@@ -83,6 +83,7 @@ void test("pubsub-listener ACKs successful messages", async () => {
     createDeps(
       async () => {
         executeCalls += 1;
+        return "ticket-1";
       },
       async () => "already-released",
       {
@@ -108,6 +109,7 @@ void test("pubsub-listener ACKs and skips duplicate already-processed messages",
     createDeps(
       async () => {
         executeCalls += 1;
+        return "ticket-1";
       },
       async () => "already-released",
       {
@@ -130,6 +132,7 @@ void test("pubsub-listener NACKs when processing lock cannot be acquired", async
     createDeps(
       async () => {
         executeCalls += 1;
+        return "ticket-1";
       },
       async () => "already-released",
       {
@@ -235,6 +238,7 @@ void test("pubsub-listener NACKs payloads that fail schema validation", async ()
     message,
     createDeps(async () => {
       executeCalls += 1;
+      return "ticket-1";
     }),
   );
 

@@ -63,6 +63,18 @@ if (
   );
 }
 
+if (!latest.content.includes("UPDATE orders")) {
+  fail(
+    `Latest buy_ticket function migration (${latest.fileName}) does not update orders after successful ticket creation.`,
+  );
+}
+
+if (!latest.content.includes("SET status = 'completed', updated_at = NOW()")) {
+  fail(
+    `Latest buy_ticket function migration (${latest.fileName}) does not mark orders as completed on success.`,
+  );
+}
+
 console.log(
   `[debug:buy-ticket-contract] Schema and latest buy_ticket migration contract look good (${latest.fileName}).`,
 );

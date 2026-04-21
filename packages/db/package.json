@@ -18,6 +18,7 @@
     "seed": "node --import tsx src/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:apply-sql": "node --import tsx scripts/apply-sql-migration.ts",
     "db:studio": "drizzle-kit studio",
     "db:test": "node --import tsx --test test/**/*.test.ts",
     "debug:ticket-order-fk": "node --import tsx scripts/debug-ticket-order-fk.ts",

@@ -50,6 +50,16 @@ const main = async () => {
       );
     }
 
+    if (!definition.includes("UPDATE orders")) {
+      fail(
+        "buy_ticket function does not update orders after successful ticket insert.",
+      );
+    }
+
+    if (!definition.includes("SET status = 'completed', updated_at = NOW()")) {
+      fail("buy_ticket function does not mark orders as completed on success.");
+    }
+
     console.log(
       "[db:debug:buy-ticket-function] buy_ticket function contract is valid.",
     );

@@ -44,7 +44,7 @@ type TicketRedisClient = {
 
 export type BuyTicketMessageHandlerDeps = {
   logger: FastifyBaseLogger;
-  executeBuyTicket: (payload: BuyTicketPayload) => Promise<void>;
+  executeBuyTicket: (payload: BuyTicketPayload) => Promise<string | null>;
   compensateReservation: (
     payload: BuyTicketPayload,
   ) => Promise<CompensationResult>;
@@ -133,11 +133,16 @@ export async function handleBuyTicketMessage(
   try {
     await (deps.sleep ?? setTimeout)(1000);
 
-    await deps.executeBuyTicket(parsed.data);
+    const ticketId = await deps.executeBuyTicket(parsed.data);
     await deps.markOrderProcessed(parsed.data);
 
     deps.logger.info(
-      { messageId: message.id, eventId: parsed.data.eventId },
+      {
+        messageId: message.id,
+        eventId: parsed.data.eventId,
+        orderId: parsed.data.orderId,
+        ticketId,
+      },
       "Successfully processed BuyTicketEvent",
     );
 
@@ -235,9 +240,11 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
     await handleBuyTicketMessage(message, {
       logger: fastify.log,
       executeBuyTicket: async (payload) => {
-        await db.execute(
-          sql`SELECT buy_ticket(${payload.eventId}, ${payload.orderId}, ${payload.firstName}, ${payload.lastName})`,
+        const result = await db.execute<{ ticket_id: string | null }>(
+          sql`SELECT buy_ticket(${payload.eventId}, ${payload.orderId}, ${payload.firstName}, ${payload.lastName}) AS ticket_id`,
         );
+
+        return result.rows[0]?.ticket_id ?? null;
       },
       compensateReservation: async (payload) => {
         const keys = ticketRedisKeys(payload.eventId);

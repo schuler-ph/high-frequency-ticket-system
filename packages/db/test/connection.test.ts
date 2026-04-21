@@ -161,7 +161,7 @@ void describe("database integration", () => {
       .where(eq(orders.id, orderId));
 
     assert.equal(persistedOrder?.id, orderId);
-    assert.equal(persistedOrder?.status, "pending");
+    assert.equal(persistedOrder?.status, "completed");
 
     await db.delete(tickets).where(eq(tickets.eventId, insertedEvent.id));
     await db.delete(orders).where(eq(orders.id, orderId));
