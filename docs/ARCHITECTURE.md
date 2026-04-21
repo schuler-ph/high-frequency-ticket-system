@@ -170,5 +170,8 @@ high-frequency-ticket-system/
 │   ├── DECISIONS.md
 │   ├── REQUIREMENTS.md
 │   └── TODO.md
+├── scripts/
+│   ├── debug/        # Reproduzierbare Diagnose- und Guardrail-Skripte
+│   └── local/        # Lokale Infrastruktur-Orchestrierung (Reset + Seed)
 └── docker-compose.yml  # Lokales Dev-Setup (PostgreSQL, Redis, Pub/Sub, Grafana)
 ```

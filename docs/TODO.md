@@ -36,7 +36,7 @@
 ## Phase 2: Data Layer & Infrastructure (Local)
 
 - [x] Erstelle `docker-compose.yml` für lokale PostgreSQL, Redis (kläre Redis Url für MCP) und Pub/Sub Emulator.
-- [ ] Erstelle ein lokales Reset/Seeding-Skript für PostgreSQL, Redis und Pub/Sub Emulator (inkl. reproducible Testdaten-Setup).
+- [x] Erstelle ein lokales Reset/Seeding-Skript für PostgreSQL, Redis und Pub/Sub Emulator (inkl. reproducible Testdaten-Setup).
 - [x] Definiere PostgreSQL Verbindungs-URL in `.env` (Docker-Compose kompatibel).
 - [x] Setze Drizzle ORM in `packages/db` auf.
 - [x] Definiere Schema für `tickets` und `orders` in Drizzle.

@@ -27,6 +27,21 @@ docker compose up -d
 
 Hinweis: In CI wird der Preflight automatisch uebersprungen.
 
+## 2.5) Lokales Reset + Seed (PostgreSQL, Redis, Pub/Sub)
+
+```bash
+pnpm run local:reset-seed
+```
+
+Der Befehl fuehrt deterministisch aus:
+
+- `db:push` fuer das aktuelle Drizzle-Schema
+- Reset + Seed der Tabellen `events`, `orders`, `tickets`
+- `FLUSHDB` in Redis + event-spezifische `total`/`available` Keys
+- Recreate von Pub/Sub Topic + Subscription im lokalen Emulator
+
+Wenn ein Container nicht laeuft (`hts-postgres`, `hts-redis`, `hts-pubsub`), bricht das Skript mit einem klaren Hinweis ab.
+
 ## 3) Migrationen/Journal pruefen
 
 ```bash

@@ -32,7 +32,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Load Testing:** k6
 - **CI/CD:** GitHub Actions (Node 22+24 Quality-Matrix, migration/function guardrails, lint, typecheck, build, tests on Node 24)
 - **Git Hooks:** Husky (pre-commit: format, pre-push: lint + typecheck)
-- **Debugging Guardrails:** Deterministic test entrypoints + versioned `debug:*` scripts + short runbook
+- **Debugging Guardrails:** Deterministic test entrypoints + versioned `debug:*` scripts + short runbook + lokales `local:reset-seed` fuer reproduzierbaren PostgreSQL/Redis/PubSub-Startzustand
 
 ## Load-Test Szenario (k6)
 

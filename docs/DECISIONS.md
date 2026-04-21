@@ -391,3 +391,12 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `scripts/testing/run-package-tests.mjs`
   - `apps/api/package.json`
   - `apps/worker/package.json`
+
+  ### Update 2026-04-20: Deterministisches Local Reset/Seeding fuer Infrastruktur
+  - **Kontext:** Fuer reproduzierbare lokale End-to-End-Tests fehlte ein einheitlicher One-Command-Reset ueber PostgreSQL, Redis und den Pub/Sub Emulator.
+  - **Entscheidung:** Ein zentrales Root-Skript `pnpm run local:reset-seed` setzt alle drei lokalen Systeme auf einen definierten Fixture-Stand zurueck.
+  - **Begruendung:** Einheitliche Ausgangsdaten reduzieren Debug-Zeit, verhindern Drift zwischen Teammitgliedern und verbessern die Reproduzierbarkeit von API/Worker-Tests.
+  - **Umsetzung:**
+    - `scripts/local/reset-seed.mjs`
+    - `package.json`
+    - `docs/DEBUGGING.md`

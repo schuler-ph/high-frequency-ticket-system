@@ -166,6 +166,16 @@ PUBSUB_SUBSCRIPTION_BUY_TICKET=buy-ticket-sub
 
 ### 4. Entwicklungsmodus starten
 
+Optional vor dem Start fuer einen reproduzierbaren lokalen Datenzustand:
+
+```bash
+pnpm run local:reset-seed
+```
+
+Der Befehl setzt PostgreSQL, Redis und den Pub/Sub Emulator auf einen definierten Seed-Stand zurueck.
+
+### 5. Entwicklungsmodus starten
+
 ```bash
 pnpm run dev
 ```
