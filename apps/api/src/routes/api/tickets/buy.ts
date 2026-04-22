@@ -3,6 +3,7 @@ import { env } from "@repo/env";
 import {
   buyTicketBodySchema,
   buyTicketResponseSchema,
+  pendingOrderCacheEntrySchema,
   ticketEventIdSchema,
   type BuyTicketBody,
   type BuyTicketEvent,
@@ -13,7 +14,7 @@ import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { ticketRedisKeys } from "@repo/types/redis-keys";
+import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 
 const ATOMIC_RESERVE_TICKET_SCRIPT = `
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
@@ -50,7 +51,42 @@ type QueueBuyTicketPurchaseInput = {
   redis: TicketRedisClient;
   pubsubPublisher: TicketPublisher;
   reservationTtlSeconds?: number;
+  pendingOrderTtlSeconds?: number;
   createOrderId?: () => string;
+};
+
+const rollbackQueuedPurchase = async ({
+  redis,
+  reservationKey,
+  pendingOrderKey,
+  availabilityKey,
+}: {
+  redis: TicketRedisClient;
+  reservationKey: string;
+  pendingOrderKey: string;
+  availabilityKey: string;
+}): Promise<unknown[]> => {
+  const cleanupErrors: unknown[] = [];
+
+  try {
+    await redis.del(reservationKey);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  try {
+    await redis.incr(availabilityKey);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  try {
+    await redis.del(pendingOrderKey);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  return cleanupErrors;
 };
 
 export async function queueBuyTicketPurchase({
@@ -59,6 +95,7 @@ export async function queueBuyTicketPurchase({
   redis,
   pubsubPublisher,
   reservationTtlSeconds = env.REDIS_RESERVATION_TTL_SECONDS,
+  pendingOrderTtlSeconds = env.REDIS_PENDING_ORDER_TTL_SECONDS,
   createOrderId = randomUUID,
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
   const keys = ticketRedisKeys(eventId);
@@ -76,9 +113,23 @@ export async function queueBuyTicketPurchase({
 
   const orderId = createOrderId();
   const reservationKey = keys.reservation(orderId);
+  const pendingOrderKey = orderRedisKeys.pending(orderId);
+  const pendingOrderValue = JSON.stringify(
+    pendingOrderCacheEntrySchema.parse({
+      orderId,
+      eventId,
+      status: "pending",
+    }),
+  );
 
   try {
     await redis.set(reservationKey, orderId, "EX", reservationTtlSeconds);
+    await redis.set(
+      pendingOrderKey,
+      pendingOrderValue,
+      "EX",
+      pendingOrderTtlSeconds,
+    );
 
     await pubsubPublisher.publishBuyTicket({
       orderId,
@@ -86,8 +137,20 @@ export async function queueBuyTicketPurchase({
       ...body,
     });
   } catch (error) {
-    await redis.del(reservationKey);
-    await redis.incr(keys.available);
+    const cleanupErrors = await rollbackQueuedPurchase({
+      redis,
+      reservationKey,
+      pendingOrderKey,
+      availabilityKey: keys.available,
+    });
+
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...cleanupErrors],
+        "Failed to queue ticket purchase and fully roll back reservation",
+      );
+    }
+
     throw error;
   }
 

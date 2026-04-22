@@ -24,6 +24,7 @@ const testRuntimeDefaults = {
   PUBSUB_EMULATOR_HOST: "localhost:8085",
   PUBSUB_TOPIC_BUY_TICKET: "buy-ticket",
   PUBSUB_SUBSCRIPTION_BUY_TICKET: "buy-ticket-worker",
+  REDIS_PENDING_ORDER_TTL_SECONDS: "900",
 } as const;
 
 const isNodeTestRuntime =
@@ -56,6 +57,9 @@ const createRuntimeEnv = (runtimeEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
     PUBSUB_SUBSCRIPTION_BUY_TICKET:
       runtimeEnv.PUBSUB_SUBSCRIPTION_BUY_TICKET ??
       testRuntimeDefaults.PUBSUB_SUBSCRIPTION_BUY_TICKET,
+    REDIS_PENDING_ORDER_TTL_SECONDS:
+      runtimeEnv.REDIS_PENDING_ORDER_TTL_SECONDS ??
+      testRuntimeDefaults.REDIS_PENDING_ORDER_TTL_SECONDS,
   };
 };
 
@@ -74,6 +78,11 @@ export const env = createEnv({
       .int()
       .positive()
       .default(120),
+    REDIS_PENDING_ORDER_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(900),
     REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS: z.coerce
       .number()
       .int()

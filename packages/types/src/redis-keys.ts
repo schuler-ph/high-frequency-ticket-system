@@ -8,3 +8,7 @@ export const ticketRedisKeys = (eventId: string) => ({
   processed: (orderId: string) =>
     `tickets:event:${eventId}:processed:${orderId}`,
 });
+
+export const orderRedisKeys = {
+  pending: (orderId: string) => `orders:${orderId}:pending`,
+};

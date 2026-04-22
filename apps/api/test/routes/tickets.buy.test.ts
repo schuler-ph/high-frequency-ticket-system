@@ -1,6 +1,9 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
-import { buyTicketBodySchema } from "@repo/types/tickets";
+import {
+  buyTicketBodySchema,
+  pendingOrderCacheEntrySchema,
+} from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
 import { queueBuyTicketPurchase } from "../../src/routes/api/tickets/buy.ts";
 
@@ -24,14 +27,16 @@ const ticketAvailabilityKey = (eventId: string) =>
   `tickets:event:${eventId}:available`;
 const ticketReservationKey = (eventId: string, orderId: string) =>
   `tickets:event:${eventId}:reservation:${orderId}`;
+const pendingOrderKey = (orderId: string) => `orders:${orderId}:pending`;
 
 void test("queueBuyTicketPurchase returns queued payload and publishes event", async () => {
   let evalCalls = 0;
-  let setCalls = 0;
+  const setCalls: Array<{ key: string; value: string; seconds: number }> = [];
   let delCalls = 0;
   let incrCalls = 0;
   let publishedPayload: unknown;
   let reservationOrderId: string | undefined;
+  let pendingOrderEntry: unknown;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
 
   const response = await queueBuyTicketPurchase({
@@ -49,10 +54,16 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
       },
       async set(key: string, value: string, mode: "EX", seconds: number) {
         assert.equal(mode, "EX");
-        assert.equal(seconds, 120);
-        reservationOrderId = value;
-        assert.equal(key, ticketReservationKey(eventId, value));
-        setCalls += 1;
+        setCalls.push({ key, value, seconds });
+        if (key.startsWith("tickets:event:")) {
+          assert.equal(seconds, 120);
+          reservationOrderId = value;
+          assert.equal(key, ticketReservationKey(eventId, value));
+        } else {
+          assert.equal(seconds, 900);
+          pendingOrderEntry = JSON.parse(value);
+          assert.equal(key, pendingOrderKey(reservationOrderId!));
+        }
         return "OK";
       },
       async del(_key: string) {
@@ -79,10 +90,18 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   );
   assert.equal(evalCalls, 1);
-  assert.equal(setCalls, 1);
+  assert.equal(setCalls.length, 2);
   assert.equal(delCalls, 0);
   assert.equal(incrCalls, 0);
   assert.equal(reservationOrderId, response.orderId);
+  assert.deepEqual(
+    pendingOrderEntry,
+    pendingOrderCacheEntrySchema.parse({
+      orderId: response.orderId,
+      eventId,
+      status: "pending",
+    }),
+  );
   assert.deepEqual(publishedPayload, {
     orderId: response.orderId,
     eventId,
@@ -161,7 +180,7 @@ void test("buyTicketBodySchema validates request body", () => {
 });
 
 void test("queueBuyTicketPurchase rolls back reservation on publish failure", async () => {
-  let delCalls = 0;
+  const deletedKeys: string[] = [];
   let incrCalls = 0;
   let reservationOrderId: string | undefined;
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
@@ -182,17 +201,26 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
           },
           async set(key: string, value: string, mode: "EX", seconds: number) {
             assert.equal(mode, "EX");
-            assert.equal(seconds, 120);
-            reservationOrderId = value;
-            assert.equal(key, ticketReservationKey(eventId, value));
+            if (key.startsWith("tickets:event:")) {
+              assert.equal(seconds, 120);
+              reservationOrderId = value;
+              assert.equal(key, ticketReservationKey(eventId, value));
+            } else {
+              assert.equal(seconds, 900);
+              assert.equal(key, pendingOrderKey(reservationOrderId!));
+              assert.deepEqual(
+                JSON.parse(value),
+                pendingOrderCacheEntrySchema.parse({
+                  orderId: reservationOrderId,
+                  eventId,
+                  status: "pending",
+                }),
+              );
+            }
             return "OK";
           },
           async del(key: string) {
-            assert.equal(
-              key,
-              ticketReservationKey(eventId, reservationOrderId!),
-            );
-            delCalls += 1;
+            deletedKeys.push(key);
             return 1;
           },
           async incr(key: string) {
@@ -210,6 +238,88 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
     /pubsub unavailable/,
   );
 
-  assert.equal(delCalls, 1);
+  assert.deepEqual(deletedKeys, [
+    ticketReservationKey(eventId, reservationOrderId!),
+    pendingOrderKey(reservationOrderId!),
+  ]);
+  assert.equal(incrCalls, 1);
+});
+
+void test("queueBuyTicketPurchase still restores availability when pending cleanup fails", async () => {
+  const deletedKeys: string[] = [];
+  let incrCalls = 0;
+  let reservationOrderId: string | undefined;
+  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+
+  await assert.rejects(
+    () =>
+      queueBuyTicketPurchase({
+        eventId,
+        body: {
+          firstName: "Ada",
+          lastName: "Lovelace",
+        },
+        redis: {
+          async eval(_script: string, numKeys: number, ...args: string[]) {
+            assert.equal(numKeys, 1);
+            assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
+            return 999_999;
+          },
+          async set(key: string, value: string, mode: "EX", seconds: number) {
+            assert.equal(mode, "EX");
+            if (key.startsWith("tickets:event:")) {
+              assert.equal(seconds, 120);
+              reservationOrderId = value;
+            } else {
+              assert.equal(seconds, 900);
+              assert.equal(key, pendingOrderKey(reservationOrderId!));
+            }
+
+            return "OK";
+          },
+          async del(key: string) {
+            deletedKeys.push(key);
+
+            if (key === pendingOrderKey(reservationOrderId!)) {
+              throw new Error("pending cleanup failed");
+            }
+
+            return 1;
+          },
+          async incr(key: string) {
+            assert.equal(key, ticketAvailabilityKey(eventId));
+            incrCalls += 1;
+            return 1_000_000;
+          },
+        } satisfies RedisMock,
+        pubsubPublisher: {
+          async publishBuyTicket() {
+            throw new Error("pubsub unavailable");
+          },
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(
+        error.message,
+        "Failed to queue ticket purchase and fully roll back reservation",
+      );
+      assert.equal(error.errors.length, 2);
+
+      const [originalError, cleanupError] = error.errors;
+
+      assert.ok(originalError instanceof Error);
+      assert.equal(originalError.message, "pubsub unavailable");
+      assert.ok(cleanupError instanceof Error);
+      assert.equal(cleanupError.message, "pending cleanup failed");
+
+      return true;
+    },
+  );
+
+  assert.deepEqual(deletedKeys, [
+    ticketReservationKey(eventId, reservationOrderId!),
+    pendingOrderKey(reservationOrderId!),
+  ]);
   assert.equal(incrCalls, 1);
 });

@@ -336,6 +336,17 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - **WebSockets:** aehnlich wie SSE, aber komplexer im Betrieb, besonders unter Lastspitzen.
   - **Kein Status-Feedback:** schlechter UX und fuer das Demo-Szenario unzureichend.
 
+### Update 2026-04-22: Sofort beobachtbarer Pending-Status nach `202 Accepted`
+
+- **Kontext:** Zwischen `POST /api/tickets/:eventId/buy` und der spaeteren Worker-Persistenz existierte eine Luecke: Direkt nach `202 Accepted` war der Auftrag fuer einen geplanten `GET /api/orders/:orderId` noch nicht konsistent lesbar, weil die API keine DB schreiben darf und die Order erst im Worker entsteht.
+- **Entscheidung:** Die API schreibt nach erfolgreicher Redis-Reservation einen temporaeren Pending-Status pro `orderId` in Redis (`orders:{orderId}:pending`) mit eigener, laengerer TTL. Bei Publish-Fehlern bleibt das kritische Inventory-Rollback (`reservation` loeschen + `available` kompensieren) garantiert; Pending-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
+- **Begruendung:** So bleibt der Buy-Flow DB-write-frei, waehrend der spaetere Order-Read-Pfad unmittelbar nach `202 Accepted` einen stabileren Pending-Fallback nutzen kann, auch wenn Queue-Backlog laenger als die Reservation lebt. Gleichzeitig fuehrt ein Fehler beim Pending-Cleanup nicht dazu, dass Inventory-Rollback ausfaellt.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts`
+  - `packages/types/src/tickets.ts`
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/api/test/routes/tickets.buy.test.ts`
+
   ***
 
   ## ADR-018: Ticket-Kauf via SQL-Function im Worker

@@ -39,6 +39,16 @@ export const buyTicketResponseSchema = z.object({
 
 export type BuyTicketResponse = z.infer<typeof buyTicketResponseSchema>;
 
+export const pendingOrderCacheEntrySchema = z.object({
+  orderId: z.uuid(),
+  eventId: z.uuid(),
+  status: z.literal("pending"),
+});
+
+export type PendingOrderCacheEntry = z.infer<
+  typeof pendingOrderCacheEntrySchema
+>;
+
 export const ticketAvailabilityResponseSchema = z.object({
   available: z.number().int().nullable(),
   total: z.number().int().nullable(),
