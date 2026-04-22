@@ -61,8 +61,9 @@ flowchart TD
 9. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
    - Vor dem DB-Write prueft der Worker Idempotenz ueber Redis (`processed`-Marker) und setzt einen kurzlebigen `processing`-Lock pro `orderId`.
    - Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Write).
-   - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason` und ACKt die Nachricht.
-10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; solange die DB-Order noch nicht existiert, kann die API den gecachten Pending-Status pro `orderId` verwenden.
+   - Nach erfolgreichem oder terminal fehlgeschlagenem Processing materialisiert der Worker den finalen Order-Status inkl. Ticket-Referenz bzw. `failure_reason` in Redis fuer den spaeteren API-Read.
+   - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
+10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) und spricht nicht direkt mit PostgreSQL.
 
 ## Worker ACK/NACK-Regeln (Stand 2026-03-21)
 

@@ -61,7 +61,7 @@ Das k6-Skript simuliert einen realistischen Ticket-Sale-Lifecycle:
 ## Architectural Rules
 
 1.  **Strict Async Writes:** Die API darf niemals direkt in die Datenbank schreiben. Alle Schreib-Intents müssen in Pub/Sub gepuffert werden.
-2.  **Read-Heavy Optimization:** Die API liest Ticket-Verfügbarkeiten ausschließlich aus dem Redis-Cache.
+2.  **Read-Heavy Optimization:** Die API liest ausschließlich aus Redis-Read-Modellen (aktuell Ticket-Verfügbarkeiten, spaeter auch Order-Status) und niemals direkt aus PostgreSQL.
 3.  **Type Safety:** Zod-Schemas generieren die Request-Typen. Drizzle generiert die Datenbank-Typen. Keine doppelten manuellen Typ-Deklarationen.
 4.  **Database Agnosticism:** Die Datenbankschicht muss so in Drizzle abstrahiert werden, dass ein späterer Wechsel von Cloud SQL zu Cloud Spanner mit minimalem Refactoring möglich ist.
 5.  **DB Write Encapsulation:** Der Worker nutzt die PostgreSQL-Function `buy_ticket(...)` fuer Ticket-Writes (INSERT + sold_count Update).

@@ -330,7 +330,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Datum:** 2026-03-12
 - **Kontext:** Das Ticket-Kaufen ist asynchron (Pub/Sub + Worker). Der Client braucht eine verlässliche Rueckmeldung, ob der Kauf abgeschlossen ist, ohne die API-Request-Latenz zu erhoehen oder den Worker direkt mit dem Browser zu verbinden.
 - **Entscheidung:** Die API liefert beim Kauf ein `orderId` (z.B. aus dem Request oder generiert) und der Client pollt einen Status-Endpunkt (`GET /api/orders/{orderId}`) bis `completed|failed` erreicht ist.
-- **Begruendung:** Polling ist einfach, robust und passt zur entkoppelten Architektur. Der Worker schreibt den finalen Status in die Datenbank (und optional in Redis) und die API liest den Status fuer den Client. Kein direkter Worker-Client-Kanal, keine zusaetzliche Persistenz fuer SSE-Verbindungszustand.
+- **Begruendung:** Polling ist einfach, robust und passt zur entkoppelten Architektur. Der Worker schreibt den finalen Status in die Datenbank und materialisiert zusaetzlich ein Redis-Read-Model; die API liest fuer den Client ausschließlich aus Redis und bleibt damit komplett PostgreSQL-frei. Kein direkter Worker-Client-Kanal, keine zusaetzliche Persistenz fuer SSE-Verbindungszustand.
 - **Alternativen:**
   - **Server-Sent Events:** wuerde einen dauerhaften API-Client-Kanal erfordern und zusaetzliche Infrastruktur/State-Management (Reconnect, Lastverteilung) benoetigen.
   - **WebSockets:** aehnlich wie SSE, aber komplexer im Betrieb, besonders unter Lastspitzen.
@@ -340,7 +340,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 - **Kontext:** Zwischen `POST /api/tickets/:eventId/buy` und der spaeteren Worker-Persistenz existierte eine Luecke: Direkt nach `202 Accepted` war der Auftrag fuer einen geplanten `GET /api/orders/:orderId` noch nicht konsistent lesbar, weil die API keine DB schreiben darf und die Order erst im Worker entsteht.
 - **Entscheidung:** Die API schreibt nach erfolgreicher Redis-Reservation einen temporaeren Pending-Status pro `orderId` in Redis (`orders:{orderId}:pending`) mit eigener, laengerer TTL. Bei Publish-Fehlern bleibt das kritische Inventory-Rollback (`reservation` loeschen + `available` kompensieren) garantiert; Pending-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
-- **Begruendung:** So bleibt der Buy-Flow DB-write-frei, waehrend der spaetere Order-Read-Pfad unmittelbar nach `202 Accepted` einen stabileren Pending-Fallback nutzen kann, auch wenn Queue-Backlog laenger als die Reservation lebt. Gleichzeitig fuehrt ein Fehler beim Pending-Cleanup nicht dazu, dass Inventory-Rollback ausfaellt.
+- **Begruendung:** So bleibt der Buy-Flow DB-write-frei, waehrend der spaetere Order-Read-Pfad unmittelbar nach `202 Accepted` einen stabilen Pending-Status aus Redis nutzen kann, bis der Worker den finalen Status in dasselbe Redis-Read-Model schreibt. Gleichzeitig fuehrt ein Fehler beim Pending-Cleanup nicht dazu, dass Inventory-Rollback ausfaellt.
 - **Umsetzung:**
   - `packages/types/src/redis-keys.ts`
   - `packages/types/src/tickets.ts`

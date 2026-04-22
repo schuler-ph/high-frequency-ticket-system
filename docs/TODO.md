@@ -96,14 +96,15 @@
 - [x] Aktualisiere Worker-Flow: bei erfolgreichem `buy_ticket(...)` Order auf `completed` setzen und Ticket-Referenz speichern.
 - [x] Ergänze Failure-Path: Order auf `failed` setzen (inkl. Fehlergrund) bei terminalen Business-Fehlern.
 - [x] Mache `pending` Orders direkt nach `POST /api/tickets/:eventId/buy` beobachtbar, damit `GET /api/orders/:orderId` unmittelbar nach `202 Accepted` einen konsistenten Status liefern kann.
-- [ ] Implementiere `GET /api/orders/:orderId` inkl. Zod-Request/Response-Schemas und DB-Read fuer Order-Status plus Ticket-Referenz.
+- [ ] Materialisiere den finalen Order-Status inkl. Ticket-Referenz durch den Worker in Redis, damit die API `GET /api/orders/:orderId` ohne PostgreSQL bedienen kann.
+- [ ] Implementiere `GET /api/orders/:orderId` inkl. Zod-Request/Response-Schemas und Redis-Read fuer Order-Status plus Ticket-Referenz.
 - [ ] Schreibe gezielte API-Route-Tests fuer `GET /api/orders/:orderId` (`completed`, `pending`, `failed`).
-- [ ] Schreibe den fokussierten Flow-Test: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /api/orders/:orderId` zeigt den finalen Zustand inkl. Ticket-Referenz.
+- [ ] Schreibe den fokussierten Flow-Test: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /api/orders/:orderId` liest den finalen Zustand inkl. Ticket-Referenz aus Redis.
 
 ### Sync-Strategie Redis ↔ DB
 
-- [ ] Implementiere Reconcile-Job (API oder Worker), der `available = total_capacity - sold_count - active_reservations` prüft.
-- [ ] Starte Reconcile beim Service-Start und zyklisch im Betrieb.
+- [ ] Implementiere Reconcile-Job im Worker, der `available = total_capacity - sold_count - active_reservations` prüft und Redis korrigiert.
+- [ ] Starte Reconcile beim Worker-Start und zyklisch im Betrieb.
 - [ ] Definiere Intervalle: Peak-Last 5–10s, Normalbetrieb 30–60s.
 
 ### Tests & Observability für den Flow
