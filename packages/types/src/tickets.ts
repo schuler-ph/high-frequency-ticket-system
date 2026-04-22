@@ -32,6 +32,12 @@ export const ticketEventIdSchema = z.object({
 
 export type TicketEventId = z.infer<typeof ticketEventIdSchema>;
 
+export const orderIdParamsSchema = z.object({
+  orderId: z.uuid("Invalid order ID format"),
+});
+
+export type OrderIdParams = z.infer<typeof orderIdParamsSchema>;
+
 export const buyTicketResponseSchema = z.object({
   message: z.string(),
   orderId: z.uuid().optional(),
@@ -76,6 +82,21 @@ export const orderCacheEntrySchema = z.discriminatedUnion("status", [
 ]);
 
 export type OrderCacheEntry = z.infer<typeof orderCacheEntrySchema>;
+
+export const orderStatusResponseSchema = orderCacheEntrySchema;
+
+export type OrderStatusResponse = z.infer<typeof orderStatusResponseSchema>;
+
+export const orderStatusNotFoundResponseSchema = z.object({
+  statusCode: z.literal(404),
+  error: z.literal("NotFoundError"),
+  message: z.string().min(1),
+  reqId: z.string().min(1),
+});
+
+export type OrderStatusNotFoundResponse = z.infer<
+  typeof orderStatusNotFoundResponseSchema
+>;
 
 export const ticketAvailabilityResponseSchema = z.object({
   available: z.number().int().nullable(),
