@@ -100,7 +100,6 @@
 - [x] Implementiere `GET /api/orders/:orderId` inkl. Zod-Request/Response-Schemas und Redis-Read fuer Order-Status plus Ticket-Referenz.
 - [x] Schreibe gezielte API-Route-Tests fuer `GET /api/orders/:orderId` (`completed`, `pending`, `failed`).
 - [ ] Schreibe den fokussierten Flow-Test: `POST /buy` liefert `orderId`, Worker verarbeitet, `GET /api/orders/:orderId` liest den finalen Zustand inkl. Ticket-Referenz aus Redis.
-- [ ] Fuehre danach ein Storage-Review fuer den Order-Flow durch: Redis-/DB-Footprint pro Order messen, TTL-/Key-Strategie bewerten und konkrete Optimierungen fuer Speicherbedarf und Key-Anzahl priorisieren.
 
 ### Sync-Strategie Redis ↔ DB
 
@@ -161,6 +160,7 @@
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 
+- [ ] Fuehre danach ein Storage-Review fuer den Order-Flow durch: Redis-/DB-Footprint pro Order messen, TTL-/Key-Strategie bewerten und konkrete Optimierungen fuer Speicherbedarf und Key-Anzahl priorisieren.
 - [ ] Implementiere Dead Letter Queue (DLQ) in Pub/Sub und einen Retry/Replay-Mechanismus im Worker.
 - [ ] Implementiere Idempotency Keys für die Ticket-Kauf-Route (API & DB) um doppelte Käufe zu verhindern.
 - [ ] Füge Rate Limiting in Fastify (via Redis) als Bot-Protection hinzu.
