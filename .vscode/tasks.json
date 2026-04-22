@@ -4,18 +4,28 @@
     {
       "label": "workspace:verify:quick",
       "type": "shell",
-      "command": "pnpm",
-      "args": ["run", "verify:quick"],
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run verify:quick",
       "group": "test",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-lc"]
+        }
+      }
     },
     {
       "label": "workspace:verify:all",
       "type": "shell",
-      "command": "pnpm",
-      "args": ["run", "verify:all"],
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run verify:all",
       "group": "test",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-lc"]
+        }
+      }
     },
     {
       "label": "api:build",

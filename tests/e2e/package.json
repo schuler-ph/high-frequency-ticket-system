@@ -1,0 +1,24 @@
+{
+  "name": "@repo/e2e-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --conditions=source --test test/*.test.ts",
+    "test:ci": "pnpm run test",
+    "check-types": "tsgo --noEmit",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "dependencies": {
+    "@repo/types": "workspace:*",
+    "fastify": "^5.0.0",
+    "fastify-type-provider-zod": "^6.1.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.0.8",
+    "eslint": "^9.39.1",
+    "typescript": "~5.9.2"
+  }
+}

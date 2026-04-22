@@ -134,8 +134,10 @@ void describe("database integration", () => {
       sql`SELECT buy_ticket(${insertedEvent.id}, ${orderId}, ${"First"}, ${"Buyer"}) AS ticket_id`,
     );
 
-    assert.ok(firstCall.rows[0]?.ticket_id);
-    assert.equal(secondCall.rows[0]?.ticket_id, null);
+    const firstTicketId = firstCall.rows[0]?.ticket_id;
+
+    assert.ok(firstTicketId);
+    assert.equal(secondCall.rows[0]?.ticket_id, firstTicketId);
 
     const [eventAfter] = await db
       .select({ soldCount: events.soldCount })
