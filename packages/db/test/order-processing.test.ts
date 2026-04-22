@@ -67,6 +67,52 @@ void describe("order processing actions", () => {
     await database.delete(events).where(eq(events.id, event.id));
   });
 
+  void it("executeBuyTicket returns the existing ticket id for duplicate orderId", async () => {
+    const [event] = await database
+      .insert(events)
+      .values({
+        name: "Duplicate Order Event",
+        totalCapacity: 5,
+      })
+      .returning();
+
+    assert.ok(event);
+
+    const orderId = randomUUID();
+
+    const firstTicketId = await executeBuyTicket({
+      orderId,
+      eventId: event.id,
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    const secondTicketId = await executeBuyTicket({
+      orderId,
+      eventId: event.id,
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+
+    assert.ok(firstTicketId);
+    assert.equal(secondTicketId, firstTicketId);
+
+    const storedTickets = await database
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.orderId, orderId));
+    const [storedEvent] = await database
+      .select({ soldCount: events.soldCount })
+      .from(events)
+      .where(eq(events.id, event.id));
+
+    assert.equal(storedTickets.length, 1);
+    assert.equal(storedEvent?.soldCount, 1);
+
+    await database.delete(tickets).where(eq(tickets.orderId, orderId));
+    await database.delete(orders).where(eq(orders.id, orderId));
+    await database.delete(events).where(eq(events.id, event.id));
+  });
+
   void it("markOrderFailed marks an existing order as failed", async () => {
     const [event] = await database
       .insert(events)

@@ -1,7 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import { executeBuyTicket, markOrderFailed } from "@repo/db";
 import { env } from "@repo/env";
-import { ticketRedisKeys } from "@repo/types/redis-keys";
+import {
+  orderCacheEntrySchema,
+  type OrderCacheEntry,
+} from "@repo/types/tickets";
+import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
@@ -33,6 +37,29 @@ type TicketRedisClient = {
     numKeys: number,
     ...args: string[]
   ) => Promise<number | string>;
+};
+
+const getOrderCacheEntryTtlSeconds = (entry: OrderCacheEntry): number =>
+  entry.status === "pending"
+    ? env.REDIS_PENDING_ORDER_TTL_SECONDS
+    : env.REDIS_FINAL_ORDER_TTL_SECONDS;
+
+const writeOrderCacheEntry = async (
+  redis: TicketRedisClient,
+  entry: OrderCacheEntry,
+): Promise<void> => {
+  const key = orderRedisKeys.entry(entry.orderId);
+  const value = JSON.stringify(orderCacheEntrySchema.parse(entry));
+  const result = await redis.set(
+    key,
+    value,
+    "EX",
+    getOrderCacheEntryTtlSeconds(entry),
+  );
+
+  if (result !== "OK") {
+    throw new Error("Failed to write order cache entry");
+  }
 };
 
 const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
@@ -72,6 +99,7 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
 
         return lockResult === "OK";
       },
+      writeOrderCacheEntry: async (entry) => writeOrderCacheEntry(redis, entry),
       markOrderProcessed: async (payload) => {
         const keys = ticketRedisKeys(payload.eventId);
         const setResult = await redis.set(
@@ -99,4 +127,8 @@ const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
 
 export default pubSubListenerRoutes;
 export type { BuyTicketMessageHandlerDeps };
-export { handleBuyTicketMessage };
+export {
+  getOrderCacheEntryTtlSeconds,
+  handleBuyTicketMessage,
+  writeOrderCacheEntry,
+};

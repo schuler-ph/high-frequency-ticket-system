@@ -1,12 +1,20 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
 import type { FastifyBaseLogger } from "fastify";
-import type { BuyTicketEvent } from "@repo/types/tickets";
+import {
+  pendingOrderCacheEntrySchema,
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+  type BuyTicketEvent,
+  type OrderCacheEntry,
+} from "@repo/types/tickets";
+import { env } from "@repo/env";
 import type { FailedOrderUpdateResult } from "@repo/db";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
 } from "../../src/lib/handle-buy-ticket-message.ts";
+import { getOrderCacheEntryTtlSeconds } from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
   id: string;
@@ -59,6 +67,7 @@ function createDeps(
     markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
     isOrderProcessed: async () => false,
     tryAcquireProcessingLock: async () => true,
+    writeOrderCacheEntry: async () => undefined,
     markOrderProcessed: async () => undefined,
     releaseProcessingLock: async () => undefined,
     sleep: async () => undefined,
@@ -75,20 +84,48 @@ function createValidPayload(): BuyTicketEvent {
   };
 }
 
+void test("pubsub-listener uses a longer TTL for final order cache entries", () => {
+  const pendingEntry = pendingOrderCacheEntrySchema.parse({
+    orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
+    eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
+    status: "pending",
+  });
+  const completedEntry = completedOrderCacheEntrySchema.parse({
+    orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
+    eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
+    status: "completed",
+    ticketId: "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
+  });
+
+  assert.equal(
+    getOrderCacheEntryTtlSeconds(pendingEntry),
+    env.REDIS_PENDING_ORDER_TTL_SECONDS,
+  );
+  assert.equal(
+    getOrderCacheEntryTtlSeconds(completedEntry),
+    env.REDIS_FINAL_ORDER_TTL_SECONDS,
+  );
+});
+
 void test("pubsub-listener ACKs successful messages", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
   let markedProcessed = 0;
+  let writtenOrderCacheEntry: OrderCacheEntry | undefined;
+  const ticketId = "2c4fd22c-f5be-4bf7-bb45-5019d92666ab";
 
   await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
         executeCalls += 1;
-        return "ticket-1";
+        return ticketId;
       },
       async () => "already-released",
       {
+        writeOrderCacheEntry: async (entry) => {
+          writtenOrderCacheEntry = entry;
+        },
         markOrderProcessed: async () => {
           markedProcessed += 1;
         },
@@ -98,6 +135,15 @@ void test("pubsub-listener ACKs successful messages", async () => {
 
   assert.equal(executeCalls, 1);
   assert.equal(markedProcessed, 1);
+  assert.deepEqual(
+    writtenOrderCacheEntry,
+    completedOrderCacheEntrySchema.parse({
+      orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
+      eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
+      status: "completed",
+      ticketId,
+    }),
+  );
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
 });
@@ -169,6 +215,7 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   let failedOrderPayload: BuyTicketEvent | undefined;
   let receivedFailureReason: string | undefined;
   let markedProcessed = 0;
+  let writtenOrderCacheEntry: OrderCacheEntry | undefined;
 
   await handleBuyTicketMessage(
     message,
@@ -187,6 +234,9 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
           receivedFailureReason = failureReason;
           return "updated";
         },
+        writeOrderCacheEntry: async (entry) => {
+          writtenOrderCacheEntry = entry;
+        },
         markOrderProcessed: async () => {
           markedProcessed += 1;
         },
@@ -198,6 +248,15 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   assert.deepEqual(failedOrderPayload, payload);
   assert.equal(receivedFailureReason, "event not found");
   assert.equal(markedProcessed, 1);
+  assert.deepEqual(
+    writtenOrderCacheEntry,
+    failedOrderCacheEntrySchema.parse({
+      orderId: payload.orderId,
+      eventId: payload.eventId,
+      status: "failed",
+      failureReason: "event not found",
+    }),
+  );
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
 });
@@ -321,6 +380,26 @@ void test("pubsub-listener NACKs terminal P0001 error when marking processed fai
       {
         markOrderProcessed: async () => {
           throw new Error("processed marker write failed");
+        },
+      },
+    ),
+  );
+
+  assert.equal(message.acked, false);
+  assert.equal(message.nacked, true);
+});
+
+void test("pubsub-listener NACKs successful messages when order cache write fails", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+
+  await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
+      async () => "already-released",
+      {
+        writeOrderCacheEntry: async () => {
+          throw new Error("order cache write failed");
         },
       },
     ),

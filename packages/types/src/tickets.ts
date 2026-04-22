@@ -49,6 +49,34 @@ export type PendingOrderCacheEntry = z.infer<
   typeof pendingOrderCacheEntrySchema
 >;
 
+export const completedOrderCacheEntrySchema = z.object({
+  orderId: z.uuid(),
+  eventId: z.uuid(),
+  status: z.literal("completed"),
+  ticketId: z.uuid().nullable(),
+});
+
+export type CompletedOrderCacheEntry = z.infer<
+  typeof completedOrderCacheEntrySchema
+>;
+
+export const failedOrderCacheEntrySchema = z.object({
+  orderId: z.uuid(),
+  eventId: z.uuid(),
+  status: z.literal("failed"),
+  failureReason: z.string().min(1),
+});
+
+export type FailedOrderCacheEntry = z.infer<typeof failedOrderCacheEntrySchema>;
+
+export const orderCacheEntrySchema = z.discriminatedUnion("status", [
+  pendingOrderCacheEntrySchema,
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+]);
+
+export type OrderCacheEntry = z.infer<typeof orderCacheEntrySchema>;
+
 export const ticketAvailabilityResponseSchema = z.object({
   available: z.number().int().nullable(),
   total: z.number().int().nullable(),

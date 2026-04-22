@@ -52,7 +52,7 @@ flowchart TD
 3. API Gateway prüft Redis: tickets:event:{eventId}:available > 0 ?
    - Umsetzung: atomar via Redis Lua (`EVAL`) in einem Schritt (Check + Decrement), damit nur bei `available > 0` reduziert wird.
 4. ✅ Ja → API legt Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL in Redis an.
-5. ✅ Reservation gesetzt → API schreibt zusaetzlich einen per `orderId` adressierbaren Pending-Status (`orders:{orderId}:pending`) mit eigener, laengerer TTL in Redis.
+5. ✅ Reservation gesetzt → API schreibt zusaetzlich einen per `orderId` adressierbaren Pending-Status (`orders:{orderId}`) mit eigener Pending-TTL in Redis.
 6. ✅ Pending-Status geschrieben → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
    ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out)
    ❌ Publish-Fehler bei Schritt 6 → API versucht Reservation-Key und `available` in jedem Fall wiederherzustellen; Pending-Status-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
@@ -61,9 +61,9 @@ flowchart TD
 9. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
    - Vor dem DB-Write prueft der Worker Idempotenz ueber Redis (`processed`-Marker) und setzt einen kurzlebigen `processing`-Lock pro `orderId`.
    - Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Write).
-   - Nach erfolgreichem oder terminal fehlgeschlagenem Processing materialisiert der Worker den finalen Order-Status inkl. Ticket-Referenz bzw. `failure_reason` in Redis fuer den spaeteren API-Read.
+   - Nach erfolgreichem oder terminal fehlgeschlagenem Processing ueberschreibt der Worker denselben Redis-Order-Key mit dem finalen Status inkl. Ticket-Referenz bzw. `failure_reason` und einer laengeren Final-Status-TTL fuer den spaeteren API-Read.
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
-10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) und spricht nicht direkt mit PostgreSQL.
+10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
 
 ## Worker ACK/NACK-Regeln (Stand 2026-03-21)
 

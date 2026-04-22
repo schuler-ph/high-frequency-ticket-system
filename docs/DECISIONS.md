@@ -339,13 +339,16 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 ### Update 2026-04-22: Sofort beobachtbarer Pending-Status nach `202 Accepted`
 
 - **Kontext:** Zwischen `POST /api/tickets/:eventId/buy` und der spaeteren Worker-Persistenz existierte eine Luecke: Direkt nach `202 Accepted` war der Auftrag fuer einen geplanten `GET /api/orders/:orderId` noch nicht konsistent lesbar, weil die API keine DB schreiben darf und die Order erst im Worker entsteht.
-- **Entscheidung:** Die API schreibt nach erfolgreicher Redis-Reservation einen temporaeren Pending-Status pro `orderId` in Redis (`orders:{orderId}:pending`) mit eigener, laengerer TTL. Bei Publish-Fehlern bleibt das kritische Inventory-Rollback (`reservation` loeschen + `available` kompensieren) garantiert; Pending-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
-- **Begruendung:** So bleibt der Buy-Flow DB-write-frei, waehrend der spaetere Order-Read-Pfad unmittelbar nach `202 Accepted` einen stabilen Pending-Status aus Redis nutzen kann, bis der Worker den finalen Status in dasselbe Redis-Read-Model schreibt. Gleichzeitig fuehrt ein Fehler beim Pending-Cleanup nicht dazu, dass Inventory-Rollback ausfaellt.
+- **Entscheidung:** Die API schreibt nach erfolgreicher Redis-Reservation einen temporaeren Pending-Status pro `orderId` in einen stabilen Redis-Key `orders:{orderId}` mit eigener Pending-TTL. Der Worker ueberschreibt denselben Key spaeter mit `completed` plus `ticketId` oder `failed` plus `failureReason` und verwendet dafuer eine laengere Final-Status-TTL. Bei Publish-Fehlern bleibt das kritische Inventory-Rollback (`reservation` loeschen + `available` kompensieren) garantiert; Order-Status-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
+- **Begruendung:** So bleibt der Buy-Flow DB-write-frei, waehrend der spaetere Order-Read-Pfad unmittelbar nach `202 Accepted` einen stabilen Pending-Status aus Redis nutzen kann und spaeter ohne Key-Wechsel denselben Redis-Eintrag als finales Read-Model liest. Die laengere Final-Status-TTL verhindert dabei, dass `completed|failed` deutlich frueher verschwinden als die Worker-Idempotenz- und Polling-Fenster.
 - **Umsetzung:**
   - `packages/types/src/redis-keys.ts`
   - `packages/types/src/tickets.ts`
   - `apps/api/src/routes/api/tickets/buy.ts`
   - `apps/api/test/routes/tickets.buy.test.ts`
+  - `apps/worker/src/lib/handle-buy-ticket-message.ts`
+  - `apps/worker/src/routes/pubsub-listener.ts`
+  - `apps/worker/test/routes/pubsub-listener.test.ts`
 
   ***
 

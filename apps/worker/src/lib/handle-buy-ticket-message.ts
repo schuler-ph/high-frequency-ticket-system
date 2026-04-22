@@ -1,7 +1,13 @@
 import { setTimeout } from "node:timers/promises";
 import type { Message } from "@google-cloud/pubsub";
 import type { FastifyBaseLogger } from "fastify";
-import { buyTicketEventSchema, type BuyTicketEvent } from "@repo/types/tickets";
+import {
+  buyTicketEventSchema,
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+  type BuyTicketEvent,
+  type OrderCacheEntry,
+} from "@repo/types/tickets";
 import type { FailedOrderUpdateResult } from "@repo/db";
 
 type BuyTicketMessage = Pick<Message, "id" | "data" | "ack" | "nack">;
@@ -22,6 +28,7 @@ export type BuyTicketMessageHandlerDeps = {
   ) => Promise<FailedOrderUpdateResult>;
   isOrderProcessed: (payload: BuyTicketPayload) => Promise<boolean>;
   tryAcquireProcessingLock: (payload: BuyTicketPayload) => Promise<boolean>;
+  writeOrderCacheEntry: (entry: OrderCacheEntry) => Promise<void>;
   markOrderProcessed: (payload: BuyTicketPayload) => Promise<void>;
   releaseProcessingLock: (payload: BuyTicketPayload) => Promise<void>;
   sleep?: (ms: number) => Promise<unknown>;
@@ -114,6 +121,14 @@ export async function handleBuyTicketMessage(
     await (deps.sleep ?? setTimeout)(1000);
 
     const ticketId = await deps.executeBuyTicket(parsed.data);
+    await deps.writeOrderCacheEntry(
+      completedOrderCacheEntrySchema.parse({
+        orderId: parsed.data.orderId,
+        eventId: parsed.data.eventId,
+        status: "completed",
+        ticketId,
+      }),
+    );
     await deps.markOrderProcessed(parsed.data);
 
     deps.logger.info(
@@ -141,6 +156,14 @@ export async function handleBuyTicketMessage(
         failedOrderUpdate = await deps.markOrderFailed(
           parsed.data,
           failureReason,
+        );
+        await deps.writeOrderCacheEntry(
+          failedOrderCacheEntrySchema.parse({
+            orderId: parsed.data.orderId,
+            eventId: parsed.data.eventId,
+            status: "failed",
+            failureReason,
+          }),
         );
 
         deps.logger.warn(

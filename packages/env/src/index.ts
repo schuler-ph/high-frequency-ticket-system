@@ -25,6 +25,7 @@ const testRuntimeDefaults = {
   PUBSUB_TOPIC_BUY_TICKET: "buy-ticket",
   PUBSUB_SUBSCRIPTION_BUY_TICKET: "buy-ticket-worker",
   REDIS_PENDING_ORDER_TTL_SECONDS: "900",
+  REDIS_FINAL_ORDER_TTL_SECONDS: "86400",
 } as const;
 
 const isNodeTestRuntime =
@@ -60,6 +61,9 @@ const createRuntimeEnv = (runtimeEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
     REDIS_PENDING_ORDER_TTL_SECONDS:
       runtimeEnv.REDIS_PENDING_ORDER_TTL_SECONDS ??
       testRuntimeDefaults.REDIS_PENDING_ORDER_TTL_SECONDS,
+    REDIS_FINAL_ORDER_TTL_SECONDS:
+      runtimeEnv.REDIS_FINAL_ORDER_TTL_SECONDS ??
+      testRuntimeDefaults.REDIS_FINAL_ORDER_TTL_SECONDS,
   };
 };
 
@@ -83,6 +87,11 @@ export const env = createEnv({
       .int()
       .positive()
       .default(900),
+    REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(86400),
     REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS: z.coerce
       .number()
       .int()

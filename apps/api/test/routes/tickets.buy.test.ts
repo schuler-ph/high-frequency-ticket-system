@@ -27,7 +27,7 @@ const ticketAvailabilityKey = (eventId: string) =>
   `tickets:event:${eventId}:available`;
 const ticketReservationKey = (eventId: string, orderId: string) =>
   `tickets:event:${eventId}:reservation:${orderId}`;
-const pendingOrderKey = (orderId: string) => `orders:${orderId}:pending`;
+const orderCacheKey = (orderId: string) => `orders:${orderId}`;
 
 void test("queueBuyTicketPurchase returns queued payload and publishes event", async () => {
   let evalCalls = 0;
@@ -62,7 +62,7 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
         } else {
           assert.equal(seconds, 900);
           pendingOrderEntry = JSON.parse(value);
-          assert.equal(key, pendingOrderKey(reservationOrderId!));
+          assert.equal(key, orderCacheKey(reservationOrderId!));
         }
         return "OK";
       },
@@ -207,7 +207,7 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
               assert.equal(key, ticketReservationKey(eventId, value));
             } else {
               assert.equal(seconds, 900);
-              assert.equal(key, pendingOrderKey(reservationOrderId!));
+              assert.equal(key, orderCacheKey(reservationOrderId!));
               assert.deepEqual(
                 JSON.parse(value),
                 pendingOrderCacheEntrySchema.parse({
@@ -240,7 +240,7 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
 
   assert.deepEqual(deletedKeys, [
     ticketReservationKey(eventId, reservationOrderId!),
-    pendingOrderKey(reservationOrderId!),
+    orderCacheKey(reservationOrderId!),
   ]);
   assert.equal(incrCalls, 1);
 });
@@ -272,7 +272,7 @@ void test("queueBuyTicketPurchase still restores availability when pending clean
               reservationOrderId = value;
             } else {
               assert.equal(seconds, 900);
-              assert.equal(key, pendingOrderKey(reservationOrderId!));
+              assert.equal(key, orderCacheKey(reservationOrderId!));
             }
 
             return "OK";
@@ -280,7 +280,7 @@ void test("queueBuyTicketPurchase still restores availability when pending clean
           async del(key: string) {
             deletedKeys.push(key);
 
-            if (key === pendingOrderKey(reservationOrderId!)) {
+            if (key === orderCacheKey(reservationOrderId!)) {
               throw new Error("pending cleanup failed");
             }
 
@@ -319,7 +319,7 @@ void test("queueBuyTicketPurchase still restores availability when pending clean
 
   assert.deepEqual(deletedKeys, [
     ticketReservationKey(eventId, reservationOrderId!),
-    pendingOrderKey(reservationOrderId!),
+    orderCacheKey(reservationOrderId!),
   ]);
   assert.equal(incrCalls, 1);
 });

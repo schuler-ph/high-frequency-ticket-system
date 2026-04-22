@@ -69,6 +69,12 @@ if (!latest.content.includes("UPDATE orders")) {
   );
 }
 
+if (!latest.content.includes("WHERE order_id = p_order_id")) {
+  fail(
+    `Latest buy_ticket function migration (${latest.fileName}) does not look up the existing ticket for duplicate order ids.`,
+  );
+}
+
 if (!latest.content.includes("SET status = 'completed', updated_at = NOW()")) {
   fail(
     `Latest buy_ticket function migration (${latest.fileName}) does not mark orders as completed on success.`,

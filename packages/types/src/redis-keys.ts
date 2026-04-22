@@ -10,5 +10,5 @@ export const ticketRedisKeys = (eventId: string) => ({
 });
 
 export const orderRedisKeys = {
-  pending: (orderId: string) => `orders:${orderId}:pending`,
+  entry: (orderId: string) => `orders:${orderId}`,
 };

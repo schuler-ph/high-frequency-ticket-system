@@ -58,12 +58,12 @@ type QueueBuyTicketPurchaseInput = {
 const rollbackQueuedPurchase = async ({
   redis,
   reservationKey,
-  pendingOrderKey,
+  orderCacheKey,
   availabilityKey,
 }: {
   redis: TicketRedisClient;
   reservationKey: string;
-  pendingOrderKey: string;
+  orderCacheKey: string;
   availabilityKey: string;
 }): Promise<unknown[]> => {
   const cleanupErrors: unknown[] = [];
@@ -81,7 +81,7 @@ const rollbackQueuedPurchase = async ({
   }
 
   try {
-    await redis.del(pendingOrderKey);
+    await redis.del(orderCacheKey);
   } catch (error) {
     cleanupErrors.push(error);
   }
@@ -113,8 +113,8 @@ export async function queueBuyTicketPurchase({
 
   const orderId = createOrderId();
   const reservationKey = keys.reservation(orderId);
-  const pendingOrderKey = orderRedisKeys.pending(orderId);
-  const pendingOrderValue = JSON.stringify(
+  const orderCacheKey = orderRedisKeys.entry(orderId);
+  const orderCacheValue = JSON.stringify(
     pendingOrderCacheEntrySchema.parse({
       orderId,
       eventId,
@@ -125,8 +125,8 @@ export async function queueBuyTicketPurchase({
   try {
     await redis.set(reservationKey, orderId, "EX", reservationTtlSeconds);
     await redis.set(
-      pendingOrderKey,
-      pendingOrderValue,
+      orderCacheKey,
+      orderCacheValue,
       "EX",
       pendingOrderTtlSeconds,
     );
@@ -140,7 +140,7 @@ export async function queueBuyTicketPurchase({
     const cleanupErrors = await rollbackQueuedPurchase({
       redis,
       reservationKey,
-      pendingOrderKey,
+      orderCacheKey,
       availabilityKey: keys.available,
     });
 
