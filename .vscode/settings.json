@@ -18,5 +18,39 @@
   },
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "actionButtons": {
+    "commands": [
+      {
+        "name": "$(check-all) Verify Quick",
+        "color": "#98C379",
+        "tooltip": "Run format check, guardrails, lint, typecheck and fast tests for the current workspace",
+        "cwd": "${workspaceFolder}",
+        "singleInstance": true,
+        "focus": true,
+        "saveAll": true,
+        "command": "pnpm run verify:quick"
+      },
+      {
+        "name": "$(beaker) Verify All",
+        "color": "#FF8C00",
+        "tooltip": "Run the full workspace verification including coverage tests and build",
+        "cwd": "${workspaceFolder}",
+        "singleInstance": true,
+        "focus": true,
+        "saveAll": true,
+        "command": "pnpm run verify:all"
+      },
+      {
+        "name": "$(tools) Run Task",
+        "color": "#3498DB",
+        "tooltip": "Open the VS Code Run Task picker",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask"
+      }
+    ],
+    "defaultColor": "white",
+    "reloadButton": "↻",
+    "loadNpmCommands": false
   }
 }

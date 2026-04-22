@@ -2,6 +2,22 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "workspace:verify:quick",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "verify:quick"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "workspace:verify:all",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "verify:all"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
       "label": "api:build",
       "type": "shell",
       "command": "pnpm",
