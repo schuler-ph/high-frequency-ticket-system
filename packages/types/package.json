@@ -4,12 +4,29 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./tickets": "./src/tickets.ts",
-    "./errors": "./src/errors.ts",
-    "./health": "./src/health.ts",
-    "./redis-keys": "./src/redis-keys.ts"
+    "./tickets": {
+      "types": "./src/tickets.ts",
+      "source": "./src/tickets.ts",
+      "default": "./dist/tickets.js"
+    },
+    "./errors": {
+      "types": "./src/errors.ts",
+      "source": "./src/errors.ts",
+      "default": "./dist/errors.js"
+    },
+    "./health": {
+      "types": "./src/health.ts",
+      "source": "./src/health.ts",
+      "default": "./dist/health.js"
+    },
+    "./redis-keys": {
+      "types": "./src/redis-keys.ts",
+      "source": "./src/redis-keys.ts",
+      "default": "./dist/redis-keys.js"
+    }
   },
   "scripts": {
+    "build": "tsgo",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsgo --noEmit"
   },

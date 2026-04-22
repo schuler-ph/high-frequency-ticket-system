@@ -18,6 +18,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Package Manager:** pnpm (v10+)
 - **Language:** TypeScript (Fullstack, 100%)
 - **TypeScript CLI Compiler:** `tsgo` via `@typescript/native-preview` (transition from `tsc`, mit temporaerer Ausnahme fuer `apps/web` `check-types`)
+- **Shared Runtime Packages:** Backend-relevante Workspace-Pakete (`@repo/env`, `@repo/types`, `@repo/db`) exportieren `types` + `source` fuer Editor/Testpfade und `default` auf gebautes `dist` fuer den Plain-Node-Runtime-Pfad
 - **Test Runner:** Backend packages (`apps/api`, `apps/worker`, `packages/db`) use direct package-local `node:test` runs against native `.ts` source with `--conditions=source`; API and Worker coverage use Node's native `--experimental-test-coverage`, `@repo/db` keeps `c8` for the more stable DB coverage path, and the local root `pnpm test` orchestration runs serialized via Turborepo for stable feedback
 - **Frontend:** Next.js, Tailwind CSS
 - **Backend Runtime:** Node.js (v22+; primär v24)

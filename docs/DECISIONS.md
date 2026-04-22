@@ -359,6 +359,20 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Status:** Teilweise fertig
 - **TODO-Mapping:** `docs/TODO.md` Phase 1 Tooling (`tsc`-CLI weitgehend migriert, Ausnahmen fuer Web-Checktypes und `tsc-watch` offen)
 
+### Update 2026-04-21: Konsistenter Runtime-Packaging-Pfad fuer Shared-Pakete
+
+- **Kontext:** Gebaute Artefakte von API und Worker importierten zur Laufzeit weiterhin `@repo/env` und `@repo/types` ueber Workspace-TypeScript-Quellen. Das funktionierte im lokalen Node-24-Pfad, war aber inkonsistent zum bereits buildbaren `@repo/db`-Paket und hielt gebaute Services implizit von Source-Exports abhaengig.
+- **Entscheidung:** `@repo/env` und `@repo/types` werden als buildbare `tsgo`-Pakete mit `types`/`source`/`default`-Exports an das bestehende `@repo/db`-Muster angeglichen. Direkte `api`- und `worker`-Builds bauen ihre benoetigten Runtime-Pakete vor dem eigenen Service-Build explizit mit.
+- **Begruendung:** Der source-basierte Test-Hot-Path bleibt unveraendert, waehrend gebaute Services einen konsistenten Plain-Node-Runtime-Pfad ueber `dist` erhalten. Das reduziert implizite TypeScript-Runtime-Abhaengigkeiten und vereinheitlicht das Verhalten aller Shared-Packages, die in Backend-Artefakten zur Laufzeit importiert werden.
+- **Umsetzung:**
+  - `packages/env/package.json`
+  - `packages/types/package.json`
+  - `apps/api/package.json`
+  - `apps/worker/package.json`
+  - `docs/REQUIREMENTS.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/TODO.md`
+
 ---
 
 ## ADR-020: Deterministische Tests & Debug-Guardrails

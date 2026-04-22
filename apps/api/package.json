@@ -12,7 +12,7 @@
     "test:coverage": "node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
     "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10001 dist/app.js",
-    "build": "tsgo",
+    "build": "pnpm --filter @repo/env run build && pnpm --filter @repo/types run build && tsgo",
     "watch": "tsgo -w",
     "dev": "tsc-watch --onSuccess \"pnpm run dev:start\"",
     "dev:start": "fastify start -P -l info -p 10001 dist/app.js",
