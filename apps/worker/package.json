@@ -8,8 +8,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node --conditions=source --test \"test/**/*.test.ts\"",
-    "test:coverage": "node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
+    "test": "node --conditions=source --import @repo/env/test-bootstrap --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --conditions=source --import @repo/env/test-bootstrap --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
     "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10003 dist/app.js",
     "build": "pnpm --filter @repo/env run build && pnpm --filter @repo/types run build && pnpm --filter @repo/db run build && tsgo",

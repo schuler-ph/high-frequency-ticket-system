@@ -8,6 +8,11 @@
       "types": "./src/index.ts",
       "source": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./test-bootstrap": {
+      "types": "./src/test-bootstrap.ts",
+      "source": "./src/test-bootstrap.ts",
+      "default": "./dist/test-bootstrap.js"
     }
   },
   "scripts": {

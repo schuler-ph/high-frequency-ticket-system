@@ -22,6 +22,10 @@
       "dependsOn": [],
       "outputs": ["coverage/**"]
     },
+    "@repo/e2e-tests#test:ci": {
+      "dependsOn": [],
+      "outputs": []
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,

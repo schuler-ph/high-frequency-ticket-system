@@ -368,6 +368,9 @@ importers:
 
   tests/e2e:
     dependencies:
+      '@repo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@repo/types':
         specifier: workspace:*
         version: link:../../packages/types
