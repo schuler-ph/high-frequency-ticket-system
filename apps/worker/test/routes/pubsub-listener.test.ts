@@ -14,7 +14,10 @@ import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
 } from "../../src/lib/handle-buy-ticket-message.ts";
-import { getOrderCacheEntryTtlSeconds } from "../../src/routes/pubsub-listener.ts";
+import {
+  createPubSubListenerRoutes,
+  getOrderCacheEntryTtlSeconds,
+} from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
   id: string;
@@ -84,6 +87,50 @@ function createValidPayload(): BuyTicketEvent {
   };
 }
 
+function createRouteTestFastify() {
+  const hooks: Record<string, Array<() => Promise<void>>> = {};
+  let registeredMessageHandler:
+    | ((message: TestMessage) => Promise<void>)
+    | undefined;
+  const startCalls: string[] = [];
+
+  const instance = {
+    log: noopLogger,
+    redis: {
+      get: async () => null,
+      set: async () => "OK" as const,
+      del: async () => 0,
+      eval: async () => 0,
+      scan: async () => ["0", []] as [string, string[]],
+      mset: async () => "OK",
+    },
+    pubsubSubscriber: {
+      onMessage(handler: (message: TestMessage) => Promise<void>) {
+        registeredMessageHandler = handler;
+      },
+      start() {
+        startCalls.push("start");
+      },
+      stop: async () => undefined,
+    },
+    addHook(name: string, hook: () => Promise<void>) {
+      hooks[name] ??= [];
+      hooks[name].push(hook);
+    },
+    async runHook(name: string) {
+      for (const hook of hooks[name] ?? []) {
+        await hook();
+      }
+    },
+  };
+
+  return {
+    fastify: instance,
+    getRegisteredMessageHandler: () => registeredMessageHandler,
+    startCalls,
+  };
+}
+
 void test("pubsub-listener uses a longer TTL for final order cache entries", () => {
   const pendingEntry = pendingOrderCacheEntrySchema.parse({
     orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
@@ -105,6 +152,43 @@ void test("pubsub-listener uses a longer TTL for final order cache entries", () 
     getOrderCacheEntryTtlSeconds(completedEntry),
     env.REDIS_FINAL_ORDER_TTL_SECONDS,
   );
+});
+
+void test("pubsub-listener reconciles ticket availability once before starting the subscriber", async () => {
+  const startupOrder: string[] = [];
+  let reconcileCalls = 0;
+  let inventoryReads = 0;
+  const { fastify, getRegisteredMessageHandler, startCalls } =
+    createRouteTestFastify();
+
+  const route = createPubSubListenerRoutes({
+    executeBuyTicket: async () => "ticket-1",
+    listEventInventorySnapshots: async () => {
+      inventoryReads += 1;
+      return [];
+    },
+    markOrderFailed: async () => "updated",
+    reconcileTicketAvailability: async ({ getEventInventorySnapshots }) => {
+      reconcileCalls += 1;
+      startupOrder.push("reconcile");
+      await getEventInventorySnapshots();
+    },
+  });
+
+  fastify.pubsubSubscriber.start = () => {
+    startupOrder.push("start");
+    startCalls.push("start");
+  };
+
+  await route(fastify as never, {} as never);
+  assert.equal(typeof getRegisteredMessageHandler(), "function");
+
+  await fastify.runHook("onReady");
+
+  assert.equal(reconcileCalls, 1);
+  assert.equal(inventoryReads, 1);
+  assert.deepEqual(startupOrder, ["reconcile", "start"]);
+  assert.equal(startCalls.length, 1);
 });
 
 void test("pubsub-listener ACKs successful messages", async () => {

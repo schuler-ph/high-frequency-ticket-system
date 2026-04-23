@@ -104,7 +104,7 @@
 ### Sync-Strategie Redis ↔ DB
 
 - [x] Implementiere den Reconcile-Kern im Worker, der pro Event `available = total_capacity - sold_count - active_reservations` berechnet und die Redis-Counter korrigiert.
-- [ ] Verdrahte den Reconcile-Kern beim Worker-Start, sodass der Worker beim Boot einmalig alle Event-Counter gegen PostgreSQL und aktive Redis-Reservationen abgleicht.
+- [x] Verdrahte den Reconcile-Kern beim Worker-Start, sodass der Worker beim Boot einmalig alle Event-Counter gegen PostgreSQL und aktive Redis-Reservationen abgleicht.
 - [ ] Starte Reconcile danach zyklisch im Betrieb.
 - [ ] Definiere Intervalle: Peak-Last 5–10s, Normalbetrieb 30–60s.
 

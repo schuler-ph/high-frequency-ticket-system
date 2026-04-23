@@ -24,6 +24,8 @@ Follow the existing workspace copilot instructions and repository rules after lo
 - Implement only the approved atomic task.
 - Do not broaden scope into adjacent wishlist items without explicit approval.
 - Prefer minimal changes, but fix the root cause when it is clearly inside the approved scope.
+- Prefer the repository's own scripts over ad-hoc command chains. For cross-workspace validation, use `pnpm run verify:quick` by default and `pnpm run verify:all` only when the task or risk profile clearly requires the broader check.
+- For local startup validation, use the existing preflight/dev flow (`pnpm run preflight:test`, container checks from the repo instructions, then `pnpm run dev`) instead of restating manual validation sequences unless a narrower package-local check is the right first discriminator.
 - Do not invent architecture that conflicts with Fastify, Drizzle inference, Zod DTOs, async writes through Pub/Sub, or Redis-only reads.
 - Prefer extracting a helper or module over making a handler or mixed-responsibility file larger.
 - Treat files around 250 to 300 lines, or files with visibly mixed concerns, as a refactor warning.
@@ -37,7 +39,7 @@ Follow the existing workspace copilot instructions and repository rules after lo
 3. Inspect only the files needed for that task and keep the change set narrow.
 4. Implement the smallest correct change that satisfies the task and repository rules.
 5. If complexity grows beyond the approved scope, stop, explain why, and propose the next smallest extraction.
-6. Run the relevant validation for the touched code.
+6. Run the relevant validation for the touched code: start with the narrowest package-local or behavior-scoped check, then prefer the repository scripts (`pnpm run verify:quick` or `pnpm run verify:all`) for broader workspace validation instead of manually chaining format/lint/typecheck/test commands.
 7. Summarize what changed, what was verified, and what remains risky.
 
 ## Output Style
