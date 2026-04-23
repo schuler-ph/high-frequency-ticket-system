@@ -1,9 +1,18 @@
 import { sql, eq } from "drizzle-orm";
 import type { BuyTicketEvent } from "@repo/types/tickets";
 import { db } from "./index.ts";
-import { orders } from "./schema.ts";
+import { events, orders } from "./schema.ts";
 
 export type FailedOrderUpdateResult = "updated" | "missing";
+
+type EventRow = typeof events.$inferSelect;
+
+export type EventInventorySnapshot = Pick<
+  EventRow,
+  "totalCapacity" | "soldCount"
+> & {
+  eventId: EventRow["id"];
+};
 
 export async function executeBuyTicket(
   payload: BuyTicketEvent,
@@ -13,6 +22,20 @@ export async function executeBuyTicket(
   );
 
   return result.rows[0]?.ticket_id ?? null;
+}
+
+export async function listEventInventorySnapshots(): Promise<
+  EventInventorySnapshot[]
+> {
+  const result = await db
+    .select({
+      eventId: events.id,
+      totalCapacity: events.totalCapacity,
+      soldCount: events.soldCount,
+    })
+    .from(events);
+
+  return result;
 }
 
 export async function markOrderFailed(
