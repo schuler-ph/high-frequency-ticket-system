@@ -33,3 +33,20 @@ Bevor du Code generierst oder Architektur-Fragen beantwortest, MUSST du deinen i
 - ESM (`import/export`), kein CommonJS (`require`).
 - Fehlerbehandlung via Fastify Error-Handler und typed errors, keine try-catch-Blöcke ohne Kontext.
 - Umgebungsvariablen via Zod-Schema validieren (nicht `process.env.X` direkt nutzen).
+
+## Build- & Test-Befehle
+
+```bash
+pnpm build          # Alle Packages bauen (via Turbo)
+pnpm dev            # Dev-Server starten (alle Apps parallel)
+pnpm lint           # ESLint über alle Packages
+pnpm format         # Prettier (write)
+pnpm format:check   # Prettier (check only)
+pnpm check-types    # TypeScript type-check über alle Packages
+pnpm test           # Preflight-Check + Tests (stream, concurrency=1)
+pnpm test:ci        # Wie test, aber CI-Variante
+pnpm verify:quick   # format:check + debug:all + lint + check-types + test
+pnpm verify:all     # verify:quick + test:ci + build (vollständige Validierung)
+```
+
+> Vor `pnpm test` oder `pnpm dev` sicherstellen, dass die Docker-Container laufen (siehe Dev Prerequisites).
