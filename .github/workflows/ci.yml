@@ -130,6 +130,11 @@ jobs:
             gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
           timeout 60 bash -c 'until nc -z localhost 8085; do sleep 2; done'
 
+      - name: Build @repo/env
+        run: pnpm --filter @repo/env run build
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
+
       - name: Apply DB migrations
         run: pnpm --filter @repo/db run db:migrate
 
