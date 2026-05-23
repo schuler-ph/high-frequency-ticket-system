@@ -1,0 +1,1 @@
+../../.agents/skills/coverage-check/SKILL.md

@@ -73,6 +73,38 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      NODE_ENV: test
+      LOG_LEVEL: warn
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/high_frequency_tickets
+      REDIS_URL: redis://localhost:6379
+      GOOGLE_CLOUD_PROJECT: high-frequency-ticket-system
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      PUBSUB_TOPIC_BUY_TICKET: buy-ticket
+      PUBSUB_SUBSCRIPTION_BUY_TICKET: buy-ticket-worker
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: high_frequency_tickets
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
 
     steps:
       - name: Checkout repo
@@ -89,6 +121,22 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Start Pub/Sub emulator
+        run: |
+          docker run -d --name hts-pubsub \
+            -p 8085:8085 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+          timeout 60 bash -c 'until nc -z localhost 8085; do sleep 2; done'
+
+      - name: Build @repo/env
+        run: pnpm --filter @repo/env run build
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
+
+      - name: Apply DB migrations
+        run: pnpm --filter @repo/db run db:migrate
 
       - name: Run tests
         run: CI=1 pnpm run test:ci
