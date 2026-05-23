@@ -6,29 +6,30 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der Stelle in `docs/TODO.md`, in der die Umsetzung erledigt wurde oder geplant ist.
 
-| ADR                                                     | Status           | TODO-Abbildung                                                                                                  |
-| ------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
-| ADR-001 Monorepo mit Turborepo                          | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                         |
-| ADR-002 Fastify statt Express                           | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                |
-| ADR-003 Drizzle ORM statt Prisma                        | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                         |
-| ADR-004 Asynchrone Writes über Pub/Sub                  | Teilweise fertig | Phase 3 Buy-Flow erledigt; ACK/NACK-Regeln dokumentiert und getestet; weitere Härtung in Phase 3.5 geplant      |
-| ADR-005 Redis als Read-Cache                            | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant                     |
-| ADR-006 Prometheus + Grafana                            | Geplant          | Phase 4.5 (Monitoring & Observability)                                                                          |
-| ADR-007 GitHub Actions für CI/CD                        | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                   |
-| ADR-008 Zod für Validation & DTOs                       | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                               |
-| ADR-009 Husky für Git Hooks                             | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                       |
-| ADR-010 Terraform für IaC                               | Geplant          | Phase 5 (Cloud Deployment)                                                                                      |
-| ADR-011 Capacity Model vs. Pre-generated Tickets        | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                                     |
-| ADR-012 Guest Checkout                                  | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                         |
-| ADR-013 Payment Flow Mocking                            | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                                     |
-| ADR-014 Cloud Provider GCP                              | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                            |
-| ADR-015 Custom Error Classes & Secure Error Handling    | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                |
-| ADR-016 GCP-ready Structured Logging mit Pino           | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                       |
-| ADR-017 Order-Status via Polling                        | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                          |
-| ADR-018 Ticket-Kauf via SQL-Function im Worker          | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                          |
-| ADR-019 TypeScript CLI via tsgo                         | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen |
-| ADR-020 Deterministische Tests & Debug-Guardrails       | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                     |
-| ADR-021 Direkte Backend-Tests via node:test + native TS | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path     |
+| ADR                                                        | Status           | TODO-Abbildung                                                                                                                            |
+| ---------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                                   |
+| ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                                          |
+| ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                                   |
+| ADR-004 Asynchrone Writes über Pub/Sub                     | Teilweise fertig | Phase 3 Buy-Flow erledigt; ACK/NACK-Regeln dokumentiert und getestet; weitere Härtung in Phase 3.5 geplant                                |
+| ADR-005 Redis als Read-Cache                               | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant                                               |
+| ADR-006 Prometheus + Grafana                               | Geplant          | Phase 4.5 (Monitoring & Observability)                                                                                                    |
+| ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                             |
+| ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                                         |
+| ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                                 |
+| ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                                |
+| ADR-011 Capacity Model vs. Pre-generated Tickets           | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                                                               |
+| ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                                   |
+| ADR-013 Payment Flow Mocking                               | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                                                               |
+| ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                                      |
+| ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                                          |
+| ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                                 |
+| ADR-017 Order-Status via Polling                           | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                                                    |
+| ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                                    |
+| ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                           |
+| ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                               |
+| ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                               |
+| ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Geplant          | Phase 3.5 Sync-Strategie Redis ↔ DB: zyklischer Reconcile mit self-scheduling setTimeout, Singleton-Pod, K8s-Lease als HA-Eskalationspfad |
 
 ### Status-Definitionen
 
@@ -439,3 +440,32 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
     - `scripts/local/reset-seed.mjs`
     - `package.json`
     - `docs/DEBUGGING.md`
+
+---
+
+## ADR-022: Periodischer Reconcile-Loop im Worker (Singleton-Deployment-Strategie)
+
+- **Datum:** 2026-05-23
+- **Kontext:** Der Reconcile-Kern (`reconcileTicketAvailability`) laeuft bereits einmalig beim Worker-Start. Fuer kontinuierlichen Drift-Schutz zwischen Redis und PostgreSQL muss er auch periodisch im Betrieb laufen. Die Designfrage war: Wo laeuft der Loop, wie verhindert man ueberlappende Laeufe, wird Intervall-Steuerung fachlich oder infrastrukturell gesteuert – und was passiert, wenn mehrere Worker-Pods parallel laufen?
+- **Recherche-Basis:**
+  - Das Kubernetes Controller-Pattern (K8s-Doku) definiert den Reconcile-Loop als architektonisches Grundprinzip: ein Loop, der kontinuierlich Desired State vs. Current State vergleicht und bei Abweichung korrigiert. Kubernetes selbst nutzt dieses Muster intern fuer `kube-controller-manager` und `kube-scheduler`.
+  - Kubernetes `coordination.k8s.io/v1 Lease`-Objekte sind der kanonische K8s-Mechanismus fuer Leader Election in HA-Setups (Workloads-Abschnitt: _"Your own workload can define its own use of Leases"_).
+  - Martin Kleppmann ("How to do distributed locking"): Fuer **Effizienz-Locks** (kein Korrektheitsproblem bei doppeltem Lauf, da idempotent) reicht ein einfacher Redis `SET NX EX`. Redlock und ZooKeeper sind Overkill, wenn kein Korrektheitsverlust bei Ueberlappung eintritt.
+- **Entscheidung:**
+  1. Der Reconcile-Loop laeuft innerhalb des Worker-Prozesses als eigenstaendiger Lifecycle-Concern, gestartet nach dem Startup-Reconcile.
+  2. **Self-scheduling `setTimeout`** (nicht `setInterval`): Naechster Lauf startet erst nach Abschluss des vorherigen. Verhindert Ueberlappung bei langsamen DB/Redis-Abfragen unter Last.
+  3. **Singleton-Deployment** (`replicas: 1`): Kubernetes garantiert, dass kein zweiter Pod gleichzeitig reconciliert. Leader-Election-Code ist in dieser Phase nicht noetig.
+  4. **Operator-gesteuerte Betriebsmodi** via `@repo/env`: `WORKER_RECONCILE_MODE=peak|normal`, `WORKER_RECONCILE_INTERVAL_PEAK_SECONDS` (Default: 10), `WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS` (Default: 60).
+  5. Sauberes Stoppen ueber Fastify `onClose`-Hook (analog zum bestehenden Pub/Sub-Subscriber-Stop).
+- **Begruendung:**
+  - `setInterval` wuerde Laeufe ueberlappen, wenn ein Reconcile-Lauf (DB-Read + Redis-Scan + Writes) laenger dauert als das Intervall.
+  - Intervall-Steuerung ueber K8s-Auslastung (CPU/Replicas) waere der falsche Steuerkanal: K8s-Autoscaling spiegelt nicht den fachlichen Redis/DB-Drift wider. Korrekte Signale waeren Drift-Metriken, Reservation-Churn und Queue-Backlog – diese stehen erst mit Phase 4.5 (Observability) zur Verfuegung.
+  - Redis `SET NX EX` Leader-Election waere fuer einen Effizienz-Lock ausreichend (Kleppmann: _"Redis shines for approximate, non-critical locks"_), aber bei Singleton-Deployment unnoetige Komplexitaet.
+  - Dedizierter `reconciler`-Service (dritter Service) waere die sauberste Separation of Concerns, erhoehte aber Deployment- und Betriebskomplexitaet ohne konkreten Mehrwert solange der Worker als Singleton laeuft.
+- **Eskalationspfad (Phase 5):** Wenn der Worker horizontal skaliert wird (`replicas > 1`), muss entweder Leader Election via Kubernetes Lease API (`coordination.k8s.io/v1`) eingefuehrt werden, oder der Reconciler wird als dedizierter Singleton-Service (`apps/reconciler`) ausgelagert. Beide Optionen sind gleichwertig; Entscheidung abhaengig von operativer Komplexitaet und Monitoring-Reife.
+- **Alternativen (evaluiert und verworfen):**
+  - `setInterval`: einfacher, aber ueberlappungsgefaehrdet bei langsamen Laeufen.
+  - Redis `SET NX EX` (Effizienz-Lock): ausreichend fuer diese Klasse von Locks, aber bei Singleton redundant.
+  - Kubernetes Lease API jetzt: kanonisch fuer HA-Multi-Replica, Eskalationspfad Phase 5.
+  - Dedizierter Reconciler-Service jetzt: beste Separation, erhoehte Komplexitaet ohne Mehrwert bei Singleton-Worker.
+  - Intervall aus K8s-Metriken (z.B. Pod-Anzahl, CPU): falscher Steuerkanal – infrastrukturelle Last korreliert nicht mit fachlichem Drift.

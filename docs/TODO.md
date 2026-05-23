@@ -105,8 +105,8 @@
 
 - [x] Implementiere den Reconcile-Kern im Worker, der pro Event `available = total_capacity - sold_count - active_reservations` berechnet und die Redis-Counter korrigiert.
 - [x] Verdrahte den Reconcile-Kern beim Worker-Start, sodass der Worker beim Boot einmalig alle Event-Counter gegen PostgreSQL und aktive Redis-Reservationen abgleicht.
-- [ ] Starte Reconcile danach zyklisch im Betrieb.
-- [ ] Definiere Intervalle: Peak-Last 5–10s, Normalbetrieb 30–60s.
+- [ ] Starte Reconcile zyklisch nach dem Startup-Reconcile (self-scheduling `setTimeout`, kein `setInterval`; sauber in Fastify `onClose` stoppbar; siehe ADR-022).
+- [ ] Definiere Betriebsmodi und Intervalle in `@repo/env`: `WORKER_RECONCILE_MODE` (`peak`|`normal`, Default: `normal`), `WORKER_RECONCILE_INTERVAL_PEAK_SECONDS` (Default: 10), `WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS` (Default: 60).
 
 ### Tests & Observability für den Flow
 
@@ -158,6 +158,14 @@
 - [ ] Erstelle Dockerfiles für API, Worker und Web.
 - [ ] Schreibe Kubernetes Deployment/Service/Ingress Manifeste.
 - [ ] Führe Cloud-Lasttest aus und sammle Metriken für die README.
+
+### Phase 5: Reconcile-Loop HA-Eskalation (bei `replicas > 1`)
+
+Wenn der Worker horizontal skaliert wird, darf nur ein Pod reconcilieren. Zwei Optionen (ADR-022):
+
+- [ ] **Option A – K8s Lease API:** Leader Election via `coordination.k8s.io/v1 Lease`-Objekt implementieren. Nur der Leader-Pod startet den Reconcile-Loop; alle anderen ueberspringen ihn. (Dieselbe Mechanik wie `kube-controller-manager` in HA-Setups.)
+- [ ] **Option B – Dedizierter Reconciler-Service:** `apps/reconciler` als eigenstaendigen Singleton-Service auslagern. Laeuft als `replicas: 1`, voellig unabhaengig vom Worker-Scaling. Klare Separation of Concerns, erhoehte Deployment-Komplexitaet.
+- [ ] Entscheidung zwischen Option A und B treffen, sobald Worker-Skalierung konkret geplant ist, und ADR-022 aktualisieren.
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 

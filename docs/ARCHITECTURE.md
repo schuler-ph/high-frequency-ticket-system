@@ -22,7 +22,7 @@ flowchart TD
 
     Grafana["Grafana Dashboards<br/>- RPS<br/>- Latenz<br/>- Errors<br/>- Queue"]
 
-    Worker["Fastify Worker (apps/worker)<br/>1. Konsumiert BuyTicketEvent aus Pub/Sub<br/>2. Simuliert Payment Provider Latenz (~1s)<br/>3. CALL buy_ticket(...) in Postgres<br/>4. (Optional) Redis Counter Reconciliation"]
+    Worker["Fastify Worker (apps/worker)<br/>1. Konsumiert BuyTicketEvent aus Pub/Sub<br/>2. Simuliert Payment Provider Latenz (~1s)<br/>3. CALL buy_ticket(...) in Postgres<br/>4. Reconcile-Loop (periodisch, Singleton)"]
 
     subgraph DB [PostgreSQL Cloud SQL]
         events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
@@ -104,6 +104,43 @@ Beispiel im Worker-Flow:
 2. API liest Redis Key tickets:event:{eventId}:available
 3. API antwortet HTTP 200 { available: 843291, total: 1000000 }
    → Kein DB-Zugriff, Sub-Millisekunden Antwortzeit
+
+## Reconcile-Loop: Design & Betriebsmodell
+
+Der Worker fuehrt nach dem einmaligen Startup-Reconcile einen periodischen Reconcile-Loop aus, der Redis-Counter kontinuierlich gegen PostgreSQL korrigiert (vgl. Kubernetes Controller Pattern: desired state vs. current state). Dies kompensiert Drift durch TTL-Ablauf von Reservierungen, Race Conditions und Worker-Restarts.
+
+### Mechanismus: Self-scheduling setTimeout
+
+```
+Boot → runStartupReconcile() → scheduleNextReconcile(intervalMs)
+                                       ↓
+                         reconcileTicketAvailability()
+                                       ↓ (nach Abschluss)
+                         scheduleNextReconcile(intervalMs) → ...
+```
+
+`setInterval` wird bewusst nicht verwendet: Falls ein Reconcile-Lauf (DB-Read + Redis-Scan + Writes) laenger dauert als das konfigurierte Intervall, wuerden sich Laeufe ueberlappen und Redis/DB unter Last unnoetig belasten.
+
+### Betriebsmodi
+
+| Modus    | Intervall-Default | Env-Variable                               | Anwendungsfall                            |
+| -------- | ----------------- | ------------------------------------------ | ----------------------------------------- |
+| `peak`   | 10 s              | `WORKER_RECONCILE_INTERVAL_PEAK_SECONDS`   | Ticket-Sale-Peak, hoher Reservation-Churn |
+| `normal` | 60 s              | `WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS` | Normalbetrieb, geringe Drift-Rate         |
+
+Umschaltung: `WORKER_RECONCILE_MODE=peak|normal` (Default: `normal`). Gestoppt via Fastify `onClose`-Hook.
+
+### Deployment-Modell & Eskalationspfad
+
+**Phase 3.5–4 – Singleton-Deployment:**
+Der Worker laeuft als `replicas: 1`. Kubernetes garantiert exklusiven Reconcile-Betrieb ohne Leader-Election-Code (ADR-022).
+
+**Phase 5 – HA-Eskalation (bei horizontaler Worker-Skalierung):**
+
+- Option A: Leader Election via Kubernetes Lease API (`coordination.k8s.io/v1`) – dieselbe Mechanik, die `kube-controller-manager` in HA-Setups nutzt.
+- Option B: Dedizierter `apps/reconciler`-Service als eigener Singleton – klarste Separation of Concerns.
+
+---
 
 ## Load-Test Szenario (k6 Lastkurve)
 
