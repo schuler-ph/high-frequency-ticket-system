@@ -110,7 +110,7 @@
 
 ### Tests & Observability für den Flow
 
-- [ ] Schreibe Integrationstests für Reserve/Publish-Rollback/Compensation (Happy + Failure Paths).
+- [x] Schreibe Integrationstests für Reserve/Publish-Rollback/Compensation (Happy + Failure Paths).
 - [ ] Ergänze Metriken für den Order-Lifecycle: `accepted`, `pending`, `completed`, `failed`.
 - [ ] Ergänze Metriken für Reservationen und Fehlerpfade: Reservierungen erstellt, Publish-Rollbacks, Worker-Kompensationen.
 - [ ] Ergänze Metriken für Worker-Robustheit: Redeliveries, Idempotenz-Kurzschlüsse, Processing-Lock-Konflikte.
