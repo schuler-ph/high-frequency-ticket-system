@@ -66,6 +66,14 @@ const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
   reconcileTicketAvailability,
 };
 
+const getReconcileIntervalMs = (): number => {
+  const seconds =
+    env.WORKER_RECONCILE_MODE === "peak"
+      ? env.WORKER_RECONCILE_INTERVAL_PEAK_SECONDS
+      : env.WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS;
+  return seconds * 1000;
+};
+
 const getOrderCacheEntryTtlSeconds = (entry: OrderCacheEntry): number =>
   entry.status === "pending"
     ? env.REDIS_PENDING_ORDER_TTL_SECONDS
@@ -165,6 +173,25 @@ const createPubSubListenerRoutes = (
       });
     });
 
+    let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    const scheduleNextReconcile = (): void => {
+      reconcileTimeout = setTimeout(() => {
+        runStartupReconcile({
+          listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
+          reconcileTicketAvailability: routeDeps.reconcileTicketAvailability,
+          redis,
+        })
+          .catch((err: unknown) => {
+            fastify.log.error({ err }, "Periodic reconcile failed");
+          })
+          .finally(() => {
+            scheduleNextReconcile();
+          });
+      }, getReconcileIntervalMs());
+      reconcileTimeout.unref();
+    };
+
     fastify.addHook("onReady", async () => {
       await runStartupReconcile({
         listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
@@ -172,7 +199,14 @@ const createPubSubListenerRoutes = (
         redis,
       });
 
+      scheduleNextReconcile();
       fastify.pubsubSubscriber.start();
+    });
+
+    fastify.addHook("onClose", async () => {
+      if (reconcileTimeout !== undefined) {
+        clearTimeout(reconcileTimeout);
+      }
     });
   };
 

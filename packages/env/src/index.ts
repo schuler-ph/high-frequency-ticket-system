@@ -39,6 +39,17 @@ export const env = createEnv({
       .int()
       .positive()
       .default(86400),
+    WORKER_RECONCILE_MODE: z.enum(["peak", "normal"]).default("normal"),
+    WORKER_RECONCILE_INTERVAL_PEAK_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10),
+    WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60),
   },
 
   /**
