@@ -15,6 +15,14 @@ import {
   type BuyTicketMessageHandlerDeps,
 } from "../lib/handle-buy-ticket-message.ts";
 import { reconcileTicketAvailability } from "../lib/reconcile-ticket-availability.ts";
+import {
+  ordersCompletedTotal,
+  ordersFailedTotal,
+  processingLockConflictsTotal,
+  workerCompensationsTotal,
+  workerIdempotencyHitsTotal,
+  workerRedeliveriesTotal,
+} from "../lib/metrics.ts";
 import type {} from "../plugins/pubsub.ts";
 
 const RELEASE_RESERVATION_SCRIPT = `
@@ -122,6 +130,20 @@ const createPubSubListenerRoutes = (
       await handleBuyTicketMessage(message, {
         logger: fastify.log,
         executeBuyTicket: routeDeps.executeBuyTicket,
+        metrics: {
+          onOrderCompleted: (eventId) =>
+            ordersCompletedTotal.inc({ event_id: eventId }),
+          onOrderFailed: (eventId) =>
+            ordersFailedTotal.inc({ event_id: eventId }),
+          onCompensation: (eventId) =>
+            workerCompensationsTotal.inc({ event_id: eventId }),
+          onRedelivery: (eventId) =>
+            workerRedeliveriesTotal.inc({ event_id: eventId }),
+          onIdempotencyHit: (eventId) =>
+            workerIdempotencyHitsTotal.inc({ event_id: eventId }),
+          onLockConflict: (eventId) =>
+            processingLockConflictsTotal.inc({ event_id: eventId }),
+        },
         compensateReservation: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);
           const releaseResult = await redis.eval(

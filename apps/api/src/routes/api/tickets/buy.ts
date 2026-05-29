@@ -15,6 +15,11 @@ import type {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
+import {
+  ordersAcceptedTotal,
+  publishRollbacksTotal,
+  reservationsCreatedTotal,
+} from "../../../lib/metrics.ts";
 
 const ATOMIC_RESERVE_TICKET_SCRIPT = `
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
@@ -53,6 +58,8 @@ type QueueBuyTicketPurchaseInput = {
   reservationTtlSeconds?: number;
   pendingOrderTtlSeconds?: number;
   createOrderId?: () => string;
+  onReservationCreated?: () => void;
+  onPublishRollback?: () => void;
 };
 
 const rollbackQueuedPurchase = async ({
@@ -60,11 +67,13 @@ const rollbackQueuedPurchase = async ({
   reservationKey,
   orderCacheKey,
   availabilityKey,
+  onPublishRollback,
 }: {
   redis: TicketRedisClient;
   reservationKey: string;
   orderCacheKey: string;
   availabilityKey: string;
+  onPublishRollback?: () => void;
 }): Promise<unknown[]> => {
   const cleanupErrors: unknown[] = [];
 
@@ -86,6 +95,8 @@ const rollbackQueuedPurchase = async ({
     cleanupErrors.push(error);
   }
 
+  onPublishRollback?.();
+
   return cleanupErrors;
 };
 
@@ -97,6 +108,8 @@ export async function queueBuyTicketPurchase({
   reservationTtlSeconds = env.REDIS_RESERVATION_TTL_SECONDS,
   pendingOrderTtlSeconds = env.REDIS_PENDING_ORDER_TTL_SECONDS,
   createOrderId = randomUUID,
+  onReservationCreated,
+  onPublishRollback,
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
   const keys = ticketRedisKeys(eventId);
 
@@ -110,6 +123,8 @@ export async function queueBuyTicketPurchase({
   if (availableAfterReserve < 0) {
     throw new ConflictError("Tickets sold out");
   }
+
+  onReservationCreated?.();
 
   const orderId = createOrderId();
   const reservationKey = keys.reservation(orderId);
@@ -142,6 +157,7 @@ export async function queueBuyTicketPurchase({
       reservationKey,
       orderCacheKey,
       availabilityKey: keys.available,
+      onPublishRollback,
     });
 
     if (cleanupErrors.length > 0) {
@@ -176,13 +192,19 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
         redis: TicketRedisClient;
         pubsubPublisher: TicketPublisher;
       };
+      const { eventId } = req.params;
       const response = await queueBuyTicketPurchase({
-        eventId: req.params.eventId,
+        eventId,
         body: req.body,
         redis,
         pubsubPublisher,
+        onReservationCreated: () =>
+          reservationsCreatedTotal.inc({ event_id: eventId }),
+        onPublishRollback: () =>
+          publishRollbacksTotal.inc({ event_id: eventId }),
       });
 
+      ordersAcceptedTotal.inc({ event_id: eventId });
       return res.status(202).send(response);
     },
   });

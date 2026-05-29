@@ -16,6 +16,15 @@ type BuyTicketPayload = BuyTicketEvent;
 
 type CompensationResult = "released" | "already-released";
 
+type MessageHandlerMetrics = {
+  onOrderCompleted?: (eventId: string) => void;
+  onOrderFailed?: (eventId: string) => void;
+  onCompensation?: (eventId: string) => void;
+  onRedelivery?: (eventId: string) => void;
+  onIdempotencyHit?: (eventId: string) => void;
+  onLockConflict?: (eventId: string) => void;
+};
+
 export type BuyTicketMessageHandlerDeps = {
   logger: FastifyBaseLogger;
   executeBuyTicket: (payload: BuyTicketPayload) => Promise<string | null>;
@@ -32,6 +41,7 @@ export type BuyTicketMessageHandlerDeps = {
   markOrderProcessed: (payload: BuyTicketPayload) => Promise<void>;
   releaseProcessingLock: (payload: BuyTicketPayload) => Promise<void>;
   sleep?: (ms: number) => Promise<unknown>;
+  metrics?: MessageHandlerMetrics;
 };
 
 const getCauseCode = (error: unknown): string | undefined => {
@@ -96,6 +106,7 @@ export async function handleBuyTicketMessage(
       },
       "Skipping already processed BuyTicketEvent",
     );
+    deps.metrics?.onIdempotencyHit?.(parsed.data.eventId);
     message.ack();
     return;
   }
@@ -113,6 +124,8 @@ export async function handleBuyTicketMessage(
       },
       "BuyTicketEvent is already being processed, nacking for redelivery",
     );
+    deps.metrics?.onLockConflict?.(parsed.data.eventId);
+    deps.metrics?.onRedelivery?.(parsed.data.eventId);
     message.nack();
     return;
   }
@@ -141,6 +154,7 @@ export async function handleBuyTicketMessage(
       "Successfully processed BuyTicketEvent",
     );
 
+    deps.metrics?.onOrderCompleted?.(parsed.data.eventId);
     message.ack();
     return;
   } catch (error) {
@@ -177,6 +191,9 @@ export async function handleBuyTicketMessage(
           },
           "Compensated reservation after terminal BuyTicketEvent error",
         );
+
+        deps.metrics?.onCompensation?.(parsed.data.eventId);
+        deps.metrics?.onOrderFailed?.(parsed.data.eventId);
       } catch (compensationError) {
         deps.logger.error(
           {
@@ -227,6 +244,7 @@ export async function handleBuyTicketMessage(
       { messageId: message.id, eventId: parsed.data.eventId, error },
       "Error processing BuyTicketEvent",
     );
+    deps.metrics?.onRedelivery?.(parsed.data.eventId);
     message.nack();
     return;
   } finally {
