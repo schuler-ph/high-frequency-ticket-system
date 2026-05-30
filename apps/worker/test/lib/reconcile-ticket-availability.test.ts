@@ -13,6 +13,7 @@ type ScanResponse = [string, string[]];
 
 function createRedisMock(
   scanResponses: ScanResponse[],
+  getValues: Record<string, string | null> = {},
 ): ReconcileRedisClient & {
   scanCalls: Array<{
     cursor: string;
@@ -20,15 +21,22 @@ function createRedisMock(
     count: number;
   }>;
   msetCalls: Array<Record<string, string>>;
+  getCalls: string[];
 } {
   const pendingScanResponses = [...scanResponses];
   const scanCalls: Array<{ cursor: string; pattern: string; count: number }> =
     [];
   const msetCalls: Array<Record<string, string>> = [];
+  const getCalls: string[] = [];
 
   return {
     scanCalls,
     msetCalls,
+    getCalls,
+    async get(key) {
+      getCalls.push(key);
+      return getValues[key] ?? null;
+    },
     async scan(cursor, _matchToken, pattern, _countToken, count) {
       scanCalls.push({ cursor, pattern, count });
 
@@ -123,4 +131,37 @@ void test("reconcile rewrites Redis total and available keys from DB inventory a
       [ticketRedisKeys(eventSnapshots[1].eventId).available]: "0",
     },
   ]);
+});
+
+void test("reconcile calls onEventReconciled with Redis and computed available counts", async () => {
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock([["0", [keys.reservation("order-1")]]], {
+    [keys.available]: "60",
+  });
+
+  const reconciledEvents: Array<{
+    eventId: string;
+    redisAvailable: number;
+    computedAvailable: number;
+  }> = [];
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => [
+      { eventId, totalCapacity: 100, soldCount: 45 },
+    ],
+    redis,
+    onEventReconciled: (eid, redisAvailable, computedAvailable) => {
+      reconciledEvents.push({
+        eventId: eid,
+        redisAvailable,
+        computedAvailable,
+      });
+    },
+  });
+
+  assert.deepEqual(reconciledEvents, [
+    { eventId, redisAvailable: 60, computedAvailable: 54 },
+  ]);
+  assert.deepEqual(redis.getCalls, [keys.available]);
 });

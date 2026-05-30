@@ -4,6 +4,7 @@ import { ticketRedisKeys } from "@repo/types/redis-keys";
 export type { EventInventorySnapshot } from "@repo/db";
 
 export type ReconcileRedisClient = {
+  get: (key: string) => Promise<string | null>;
   scan: (
     cursor: string,
     matchToken: "MATCH",
@@ -18,6 +19,11 @@ export type ReconcileTicketAvailabilityDeps = {
   getEventInventorySnapshots: () => Promise<EventInventorySnapshot[]>;
   redis: ReconcileRedisClient;
   scanCount?: number;
+  onEventReconciled?: (
+    eventId: string,
+    redisAvailable: number,
+    computedAvailable: number,
+  ) => void;
 };
 
 const DEFAULT_SCAN_COUNT = 100;
@@ -60,21 +66,28 @@ export async function reconcileTicketAvailability(
   const eventSnapshots = await deps.getEventInventorySnapshots();
 
   for (const snapshot of eventSnapshots) {
+    const keys = ticketRedisKeys(snapshot.eventId);
     const activeReservations = await countActiveReservations(
       deps.redis,
       snapshot.eventId,
       deps.scanCount,
     );
-    const available = calculateAvailableTickets(
+    const computed = calculateAvailableTickets(
       snapshot.totalCapacity,
       snapshot.soldCount,
       activeReservations,
     );
-    const keys = ticketRedisKeys(snapshot.eventId);
+
+    if (deps.onEventReconciled) {
+      const redisRaw = await deps.redis.get(keys.available);
+      const redisAvailable =
+        redisRaw !== null ? parseInt(redisRaw, 10) : computed;
+      deps.onEventReconciled(snapshot.eventId, redisAvailable, computed);
+    }
 
     await deps.redis.mset({
       [keys.total]: String(snapshot.totalCapacity),
-      [keys.available]: String(available),
+      [keys.available]: String(computed),
     });
   }
 }
