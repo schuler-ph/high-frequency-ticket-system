@@ -34,6 +34,7 @@ void describe("order processing actions", () => {
       eventId: event.id,
       firstName: "Ada",
       lastName: "Lovelace",
+      queuedAt: Date.now(),
     });
 
     assert.ok(ticketId);
@@ -85,12 +86,14 @@ void describe("order processing actions", () => {
       eventId: event.id,
       firstName: "Ada",
       lastName: "Lovelace",
+      queuedAt: Date.now(),
     });
     const secondTicketId = await executeBuyTicket({
       orderId,
       eventId: event.id,
       firstName: "Ada",
       lastName: "Lovelace",
+      queuedAt: Date.now(),
     });
 
     assert.ok(firstTicketId);
@@ -166,6 +169,7 @@ void describe("order processing actions", () => {
           eventId: randomUUID(),
           firstName: "Missing",
           lastName: "Event",
+          queuedAt: Date.now(),
         });
       },
       (error: unknown) => {

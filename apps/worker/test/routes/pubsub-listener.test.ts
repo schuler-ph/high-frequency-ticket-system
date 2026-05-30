@@ -84,6 +84,7 @@ function createValidPayload(): BuyTicketEvent {
     eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
     firstName: "Max",
     lastName: "Mustermann",
+    queuedAt: Date.now(),
   };
 }
 
@@ -196,6 +197,8 @@ void test("pubsub-listener ACKs successful messages", async () => {
   let executeCalls = 0;
   let markedProcessed = 0;
   let writtenOrderCacheEntry: OrderCacheEntry | undefined;
+  let e2eLatencyStatus: string | undefined;
+  let e2eLatencySeconds: number | undefined;
   const ticketId = "2c4fd22c-f5be-4bf7-bb45-5019d92666ab";
 
   await handleBuyTicketMessage(
@@ -212,6 +215,12 @@ void test("pubsub-listener ACKs successful messages", async () => {
         },
         markOrderProcessed: async () => {
           markedProcessed += 1;
+        },
+        metrics: {
+          onE2eLatency: (_, durationSeconds, status) => {
+            e2eLatencySeconds = durationSeconds;
+            e2eLatencyStatus = status;
+          },
         },
       },
     ),
@@ -230,6 +239,11 @@ void test("pubsub-listener ACKs successful messages", async () => {
   );
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
+  assert.equal(e2eLatencyStatus, "completed");
+  assert.ok(
+    typeof e2eLatencySeconds === "number" && e2eLatencySeconds >= 0,
+    `expected e2eLatencySeconds >= 0, got ${String(e2eLatencySeconds)}`,
+  );
 });
 
 void test("pubsub-listener ACKs and skips duplicate already-processed messages", async () => {
@@ -300,6 +314,8 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   let receivedFailureReason: string | undefined;
   let markedProcessed = 0;
   let writtenOrderCacheEntry: OrderCacheEntry | undefined;
+  let e2eLatencyStatus: string | undefined;
+  let e2eLatencySeconds: number | undefined;
 
   await handleBuyTicketMessage(
     message,
@@ -324,6 +340,12 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
         markOrderProcessed: async () => {
           markedProcessed += 1;
         },
+        metrics: {
+          onE2eLatency: (_, durationSeconds, status) => {
+            e2eLatencySeconds = durationSeconds;
+            e2eLatencyStatus = status;
+          },
+        },
       },
     ),
   );
@@ -343,6 +365,11 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   );
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
+  assert.equal(e2eLatencyStatus, "failed");
+  assert.ok(
+    typeof e2eLatencySeconds === "number" && e2eLatencySeconds >= 0,
+    `expected e2eLatencySeconds >= 0, got ${String(e2eLatencySeconds)}`,
+  );
 });
 
 void test("pubsub-listener ACKs terminal P0001 error when failed order row is missing", async () => {

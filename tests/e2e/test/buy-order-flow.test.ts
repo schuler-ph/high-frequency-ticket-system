@@ -162,12 +162,15 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
     );
 
     assert.equal(publishedEvents.length, 1);
-    assert.deepEqual(publishedEvents[0], {
-      orderId: buyBody.orderId,
-      eventId,
-      firstName: "Ada",
-      lastName: "Lovelace",
-    });
+    assert.ok(publishedEvents[0]);
+    assert.equal(publishedEvents[0].orderId, buyBody.orderId);
+    assert.equal(publishedEvents[0].eventId, eventId);
+    assert.equal(publishedEvents[0].firstName, "Ada");
+    assert.equal(publishedEvents[0].lastName, "Lovelace");
+    assert.ok(
+      typeof publishedEvents[0].queuedAt === "number" &&
+        publishedEvents[0].queuedAt > 0,
+    );
 
     const workerMessage = createMessage(publishedEvents[0]!);
     await handleBuyTicketMessage(workerMessage, {

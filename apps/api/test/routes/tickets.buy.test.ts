@@ -102,12 +102,15 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
       status: "pending",
     }),
   );
-  assert.deepEqual(publishedPayload, {
-    orderId: response.orderId,
-    eventId,
-    firstName: "Ada",
-    lastName: "Lovelace",
-  });
+  assert.ok(publishedPayload);
+  assert.equal(publishedPayload.orderId, response.orderId);
+  assert.equal(publishedPayload.eventId, eventId);
+  assert.equal(publishedPayload.firstName, "Ada");
+  assert.equal(publishedPayload.lastName, "Lovelace");
+  assert.ok(
+    typeof publishedPayload.queuedAt === "number" &&
+      publishedPayload.queuedAt > 0,
+  );
 });
 
 void test("queueBuyTicketPurchase throws ConflictError when sold out", async () => {

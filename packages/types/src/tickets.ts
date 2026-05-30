@@ -16,6 +16,7 @@ export type BuyTicketRequest = z.infer<typeof buyTicketRequestSchema>;
 
 export const buyTicketEventSchema = buyTicketRequestSchema.extend({
   orderId: z.uuid("Invalid order ID format"),
+  queuedAt: z.number().int(),
 });
 
 export type BuyTicketEvent = z.infer<typeof buyTicketEventSchema>;

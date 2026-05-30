@@ -123,7 +123,7 @@
 
 ### Frontend (`apps/web`)
 
-- [ ] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
+- [x] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
 - [ ] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/:eventId/availability`).
 - [ ] Implementiere Kaufen-Button mit Loading State und Error-Handling.
 - [ ] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/:eventId/buy`.
@@ -138,8 +138,9 @@
 
 ## Phase 4.5: Monitoring & Observability
 
-- [ ] Integriere `prom-client` in `apps/api` und Worker für Fastify-Metriken (RPS, Latenz).
-- [ ] Exponiere `/metrics` Endpunkt für Prometheus-Scraping.
+- [x] Integriere `prom-client` in `apps/api` und Worker für Custom-Metriken (Counter, Histogram).
+- [x] Exponiere `/metrics` Endpunkt für Prometheus-Scraping (API & Worker).
+- [x] Messe E2E-Latenz von `POST /buy` bis `order completed|failed` als Prometheus-Histogram (`order_e2e_latency_seconds`, Labels: `event_id`, `status`).
 - [ ] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
 - [ ] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
 - [ ] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).

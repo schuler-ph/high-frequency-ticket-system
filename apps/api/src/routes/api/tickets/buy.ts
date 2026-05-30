@@ -149,6 +149,7 @@ export async function queueBuyTicketPurchase({
     await pubsubPublisher.publishBuyTicket({
       orderId,
       eventId,
+      queuedAt: Date.now(),
       ...body,
     });
   } catch (error) {

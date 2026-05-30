@@ -23,6 +23,11 @@ type MessageHandlerMetrics = {
   onRedelivery?: (eventId: string) => void;
   onIdempotencyHit?: (eventId: string) => void;
   onLockConflict?: (eventId: string) => void;
+  onE2eLatency?: (
+    eventId: string,
+    durationSeconds: number,
+    status: "completed" | "failed",
+  ) => void;
 };
 
 export type BuyTicketMessageHandlerDeps = {
@@ -155,6 +160,11 @@ export async function handleBuyTicketMessage(
     );
 
     deps.metrics?.onOrderCompleted?.(parsed.data.eventId);
+    deps.metrics?.onE2eLatency?.(
+      parsed.data.eventId,
+      (Date.now() - parsed.data.queuedAt) / 1000,
+      "completed",
+    );
     message.ack();
     return;
   } catch (error) {
@@ -194,6 +204,11 @@ export async function handleBuyTicketMessage(
 
         deps.metrics?.onCompensation?.(parsed.data.eventId);
         deps.metrics?.onOrderFailed?.(parsed.data.eventId);
+        deps.metrics?.onE2eLatency?.(
+          parsed.data.eventId,
+          (Date.now() - parsed.data.queuedAt) / 1000,
+          "failed",
+        );
       } catch (compensationError) {
         deps.logger.error(
           {

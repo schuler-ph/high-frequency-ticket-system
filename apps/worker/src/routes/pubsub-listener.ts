@@ -18,6 +18,7 @@ import { reconcileTicketAvailability } from "../lib/reconcile-ticket-availabilit
 import {
   ordersCompletedTotal,
   ordersFailedTotal,
+  orderE2eLatencySeconds,
   processingLockConflictsTotal,
   workerCompensationsTotal,
   workerIdempotencyHitsTotal,
@@ -143,6 +144,11 @@ const createPubSubListenerRoutes = (
             workerIdempotencyHitsTotal.inc({ event_id: eventId }),
           onLockConflict: (eventId) =>
             processingLockConflictsTotal.inc({ event_id: eventId }),
+          onE2eLatency: (eventId, durationSeconds, status) =>
+            orderE2eLatencySeconds.observe(
+              { event_id: eventId, status },
+              durationSeconds,
+            ),
         },
         compensateReservation: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);

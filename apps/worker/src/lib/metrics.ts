@@ -1,4 +1,4 @@
-import { Counter, Registry } from "prom-client";
+import { Counter, Histogram, Registry } from "prom-client";
 
 export const workerRegistry = new Registry();
 
@@ -41,5 +41,13 @@ export const processingLockConflictsTotal = new Counter({
   name: "processing_lock_conflicts_total",
   help: "Messages nacked because the processing lock was already held by another worker",
   labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const orderE2eLatencySeconds = new Histogram({
+  name: "order_e2e_latency_seconds",
+  help: "End-to-end latency from POST /buy accepted to order completed or failed",
+  labelNames: ["event_id", "status"] as const,
+  buckets: [0.5, 1, 1.5, 2, 2.5, 3, 5, 10, 30],
   registers: [workerRegistry],
 });
