@@ -13,16 +13,21 @@ flowchart TD
     subgraph API [Fastify API Gateway apps-api]
         API_metrics["/metrics<br/>(Prometheus)"]
         API_avail["GET /availability<br/>→ Redis Read"]
-        API_buy["POST /tickets/buy<br/>→ Pub/Sub Publish"]
+        API_buy["POST /tickets/buy<br/>→ Pub/Sub Publish + Redis Reserve"]
+        API_orders["GET /orders/:orderId<br/>→ Redis Read"]
     end
 
     Prometheus["Prometheus<br/>(Scraping)"]
     Redis[("Redis Cache<br/>(Memorystore)")]
     PubSub[["Google Cloud Pub/Sub<br/>(Message Broker)"]]
 
-    Grafana["Grafana Dashboards<br/>- RPS<br/>- Latenz<br/>- Errors<br/>- Queue"]
+    Grafana["Grafana Dashboards<br/>- RPS<br/>- Latenz<br/>- E2E-Latenz<br/>- Errors<br/>- Queue<br/>- Redis-DB-Drift"]
 
-    Worker["Fastify Worker (apps/worker)<br/>1. Konsumiert BuyTicketEvent aus Pub/Sub<br/>2. Simuliert Payment Provider Latenz (~1s)<br/>3. CALL buy_ticket(...) in Postgres<br/>4. Reconcile-Loop (periodisch, Singleton)"]
+    subgraph Worker [Fastify Worker apps-worker]
+        W_consumer["Pub/Sub Konsument<br/>handle-buy-ticket-message.ts"]
+        W_reconcile["Reconcile-Loop<br/>reconcile-ticket-availability.ts<br/>(peak: 10s / normal: 60s)"]
+        W_metrics["/metrics<br/>(Prometheus)"]
+    end
 
     subgraph DB [PostgreSQL Cloud SQL]
         events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
@@ -31,18 +36,23 @@ flowchart TD
     end
 
     User --> Frontend
-    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP GET /api/tickets/:eventId/availability"| API
+    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP GET /api/tickets/:eventId/availability<br/>HTTP GET /api/orders/:orderId"| API
 
     API_metrics --> Prometheus
     API_avail --> Redis
-    API_buy --> PubSub
+    API_buy -->|"BuyTicketEvent {orderId, eventId,<br/>firstName, lastName, queuedAt}"| PubSub
+    API_buy -->|"reservation + pending order"| Redis
+    API_orders --> Redis
 
+    W_metrics --> Prometheus
     Prometheus --> Grafana
 
-    Worker -->|Cache Update| Redis
-    PubSub -->|SUBSCRIBE| Worker
+    W_consumer -->|"completed/failed order + idempotency marker"| Redis
+    PubSub -->|SUBSCRIBE| W_consumer
+    W_reconcile -->|"available counter + drift metric"| Redis
+    W_reconcile -->|"DB Read: sold_count + capacity"| DB
 
-    Worker -->|SQL Function call| DB
+    W_consumer -->|"SELECT buy_ticket(...)"| DB
 ```
 
 ## Datenfluss: Ticket-Kauf (Happy Path)
@@ -64,6 +74,47 @@ flowchart TD
    - Nach erfolgreichem oder terminal fehlgeschlagenem Processing ueberschreibt der Worker denselben Redis-Order-Key mit dem finalen Status inkl. Ticket-Referenz bzw. `failure_reason` und einer laengeren Final-Status-TTL fuer den spaeteren API-Read.
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
 10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
+
+## Redis-Key-Lifecycle
+
+Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
+
+| Key-Muster | Zweck | TTL (Default) | Erstellt von | Gelesen / Gelöscht von |
+| --- | --- | --- | --- | --- |
+| `tickets:event:{eventId}:total` | Kapazitäts-Snapshot | unbegrenzt | Worker (Reconcile) | API (`GET /availability`) |
+| `tickets:event:{eventId}:available` | Aktuelle Verfügbarkeit | unbegrenzt | API (`POST /reset`, Lua-Init), Worker (Reconcile) | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation) |
+| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker | 120 s | API (`POST /buy`) | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
+| `tickets:event:{eventId}:processing:{orderId}` | Distributed Lock (verhindert parallele Verarbeitung) | 60 s | Worker | Worker (DEL nach Verarbeitung) |
+| `tickets:event:{eventId}:processed:{orderId}` | Idempotenz-Marker (verhindert Redelivery-Doppel-Write) | 86 400 s | Worker | Worker (Idempotenz-Check bei jeder Nachricht) |
+| `orders:{orderId}` | Order-Cache-Eintrag (`pending` → `completed`/`failed`) | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`) |
+
+Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
+
+## E2E-Latenz-Messung
+
+Der End-to-End-Zeitstempel wird vollständig entkoppelt via Payload transportiert:
+
+1. **API** setzt `queuedAt: Date.now()` beim Erstellen des `BuyTicketEvent` und published es mit dem Ticket-Kauf-Request an Pub/Sub.
+2. **Worker** empfängt `queuedAt` als Teil des Payloads und berechnet nach Abschluss der Verarbeitung: `duration = (Date.now() - queuedAt) / 1000`.
+3. Ergebnis wird als Prometheus-Histogram erfasst:
+   - Metrik: `order_e2e_latency_seconds`
+   - Labels: `event_id`, `status` (`completed` | `failed`)
+   - Sourcedatei: `apps/worker/src/lib/handle-buy-ticket-message.ts`
+
+Diese Methode erfordert keinen gemeinsamen State zwischen API und Worker — der Zeitstempel reist im Pub/Sub-Payload mit.
+
+## Redis-DB-Drift-Metrik
+
+Nach jedem Reconcile-Lauf schreibt der Worker den aktuellen Konsistenzstand als Prometheus-Gauge:
+
+- **Metrik:** `redis_db_drift_tickets` (Gauge, Label: `event_id`)
+- **Berechnung:** `redis_available − (total_capacity − sold_count − active_reservations)`
+- **Wert 0** = perfekte Konsistenz zwischen Redis und PostgreSQL
+- **Positiver Wert** = Redis zählt mehr verfügbare Tickets als PostgreSQL → häufig nach TTL-Ablauf von Reservations ohne Kompensation
+- **Negativer Wert** = Redis zählt weniger → seltener, z. B. nach Worker-Restart vor Reconcile
+- Sourcedatei: `apps/worker/src/lib/reconcile-ticket-availability.ts`
+
+Der Reconcile-Loop liefert diese Messung ohnehin als Nebenprodukt seiner Arbeit, ohne zusätzliche DB-Scans.
 
 ## Worker ACK/NACK-Regeln (Stand 2026-03-21)
 

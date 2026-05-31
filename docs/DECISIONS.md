@@ -11,25 +11,26 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                                   |
 | ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                                          |
 | ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                                   |
-| ADR-004 Asynchrone Writes über Pub/Sub                     | Teilweise fertig | Phase 3 Buy-Flow erledigt; ACK/NACK-Regeln dokumentiert und getestet; weitere Härtung in Phase 3.5 geplant                                |
-| ADR-005 Redis als Read-Cache                               | Teilweise fertig | Phase 3 Availability-Read erledigt; event-spezifische Keys + Reconcile in Phase 3.5 geplant                                               |
-| ADR-006 Prometheus + Grafana                               | Geplant          | Phase 4.5 (Monitoring & Observability)                                                                                                    |
+| ADR-004 Asynchrone Writes über Pub/Sub                     | Fertig           | Phase 3 Buy-Flow + Phase 3.5 ACK/NACK + Idempotenz + Kompensation vollständig erledigt                                                   |
+| ADR-005 Redis als Read-Cache                               | Fertig           | Phase 3.5 event-spezifische Keys, Reservation-Flow, Atomic Lua, Reconcile vollständig erledigt                                           |
+| ADR-006 Prometheus + Grafana                               | Teilweise fertig | prom-client + /metrics-Endpunkte (API + Worker) erledigt; Grafana-Dashboards noch offen (Phase 4.5)                                      |
 | ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                             |
 | ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                                         |
 | ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                                 |
 | ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                                |
-| ADR-011 Capacity Model vs. Pre-generated Tickets           | Teilweise fertig | Phase 2/3 Grundmodell erledigt; End-to-End-Korrektheit in Phase 3.5 geplant                                                               |
+| ADR-011 Capacity Model vs. Pre-generated Tickets           | Fertig           | Phase 2/3/3.5 vollständig umgesetzt: capacity-basiert, on-the-fly INSERT, sold_count via SQL-Function                                     |
 | ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                                   |
-| ADR-013 Payment Flow Mocking                               | Geplant          | Phase 3 Worker-Latenz als Aufgabe vorgesehen, final aktivieren in Phase 3.5                                                               |
+| ADR-013 Payment Flow Mocking                               | Fertig           | Worker sleep(1000ms) aktiv umgesetzt (Phase 3 + 3.5)                                                                                      |
 | ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                                      |
 | ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                                          |
 | ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                                 |
-| ADR-017 Order-Status via Polling                           | Geplant          | Phase 3.5 Orders↔Tickets Verknüpfung + später Phase 4 Frontend-Polling                                                                    |
+| ADR-017 Order-Status via Polling                           | Fertig           | Phase 3.5 Orders↔Tickets vollständig verknüpft; GET /api/orders/:orderId mit Redis-Read-Model fertig                                      |
 | ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                                    |
 | ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                           |
 | ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                               |
 | ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                               |
-| ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Geplant          | Phase 3.5 Sync-Strategie Redis ↔ DB: zyklischer Reconcile mit self-scheduling setTimeout, Singleton-Pod, K8s-Lease als HA-Eskalationspfad |
+| ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Fertig           | Phase 3.5: zyklischer Reconcile mit self-scheduling setTimeout, Betriebsmodi via Env-Vars, sauber via Fastify onClose stoppbar            |
+| ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge                              |
 
 ### Status-Definitionen
 
@@ -469,3 +470,27 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - Kubernetes Lease API jetzt: kanonisch fuer HA-Multi-Replica, Eskalationspfad Phase 5.
   - Dedizierter Reconciler-Service jetzt: beste Separation, erhoehte Komplexitaet ohne Mehrwert bei Singleton-Worker.
   - Intervall aus K8s-Metriken (z.B. Pod-Anzahl, CPU): falscher Steuerkanal – infrastrukturelle Last korreliert nicht mit fachlichem Drift.
+
+---
+
+## ADR-023: E2E-Observability — queuedAt-Timestamp, Latenz-Histogramm und Redis-DB-Drift
+
+- **Datum:** 2026-05-31
+- **Kontext:** Nach Abschluss von Phase 3.5 ist der vollständige Async-Flow (API → Pub/Sub → Worker → PostgreSQL → Redis) messbar. Zwei Kernfragen: Wie messen wir End-to-End-Latenz ohne synchrone Kopplung von API und Worker? Und wie erkennen wir Redis-DB-Konsistenz-Drift ohne kontinuierliche DB-Scans?
+- **Entscheidung:**
+  1. `queuedAt: Date.now()` wird beim Pub/Sub-Publish in das `BuyTicketEvent`-Payload eingebettet. Der Worker misst bei Abschluss die Differenz als `order_e2e_latency_seconds`-Histogram mit Labels `event_id` und `status` (`completed` | `failed`).
+  2. Nach jedem Reconcile-Lauf schreibt der Worker einen `redis_db_drift_tickets`-Gauge pro Event: `redis_available − (total_capacity − sold_count − active_reservations)`.
+- **Begruendung:**
+  - `queuedAt` im Payload ist die einzige vollstaendig entkoppelte Methode zur E2E-Latenz-Messung, die weder einen gemeinsamen State zwischen API und Worker noch synchrone Koordination erfordert. Der Timestamp reist im Pub/Sub-Payload mit und ist damit sowohl bei direkter Zustellung als auch bei Redeliveries korrekt.
+  - Die Drift-Metrik ermoeglicht Alerting auf Konsistenz-Abweichungen, ohne kontinuierliche DB-Scans auszuloesen — der Reconcile-Loop berechnet die Differenz ohnehin als Nebenprodukt seiner Arbeit.
+  - Beide Metriken sind direkt in Prometheus integriert und erfordern keine zusaetzliche Infrastruktur.
+- **Alternativen:**
+  - Distributed Tracing via OpenTelemetry: vollstaendige Trace-Propagation ueber API, Pub/Sub und Worker waere ideal fuer Debugging, aber fuer diesen Scope deutlich zu viel Infrastruktur-Overhead (eigener Collector, Jaeger/Tempo) — vgl. ADR-006.
+  - Redis `OBJECT IDLETIME` / Keyspace-Notifications als Drift-Sensor: kein Aggregate-Blick, keine Event-Isolation, nicht einfach als Prometheus-Gauge abbildbar.
+  - Gesonderter Drift-Checker-Job: wuerde zusaetzliche DB-Reads ausloesen und ist schlechter in den Reconcile-Loop integriert als ein Nebenprodukt-Gauge.
+- **Umsetzung:**
+  - `packages/types/src/tickets.ts` (`queuedAt` in `BuyTicketEvent`)
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/worker/src/lib/handle-buy-ticket-message.ts`
+  - `apps/worker/src/lib/reconcile-ticket-availability.ts`
+  - `apps/worker/src/lib/metrics.ts`
