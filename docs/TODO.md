@@ -131,7 +131,7 @@
 
 ### Lasttests (`load-tests/`)
 
-- [ ] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
+- [x] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
 - [ ] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
 - [ ] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
 - [ ] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks.
@@ -141,8 +141,8 @@
 - [x] Integriere `prom-client` in `apps/api` und Worker für Custom-Metriken (Counter, Histogram).
 - [x] Exponiere `/metrics` Endpunkt für Prometheus-Scraping (API & Worker).
 - [x] Messe E2E-Latenz von `POST /buy` bis `order completed|failed` als Prometheus-Histogram (`order_e2e_latency_seconds`, Labels: `event_id`, `status`).
-- [ ] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
-- [ ] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
+- [x] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
+- [x] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
 - [ ] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).
 - [ ] Erstelle Grafana-Dashboard: Order Lifecycle (`accepted`, `pending`, `completed`, `failed`, Completion-Rate).
 - [ ] Erstelle Grafana-Dashboard: Order Completion Latency (`buy accepted` → `completed|failed`, p50/p95/p99).
