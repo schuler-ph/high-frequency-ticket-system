@@ -79,14 +79,14 @@ flowchart TD
 
 Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 
-| Key-Muster | Zweck | TTL (Default) | Erstellt von | Gelesen / Gelöscht von |
-| --- | --- | --- | --- | --- |
-| `tickets:event:{eventId}:total` | Kapazitäts-Snapshot | unbegrenzt | Worker (Reconcile) | API (`GET /availability`) |
-| `tickets:event:{eventId}:available` | Aktuelle Verfügbarkeit | unbegrenzt | API (`POST /reset`, Lua-Init), Worker (Reconcile) | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation) |
-| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker | 120 s | API (`POST /buy`) | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
-| `tickets:event:{eventId}:processing:{orderId}` | Distributed Lock (verhindert parallele Verarbeitung) | 60 s | Worker | Worker (DEL nach Verarbeitung) |
-| `tickets:event:{eventId}:processed:{orderId}` | Idempotenz-Marker (verhindert Redelivery-Doppel-Write) | 86 400 s | Worker | Worker (Idempotenz-Check bei jeder Nachricht) |
-| `orders:{orderId}` | Order-Cache-Eintrag (`pending` → `completed`/`failed`) | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`) |
+| Key-Muster                                      | Zweck                                                  | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                           |
+| ----------------------------------------------- | ------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `tickets:event:{eventId}:total`                 | Kapazitäts-Snapshot                                    | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                        |
+| `tickets:event:{eventId}:available`             | Aktuelle Verfügbarkeit                                 | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                   |
+| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker                          | 120 s                             | API (`POST /buy`)                                                          | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
+| `tickets:event:{eventId}:processing:{orderId}`  | Distributed Lock (verhindert parallele Verarbeitung)   | 60 s                              | Worker                                                                     | Worker (DEL nach Verarbeitung)                                                   |
+| `tickets:event:{eventId}:processed:{orderId}`   | Idempotenz-Marker (verhindert Redelivery-Doppel-Write) | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                    |
+| `orders:{orderId}`                              | Order-Cache-Eintrag (`pending` → `completed`/`failed`) | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                 |
 
 Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
 
