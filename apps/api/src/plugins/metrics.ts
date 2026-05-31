@@ -1,6 +1,8 @@
 import fp from "fastify-plugin";
-import { collectDefaultMetrics, contentType } from "prom-client";
+import promClient from "prom-client";
 import { apiRegistry } from "../lib/metrics.ts";
+
+const { collectDefaultMetrics, contentType } = promClient;
 
 collectDefaultMetrics({ register: apiRegistry });
 
