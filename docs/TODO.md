@@ -132,8 +132,8 @@
 ### Lasttests (`load-tests/`)
 
 - [x] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
-- [ ] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
-- [ ] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
+- [x] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
+- [x] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
 - [ ] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks.
 
 ## Phase 4.5: Monitoring & Observability
@@ -143,13 +143,13 @@
 - [x] Messe E2E-Latenz von `POST /buy` bis `order completed|failed` als Prometheus-Histogram (`order_e2e_latency_seconds`, Labels: `event_id`, `status`).
 - [x] Füge Grafana + Prometheus Services zur `docker-compose.yml` hinzu.
 - [x] Konfiguriere Prometheus Target Scraping (für API & Worker Container).
-- [ ] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).
-- [ ] Erstelle Grafana-Dashboard: Order Lifecycle (`accepted`, `pending`, `completed`, `failed`, Completion-Rate).
-- [ ] Erstelle Grafana-Dashboard: Order Completion Latency (`buy accepted` → `completed|failed`, p50/p95/p99).
-- [ ] Erstelle Grafana-Dashboard: Redis Performance (Hit/Miss Ratio).
-- [ ] Erstelle Grafana-Dashboard: Pub/Sub Queue Depth & Worker Processing Rate.
-- [ ] Erstelle Grafana-Dashboard: Worker Reliability (Redeliveries, Idempotenz-Hits, Processing-Lock-Konflikte, Kompensationen).
-- [ ] Erstelle Grafana-Dashboard: Reservation & Consistency (aktive Reservations, Publish-Rollbacks, Redis-DB-Drift).
+- [x] Erstelle Grafana-Dashboard: API Performance (Latenz, RPS, Error-Rate).
+- [x] Erstelle Grafana-Dashboard: Order Lifecycle (`accepted`, `pending`, `completed`, `failed`, Completion-Rate).
+- [x] Erstelle Grafana-Dashboard: Order Completion Latency (`buy accepted` → `completed|failed`, p50/p95/p99).
+- [x] Erstelle Grafana-Dashboard: Redis Performance (Hit/Miss Ratio) — Placeholder, benötigt `redis_exporter` in docker-compose + Prometheus.
+- [x] Erstelle Grafana-Dashboard: Pub/Sub Queue Depth & Worker Processing Rate — Worker-Proxy-Panels implementiert; vollständige Queue-Tiefe erfordert Stackdriver-Exporter (GCP) oder pubsub_exporter.
+- [x] Erstelle Grafana-Dashboard: Worker Reliability (Redeliveries, Idempotenz-Hits, Processing-Lock-Konflikte, Kompensationen).
+- [x] Erstelle Grafana-Dashboard: Reservation & Consistency (aktive Reservations, Publish-Rollbacks, Redis-DB-Drift).
 - [ ] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views.
 - [ ] Erzeuge Screenshots der Dashboards unter extremer Last für die README.
 
