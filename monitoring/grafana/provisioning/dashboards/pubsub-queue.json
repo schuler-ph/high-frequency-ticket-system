@@ -1,0 +1,159 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "content": "## ⚠️ Pub/Sub Metrics Not Yet Available\n\nThe **Pub/Sub Emulator** (`gcr.io/google.com/cloudsdktool/cloud-sdk`) does not expose Prometheus metrics.\nFor local development, worker-side counters (below) serve as a proxy for queue health.\n\n**For production (GCP):** Use the [GCP Pub/Sub Stackdriver exporter](https://github.com/GoogleCloudPlatform/stackdriver-prometheus-sidecar) or [pubsub_exporter](https://github.com/binxio/pubsub-exporter) to scrape `pubsub.googleapis.com/subscription/num_undelivered_messages` and expose it to Prometheus.\n\n**Worker-side proxy metrics available now:**\n- `orders_accepted_total` (API) vs `orders_completed_total + orders_failed_total` (Worker) → approximates queue depth\n- `worker_redeliveries_total` → indicates NACKed messages still in queue\n- `order_e2e_latency_seconds` → latency grows as queue backs up",
+        "mode": "markdown"
+      },
+      "title": "Setup Required for Full Queue Visibility",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Queue Depth (approx)" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+              { "id": "custom.lineWidth", "value": 3 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 5 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(increase(orders_accepted_total{job=\"api\"}[2m])) - sum(increase(orders_completed_total{job=\"worker\"}[2m])) - sum(increase(orders_failed_total{job=\"worker\"}[2m]))",
+          "legendFormat": "Queue Depth (approx, 2m window)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(orders_accepted_total{job=\"api\"}[1m]))",
+          "legendFormat": "Enqueue Rate (accepted / s)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(orders_completed_total{job=\"worker\"}[1m])) + sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "Dequeue Rate (completed+failed / s)",
+          "refId": "C"
+        }
+      ],
+      "title": "Queue Depth & Processing Rate (Worker-Side Proxy)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 3,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(rate(orders_accepted_total{job=\"api\"}[1m]))",
+          "legendFormat": "Publish Rate (API accepted)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(orders_completed_total{job=\"worker\"}[1m])) + sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "Consumer Rate (Worker finished)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m]))",
+          "legendFormat": "Redelivery Rate (NACK backlog)",
+          "refId": "C"
+        }
+      ],
+      "title": "Publish vs. Consumer Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 4,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(order_e2e_latency_seconds_bucket{job=\"worker\"}[1m])))",
+          "legendFormat": "p95 E2E Latency (queue pressure indicator)",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(order_e2e_latency_seconds_bucket{job=\"worker\"}[1m])))",
+          "legendFormat": "p99 E2E Latency",
+          "refId": "B"
+        }
+      ],
+      "title": "E2E Latency as Queue Pressure Indicator",
+      "description": "Rising p95/p99 latency indicates queue backup. Correlated with Queue Depth panel above.",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 21 },
+      "id": 5,
+      "options": {
+        "content": "### 📌 Production Queue Depth (GCP Pub/Sub)\nOnce connected to real GCP, add this PromQL (requires Stackdriver exporter):\n```\npubsub_subscription_num_undelivered_messages{subscription_id=\"buy-ticket-sub\"}\npubsub_subscription_oldest_unacked_message_age{subscription_id=\"buy-ticket-sub\"}\n```",
+        "mode": "markdown"
+      },
+      "title": "Production Metrics Reference",
+      "type": "text"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["hts", "pubsub", "queue"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Pub/Sub Queue & Worker Processing",
+  "uid": "hts-pubsub-queue",
+  "version": 1
+}

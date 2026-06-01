@@ -1,0 +1,222 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(rate(orders_accepted_total{job=\"api\"}[1m]))",
+          "legendFormat": "accepted / s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(orders_completed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "completed / s",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "failed / s",
+          "refId": "C"
+        }
+      ],
+      "title": "Order Throughput (accepted / completed / failed per second)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(increase(orders_accepted_total{job=\"api\"}[5m])) - sum(increase(orders_completed_total{job=\"worker\"}[5m])) - sum(increase(orders_failed_total{job=\"worker\"}[5m]))",
+          "legendFormat": "pending (approx)",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending Orders (accepted – completed – failed, 5m window)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "green", "value": 0.95 }
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "expr": "sum(increase(orders_completed_total{job=\"worker\"}[5m])) / (sum(increase(orders_accepted_total{job=\"api\"}[5m])) > 0)",
+          "legendFormat": "Completion Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Completion Rate (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "expr": "sum(increase(orders_failed_total{job=\"worker\"}[5m])) / (sum(increase(orders_accepted_total{job=\"api\"}[5m])) > 0)",
+          "legendFormat": "Failure Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Failure Rate (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum by (event_id) (rate(orders_accepted_total{job=\"api\"}[1m]))",
+          "legendFormat": "accepted {{event_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (event_id) (rate(orders_completed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "completed {{event_id}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (event_id) (rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "legendFormat": "failed {{event_id}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Order Rate by Event",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["last", "sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(increase(orders_accepted_total{job=\"api\"}[$__range]))",
+          "legendFormat": "Total Accepted",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(orders_completed_total{job=\"worker\"}[$__range]))",
+          "legendFormat": "Total Completed",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(increase(orders_failed_total{job=\"worker\"}[$__range]))",
+          "legendFormat": "Total Failed",
+          "refId": "C"
+        }
+      ],
+      "title": "Cumulative Order Counts (Dashboard Time Range)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["hts", "orders"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Order Lifecycle",
+  "uid": "hts-order-lifecycle",
+  "version": 1
+}
