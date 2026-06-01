@@ -46,7 +46,7 @@ export default function CountdownPage() {
     <main className="min-h-screen bg-zinc-950 text-white overflow-hidden relative flex flex-col items-center justify-center">
       <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#FFE600]" />
 
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-8 flex flex-col items-start gap-7">
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-10 md:px-16 py-20 flex flex-col items-start gap-10">
         <div className="flex items-center gap-3">
           <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-zinc-500">
