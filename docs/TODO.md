@@ -124,10 +124,10 @@
 ### Frontend (`apps/web`)
 
 - [x] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
-- [ ] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/:eventId/availability`).
-- [ ] Implementiere Kaufen-Button mit Loading State und Error-Handling.
-- [ ] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/:eventId/buy`.
-- [ ] Baue UI Feedback ein (Toast/Alert für Erfolg "In Warteschlange" vs. "Ausverkauft").
+- [x] Implementiere Komponente für dynamische Ticket-Verfügbarkeitsanzeige (Polling `GET /api/tickets/:eventId/availability`).
+- [x] Implementiere Kaufen-Button mit Loading State und Error-Handling.
+- [x] Verbinde den Kaufen-Button via Fetch mit `POST /api/tickets/:eventId/buy`.
+- [x] Baue UI Feedback ein (Toast/Alert für Erfolg "In Warteschlange" vs. "Ausverkauft").
 
 ### Lasttests (`load-tests/`)
 
