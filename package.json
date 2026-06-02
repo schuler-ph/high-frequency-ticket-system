@@ -2,9 +2,10 @@
   "name": "high-frequency-ticket-system",
   "private": true,
   "scripts": {
+    "k6:spike": "K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write k6 run --out experimental-prometheus-rw load-tests/spike.js",
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "local:reset-seed": "node scripts/local/reset-seed.mjs",
+    "seed": "node scripts/local/reset-seed.mjs",
     "db:apply-sql": "pnpm --filter @repo/db run db:apply-sql",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
