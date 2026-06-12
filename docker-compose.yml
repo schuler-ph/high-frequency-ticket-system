@@ -65,7 +65,7 @@ services:
     image: grafana/grafana:12.0.1
     container_name: hts-grafana
     ports:
-      - "3000:3000"
+      - "3001:3001"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
