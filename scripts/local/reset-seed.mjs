@@ -20,50 +20,11 @@ const EVENT_FIXTURES = [
     soldCount: 0,
     available: 1_000_000,
   },
-  {
-    id: "00000000-0000-4000-8000-000000000001",
-    name: "Frequency Festival 20XX Warmup",
-    totalCapacity: 5_000,
-    soldCount: 1,
-    available: 4_999,
-  },
-  {
-    id: "00000000-0000-4000-8000-000000000002",
-    name: "Frequency Festival 20XX Sold Out Demo",
-    totalCapacity: 100,
-    soldCount: 100,
-    available: 0,
-  },
 ];
 
-const ORDER_FIXTURES = [
-  {
-    id: "11111111-1111-4111-8111-111111111111",
-    eventId: "00000000-0000-4000-8000-000000000000",
-    status: "pending",
-  },
-  {
-    id: "22222222-2222-4222-8222-222222222222",
-    eventId: "00000000-0000-4000-8000-000000000001",
-    status: "completed",
-  },
-  {
-    id: "33333333-3333-4333-8333-333333333333",
-    eventId: "00000000-0000-4000-8000-000000000002",
-    status: "failed",
-  },
-];
+const ORDER_FIXTURES = [];
 
-const TICKET_FIXTURES = [
-  {
-    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    eventId: "00000000-0000-4000-8000-000000000001",
-    orderId: "22222222-2222-4222-8222-222222222222",
-    firstName: "Seed",
-    lastName: "Buyer",
-    status: "valid",
-  },
-];
+const TICKET_FIXTURES = [];
 
 const requiredContainers = [
   POSTGRES_CONTAINER,
@@ -116,15 +77,15 @@ const resetPostgres = () => {
       `(${quoteSql(event.id)}, ${quoteSql(event.name)}, ${event.totalCapacity}, ${event.soldCount}, ${quoteSql(SEED_TIMESTAMP)})`,
   ).join(",\n");
 
-  const orderValues = ORDER_FIXTURES.map(
-    (order) =>
-      `(${quoteSql(order.id)}, ${quoteSql(order.eventId)}, ${quoteSql(order.status)}, ${quoteSql(SEED_TIMESTAMP)}, ${quoteSql(SEED_TIMESTAMP)})`,
-  ).join(",\n");
+  // const orderValues = ORDER_FIXTURES.map(
+  //   (order) =>
+  //     `(${quoteSql(order.id)}, ${quoteSql(order.eventId)}, ${quoteSql(order.status)}, ${quoteSql(SEED_TIMESTAMP)}, ${quoteSql(SEED_TIMESTAMP)})`,
+  // ).join(",\n");
 
-  const ticketValues = TICKET_FIXTURES.map(
-    (ticket) =>
-      `(${quoteSql(ticket.id)}, ${quoteSql(ticket.eventId)}, ${quoteSql(ticket.orderId)}, ${quoteSql(ticket.firstName)}, ${quoteSql(ticket.lastName)}, ${quoteSql(ticket.status)}, ${quoteSql(SEED_TIMESTAMP)})`,
-  ).join(",\n");
+  // const ticketValues = TICKET_FIXTURES.map(
+  //   (ticket) =>
+  //     `(${quoteSql(ticket.id)}, ${quoteSql(ticket.eventId)}, ${quoteSql(ticket.orderId)}, ${quoteSql(ticket.firstName)}, ${quoteSql(ticket.lastName)}, ${quoteSql(ticket.status)}, ${quoteSql(SEED_TIMESTAMP)})`,
+  // ).join(",\n");
 
   const sql = `
 TRUNCATE TABLE tickets, orders, events RESTART IDENTITY CASCADE;
@@ -132,16 +93,16 @@ TRUNCATE TABLE tickets, orders, events RESTART IDENTITY CASCADE;
 INSERT INTO events (id, name, total_capacity, sold_count, created_at)
 VALUES
 ${eventValues};
-
-INSERT INTO orders (id, event_id, status, created_at, updated_at)
-VALUES
-${orderValues};
-
-INSERT INTO tickets (id, event_id, order_id, first_name, last_name, status, created_at)
-VALUES
-${ticketValues};
 `;
+  //
+  //
+  // INSERT INTO orders (id, event_id, status, created_at, updated_at)
+  // VALUES
+  // ${orderValues};
 
+  // INSERT INTO tickets (id, event_id, order_id, first_name, last_name, status, created_at)
+  // VALUES
+  // ${ticketValues};
   execFileSync(
     "docker",
     [
