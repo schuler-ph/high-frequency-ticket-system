@@ -254,17 +254,15 @@ void test("Worker compensates reservation and marks order as failed on terminal 
       },
       compensateReservation: async () => "released",
       markOrderFailed: async () => "updated",
-      isOrderProcessed: async () => false,
-      tryAcquireProcessingLock: async () => true,
-      writeOrderCacheEntry: async (entry: OrderCacheEntry) => {
+      beginOrderProcessing: async () => "acquired",
+      finalizeOrder: async (payload, entry: OrderCacheEntry) => {
         await redis.set(
-          orderRedisKeys.entry(entry.orderId),
+          orderRedisKeys.entry(payload.orderId),
           JSON.stringify(entry),
           "EX",
           86400,
         );
       },
-      markOrderProcessed: async () => undefined,
       releaseProcessingLock: async () => undefined,
       sleep: async () => undefined,
     });

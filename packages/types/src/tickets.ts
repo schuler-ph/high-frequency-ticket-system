@@ -84,6 +84,13 @@ export const orderCacheEntrySchema = z.discriminatedUnion("status", [
 
 export type OrderCacheEntry = z.infer<typeof orderCacheEntrySchema>;
 
+export const finalOrderCacheEntrySchema = z.discriminatedUnion("status", [
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+]);
+
+export type FinalOrderCacheEntry = z.infer<typeof finalOrderCacheEntrySchema>;
+
 export const orderStatusResponseSchema = orderCacheEntrySchema;
 
 export type OrderStatusResponse = z.infer<typeof orderStatusResponseSchema>;

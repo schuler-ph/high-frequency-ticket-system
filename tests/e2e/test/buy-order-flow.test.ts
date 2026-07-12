@@ -190,17 +190,15 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
       executeBuyTicket: async () => ticketId,
       compensateReservation: async () => "already-released",
       markOrderFailed: async () => "updated",
-      isOrderProcessed: async () => false,
-      tryAcquireProcessingLock: async () => true,
-      writeOrderCacheEntry: async (entry: OrderCacheEntry) => {
+      beginOrderProcessing: async () => "acquired",
+      finalizeOrder: async (payload, entry: OrderCacheEntry) => {
         await redis.set(
-          orderRedisKeys.entry(entry.orderId),
+          orderRedisKeys.entry(payload.orderId),
           JSON.stringify(entry),
           "EX",
           3600,
         );
       },
-      markOrderProcessed: async () => undefined,
       releaseProcessingLock: async () => undefined,
       sleep: async () => undefined,
     });
