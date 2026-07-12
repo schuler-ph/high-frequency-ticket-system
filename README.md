@@ -2,7 +2,6 @@
 
 <img width="2186" height="978" alt="grafik" src="https://github.com/user-attachments/assets/69bb2946-6907-4539-ad7f-a5230c6aea76" />
 
-
 Asynchrones, hochskalierbares Ticket-System fuer den Verkauf von Frequency Festival Tickets in St. Poelten.
 
 Das Projekt ist als produktionsnahes End-to-End System umgesetzt: API Gateway, Worker, Queueing, Cache-First Reads, relationale Persistenz, Lasttests und Observability.
