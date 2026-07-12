@@ -23,6 +23,11 @@
       "types": "./src/redis-keys.ts",
       "source": "./src/redis-keys.ts",
       "default": "./dist/redis-keys.js"
+    },
+    "./redis-client": {
+      "types": "./src/redis-client.ts",
+      "source": "./src/redis-client.ts",
+      "default": "./dist/redis-client.js"
     }
   },
   "scripts": {

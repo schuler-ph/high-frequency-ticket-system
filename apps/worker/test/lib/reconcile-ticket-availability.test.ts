@@ -21,17 +21,20 @@ function createRedisMock(
     count: number;
   }>;
   msetCalls: Array<Record<string, string>>;
+  incrbyCalls: Array<{ key: string; increment: number }>;
   getCalls: string[];
 } {
   const pendingScanResponses = [...scanResponses];
   const scanCalls: Array<{ cursor: string; pattern: string; count: number }> =
     [];
   const msetCalls: Array<Record<string, string>> = [];
+  const incrbyCalls: Array<{ key: string; increment: number }> = [];
   const getCalls: string[] = [];
 
   return {
     scanCalls,
     msetCalls,
+    incrbyCalls,
     getCalls,
     async get(key) {
       getCalls.push(key);
@@ -50,6 +53,10 @@ function createRedisMock(
     async mset(values) {
       msetCalls.push(values);
       return "OK";
+    },
+    async incrby(key, increment) {
+      incrbyCalls.push({ key, increment });
+      return 0;
     },
   };
 }
@@ -90,7 +97,29 @@ void test("reconcile counts active reservations across paginated Redis scans", a
   ]);
 });
 
-void test("reconcile rewrites Redis total and available keys from DB inventory and active reservations", async () => {
+void test("reconcile initializes total and available absolutely when the available key is missing", async () => {
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock([["0", [keys.reservation("order-1")]]]);
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => [
+      { eventId, totalCapacity: 100, soldCount: 45 },
+    ],
+    redis,
+    scanCount: 50,
+  });
+
+  assert.deepEqual(redis.msetCalls, [
+    {
+      [keys.total]: "100",
+      [keys.available]: "54",
+    },
+  ]);
+  assert.deepEqual(redis.incrbyCalls, []);
+});
+
+void test("reconcile corrects drift as a delta instead of overwriting the available counter", async () => {
   const eventSnapshots: [EventInventorySnapshot, EventInventorySnapshot] = [
     {
       eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
@@ -103,17 +132,26 @@ void test("reconcile rewrites Redis total and available keys from DB inventory a
       soldCount: 18,
     },
   ];
-  const redis = createRedisMock([
-    ["0", [ticketRedisKeys(eventSnapshots[0].eventId).reservation("order-1")]],
+  const firstKeys = ticketRedisKeys(eventSnapshots[0].eventId);
+  const secondKeys = ticketRedisKeys(eventSnapshots[1].eventId);
+  const redis = createRedisMock(
     [
-      "9",
+      // Event 1: eine aktive Reservation → computed = 100 - 45 - 1 = 54
+      ["0", [firstKeys.reservation("order-1")]],
+      // Event 2: drei aktive Reservations → computed = 20 - 18 - 3 = 0 (clamped: -1 → 0)
       [
-        ticketRedisKeys(eventSnapshots[1].eventId).reservation("order-2"),
-        ticketRedisKeys(eventSnapshots[1].eventId).reservation("order-3"),
+        "9",
+        [secondKeys.reservation("order-2"), secondKeys.reservation("order-3")],
       ],
+      ["0", [secondKeys.reservation("order-4")]],
     ],
-    ["0", [ticketRedisKeys(eventSnapshots[1].eventId).reservation("order-4")]],
-  ]);
+    {
+      // Redis zaehlt 60, korrekt waeren 54 → Drift +6 → INCRBY -6
+      [firstKeys.available]: "60",
+      // Redis zaehlt -2 (nach Ueberverkaufs-Fenster), korrekt 0 → Drift -2 → INCRBY +2
+      [secondKeys.available]: "-2",
+    },
+  );
 
   await reconcileTicketAvailability({
     getEventInventorySnapshots: async () => eventSnapshots,
@@ -122,15 +160,31 @@ void test("reconcile rewrites Redis total and available keys from DB inventory a
   });
 
   assert.deepEqual(redis.msetCalls, [
-    {
-      [ticketRedisKeys(eventSnapshots[0].eventId).total]: "100",
-      [ticketRedisKeys(eventSnapshots[0].eventId).available]: "54",
-    },
-    {
-      [ticketRedisKeys(eventSnapshots[1].eventId).total]: "20",
-      [ticketRedisKeys(eventSnapshots[1].eventId).available]: "0",
-    },
+    { [firstKeys.total]: "100" },
+    { [secondKeys.total]: "20" },
   ]);
+  assert.deepEqual(redis.incrbyCalls, [
+    { key: firstKeys.available, increment: -6 },
+    { key: secondKeys.available, increment: 2 },
+  ]);
+});
+
+void test("reconcile leaves the available counter untouched when there is no drift", async () => {
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock([["0", [keys.reservation("order-1")]]], {
+    [keys.available]: "54",
+  });
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => [
+      { eventId, totalCapacity: 100, soldCount: 45 },
+    ],
+    redis,
+  });
+
+  assert.deepEqual(redis.msetCalls, [{ [keys.total]: "100" }]);
+  assert.deepEqual(redis.incrbyCalls, []);
 });
 
 void test("reconcile calls onEventReconciled with Redis and computed available counts", async () => {

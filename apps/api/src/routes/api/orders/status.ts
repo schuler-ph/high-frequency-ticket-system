@@ -9,10 +9,7 @@ import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-
-type OrderRedisClient = {
-  get: (key: string) => Promise<string | null>;
-};
+import type {} from "@fastify/redis";
 
 const parseOrderCacheEntry = (value: string) =>
   orderStatusResponseSchema.parse(JSON.parse(value));
@@ -29,9 +26,7 @@ const orderStatusRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       },
     },
     handler: async (req, res) => {
-      const { redis } = fastify as typeof fastify & {
-        redis: OrderRedisClient;
-      };
+      const { redis } = fastify;
       const orderCacheKey = orderRedisKeys.entry(req.params.orderId);
       const cachedOrder = await redis.get(orderCacheKey);
 

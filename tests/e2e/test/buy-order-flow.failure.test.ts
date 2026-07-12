@@ -13,6 +13,8 @@ import {
   type OrderCacheEntry,
 } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
+import type { TicketRedisScripts } from "../../../apps/api/src/lib/redis-scripts.ts";
 import errorHandler from "../../../apps/api/src/plugins/error-handler.ts";
 import orderStatusRoute from "../../../apps/api/src/routes/api/orders/status.ts";
 import ticketBuyRoute from "../../../apps/api/src/routes/api/tickets/buy.ts";
@@ -32,23 +34,13 @@ const noopLogger: FastifyBaseLogger = {
   level: "info",
 } as unknown as FastifyBaseLogger;
 
-type InMemoryRedis = {
-  store: Map<string, string>;
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  incr: (key: string) => Promise<number>;
-  get: (key: string) => Promise<string | null>;
-};
+type InMemoryRedis = Pick<
+  RedisClient,
+  "set" | "del" | "incr" | "get" | "defineCommand"
+> &
+  TicketRedisScripts & {
+    store: Map<string, string>;
+  };
 
 function createInMemoryRedis(
   initialValues: Record<string, string> = {},
@@ -57,23 +49,44 @@ function createInMemoryRedis(
 
   return {
     store,
-    async eval(_script: string, numKeys: number, ...args: string[]) {
-      assert.equal(numKeys, 1);
-      const key = args[0];
-
-      if (key == null) {
-        throw new Error("expected a Redis key");
-      }
-
-      const current = Number(store.get(key) ?? "0");
+    defineCommand() {},
+    async reserveTicket(
+      availableKey,
+      reservationKey,
+      orderCacheKey,
+      orderId,
+      _reservationTtlSeconds,
+      orderCacheValue,
+      _pendingOrderTtlSeconds,
+    ) {
+      const current = Number(store.get(availableKey) ?? "0");
 
       if (current <= 0) {
         return -1;
       }
 
-      const next = current - 1;
-      store.set(key, String(next));
-      return next;
+      const remaining = current - 1;
+      store.set(availableKey, String(remaining));
+      store.set(reservationKey, orderId);
+      store.set(orderCacheKey, orderCacheValue);
+      return remaining;
+    },
+    async releaseTicketReservation(
+      reservationKey,
+      availableKey,
+      orderCacheKey,
+    ) {
+      const released = store.delete(reservationKey) ? 1 : 0;
+
+      if (released === 1) {
+        store.set(
+          availableKey,
+          String(Number(store.get(availableKey) ?? "0") + 1),
+        );
+      }
+
+      store.delete(orderCacheKey);
+      return released;
     },
     async set(key: string, value: string, mode: "EX", _seconds: number) {
       assert.equal(mode, "EX");
@@ -130,7 +143,7 @@ void test("POST /api/tickets/:eventId/buy returns 409 when tickets are sold out 
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(_payload: BuyTicketEvent) {
       publishCalled = true;
@@ -167,7 +180,7 @@ void test("POST /api/tickets/:eventId/buy rolls back reservation and restores av
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(_payload: BuyTicketEvent): Promise<string> {
       throw new Error("Pub/Sub unavailable");
@@ -204,7 +217,7 @@ void test("Worker compensates reservation and marks order as failed on terminal 
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(payload: BuyTicketEvent) {
       publishedEvents.push(payload);
@@ -241,17 +254,15 @@ void test("Worker compensates reservation and marks order as failed on terminal 
       },
       compensateReservation: async () => "released",
       markOrderFailed: async () => "updated",
-      isOrderProcessed: async () => false,
-      tryAcquireProcessingLock: async () => true,
-      writeOrderCacheEntry: async (entry: OrderCacheEntry) => {
+      beginOrderProcessing: async () => "acquired",
+      finalizeOrder: async (payload, entry: OrderCacheEntry) => {
         await redis.set(
-          orderRedisKeys.entry(entry.orderId),
+          orderRedisKeys.entry(payload.orderId),
           JSON.stringify(entry),
           "EX",
           86400,
         );
       },
-      markOrderProcessed: async () => undefined,
       releaseProcessingLock: async () => undefined,
       sleep: async () => undefined,
     });

@@ -1,8 +1,16 @@
 import { env } from "@repo/env";
 import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import * as schema from "./schema.ts";
 
-export const db = drizzle(env.DATABASE_URL, { schema });
+// Expliziter Pool statt Default (10 Connections): Groesse ist auf die
+// Pub/Sub-Flow-Control des Workers abgestimmt (PUBSUB_FLOW_CONTROL_MAX_MESSAGES).
+const pool = new pg.Pool({
+  connectionString: env.DATABASE_URL,
+  max: env.DATABASE_POOL_MAX,
+});
+
+export const db = drizzle(pool, { schema });
 
 export * from "./schema.ts";
 export * from "./order-processing.ts";

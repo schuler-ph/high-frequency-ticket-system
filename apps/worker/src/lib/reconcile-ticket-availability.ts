@@ -1,19 +1,13 @@
 import type { EventInventorySnapshot } from "@repo/db";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
 
 export type { EventInventorySnapshot } from "@repo/db";
 
-export type ReconcileRedisClient = {
-  get: (key: string) => Promise<string | null>;
-  scan: (
-    cursor: string,
-    matchToken: "MATCH",
-    pattern: string,
-    countToken: "COUNT",
-    count: number,
-  ) => Promise<[string, string[]]>;
-  mset: (values: Record<string, string>) => Promise<unknown>;
-};
+export type ReconcileRedisClient = Pick<
+  RedisClient,
+  "get" | "scan" | "mset" | "incrby"
+>;
 
 export type ReconcileTicketAvailabilityDeps = {
   getEventInventorySnapshots: () => Promise<EventInventorySnapshot[]>;
@@ -78,16 +72,31 @@ export async function reconcileTicketAvailability(
       activeReservations,
     );
 
-    if (deps.onEventReconciled) {
-      const redisRaw = await deps.redis.get(keys.available);
-      const redisAvailable =
-        redisRaw !== null ? parseInt(redisRaw, 10) : computed;
-      deps.onEventReconciled(snapshot.eventId, redisAvailable, computed);
+    const redisRaw = await deps.redis.get(keys.available);
+
+    if (redisRaw === null) {
+      // Bootstrap: Key fehlt (z. B. leeres Redis nach Restart) → absolut
+      // initialisieren; hier kann kein paralleler Kauf verloren gehen.
+      deps.onEventReconciled?.(snapshot.eventId, computed, computed);
+      await deps.redis.mset({
+        [keys.total]: String(snapshot.totalCapacity),
+        [keys.available]: String(computed),
+      });
+      continue;
     }
+
+    const redisAvailable = parseInt(redisRaw, 10);
+    deps.onEventReconciled?.(snapshot.eventId, redisAvailable, computed);
 
     await deps.redis.mset({
       [keys.total]: String(snapshot.totalCapacity),
-      [keys.available]: String(computed),
     });
+
+    // Delta-Korrektur statt absolutem Ueberschreiben: Reservierungen (DECRs),
+    // die zwischen Messung und Korrektur passieren, gehen nicht verloren.
+    const drift = redisAvailable - computed;
+    if (drift !== 0) {
+      await deps.redis.incrby(keys.available, -drift);
+    }
   }
 }

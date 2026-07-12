@@ -2,22 +2,17 @@ import * as assert from "node:assert";
 import { test } from "node:test";
 import type { FastifyBaseLogger } from "fastify";
 import {
-  pendingOrderCacheEntrySchema,
   completedOrderCacheEntrySchema,
   failedOrderCacheEntrySchema,
   type BuyTicketEvent,
-  type OrderCacheEntry,
+  type FinalOrderCacheEntry,
 } from "@repo/types/tickets";
-import { env } from "@repo/env";
 import type { FailedOrderUpdateResult } from "@repo/db";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
 } from "../../src/lib/handle-buy-ticket-message.ts";
-import {
-  createPubSubListenerRoutes,
-  getOrderCacheEntryTtlSeconds,
-} from "../../src/routes/pubsub-listener.ts";
+import { createPubSubListenerRoutes } from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
   id: string;
@@ -62,20 +57,24 @@ function createDeps(
   compensateReservation: BuyTicketMessageHandlerDeps["compensateReservation"] = async () =>
     "already-released",
   overrides: Partial<BuyTicketMessageHandlerDeps> = {},
-): BuyTicketMessageHandlerDeps {
-  return {
+): BuyTicketMessageHandlerDeps & { lockReleaseCalls: number } {
+  const tracker = { lockReleaseCalls: 0 };
+
+  return Object.assign(tracker, {
     logger: noopLogger,
     executeBuyTicket,
     compensateReservation,
     markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
-    isOrderProcessed: async () => false,
-    tryAcquireProcessingLock: async () => true,
-    writeOrderCacheEntry: async () => undefined,
-    markOrderProcessed: async () => undefined,
-    releaseProcessingLock: async () => undefined,
+    beginOrderProcessing: async (): Promise<
+      "duplicate" | "acquired" | "locked"
+    > => "acquired",
+    finalizeOrder: async () => undefined,
+    releaseProcessingLock: async () => {
+      tracker.lockReleaseCalls += 1;
+    },
     sleep: async () => undefined,
     ...overrides,
-  };
+  });
 }
 
 function createValidPayload(): BuyTicketEvent {
@@ -101,7 +100,8 @@ function createRouteTestFastify() {
       get: async () => null,
       set: async () => "OK" as const,
       del: async () => 0,
-      eval: async () => 0,
+      incrby: async () => 0,
+      defineCommand: () => undefined,
       scan: async () => ["0", []] as [string, string[]],
       mset: async () => "OK",
     },
@@ -131,29 +131,6 @@ function createRouteTestFastify() {
     startCalls,
   };
 }
-
-void test("pubsub-listener uses a longer TTL for final order cache entries", () => {
-  const pendingEntry = pendingOrderCacheEntrySchema.parse({
-    orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
-    eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
-    status: "pending",
-  });
-  const completedEntry = completedOrderCacheEntrySchema.parse({
-    orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
-    eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
-    status: "completed",
-    ticketId: "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
-  });
-
-  assert.equal(
-    getOrderCacheEntryTtlSeconds(pendingEntry),
-    env.REDIS_PENDING_ORDER_TTL_SECONDS,
-  );
-  assert.equal(
-    getOrderCacheEntryTtlSeconds(completedEntry),
-    env.REDIS_FINAL_ORDER_TTL_SECONDS,
-  );
-});
 
 void test("pubsub-listener reconciles ticket availability once before starting the subscriber", async () => {
   const startupOrder: string[] = [];
@@ -192,44 +169,38 @@ void test("pubsub-listener reconciles ticket availability once before starting t
   assert.equal(startCalls.length, 1);
 });
 
-void test("pubsub-listener ACKs successful messages", async () => {
+void test("pubsub-listener ACKs successful messages and finalizes atomically", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
-  let markedProcessed = 0;
-  let writtenOrderCacheEntry: OrderCacheEntry | undefined;
+  let finalizedEntry: FinalOrderCacheEntry | undefined;
   let e2eLatencyStatus: string | undefined;
   let e2eLatencySeconds: number | undefined;
   const ticketId = "2c4fd22c-f5be-4bf7-bb45-5019d92666ab";
 
-  await handleBuyTicketMessage(
-    message,
-    createDeps(
-      async () => {
-        executeCalls += 1;
-        return ticketId;
+  const deps = createDeps(
+    async () => {
+      executeCalls += 1;
+      return ticketId;
+    },
+    async () => "already-released",
+    {
+      finalizeOrder: async (_payload, entry) => {
+        finalizedEntry = entry;
       },
-      async () => "already-released",
-      {
-        writeOrderCacheEntry: async (entry) => {
-          writtenOrderCacheEntry = entry;
-        },
-        markOrderProcessed: async () => {
-          markedProcessed += 1;
-        },
-        metrics: {
-          onE2eLatency: (_, durationSeconds, status) => {
-            e2eLatencySeconds = durationSeconds;
-            e2eLatencyStatus = status;
-          },
+      metrics: {
+        onE2eLatency: (_, durationSeconds, status) => {
+          e2eLatencySeconds = durationSeconds;
+          e2eLatencyStatus = status;
         },
       },
-    ),
+    },
   );
 
+  await handleBuyTicketMessage(message, deps);
+
   assert.equal(executeCalls, 1);
-  assert.equal(markedProcessed, 1);
   assert.deepEqual(
-    writtenOrderCacheEntry,
+    finalizedEntry,
     completedOrderCacheEntrySchema.parse({
       orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
       eventId: "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b",
@@ -239,6 +210,8 @@ void test("pubsub-listener ACKs successful messages", async () => {
   );
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
+  // finalizeOrder released the lock as part of its atomic script
+  assert.equal(deps.lockReleaseCalls, 0);
   assert.equal(e2eLatencyStatus, "completed");
   assert.ok(
     typeof e2eLatencySeconds === "number" && e2eLatencySeconds >= 0,
@@ -259,7 +232,7 @@ void test("pubsub-listener ACKs and skips duplicate already-processed messages",
       },
       async () => "already-released",
       {
-        isOrderProcessed: async () => true,
+        beginOrderProcessing: async () => "duplicate",
       },
     ),
   );
@@ -282,7 +255,7 @@ void test("pubsub-listener NACKs when processing lock cannot be acquired", async
       },
       async () => "already-released",
       {
-        tryAcquireProcessingLock: async () => false,
+        beginOrderProcessing: async () => "locked",
       },
     ),
   );
@@ -292,18 +265,18 @@ void test("pubsub-listener NACKs when processing lock cannot be acquired", async
   assert.equal(message.nacked, true);
 });
 
-void test("pubsub-listener NACKs messages when DB execution fails", async () => {
+void test("pubsub-listener NACKs messages and releases the lock when DB execution fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
-  await handleBuyTicketMessage(
-    message,
-    createDeps(async () => {
-      throw new Error("db unavailable");
-    }),
-  );
+  const deps = createDeps(async () => {
+    throw new Error("db unavailable");
+  });
+
+  await handleBuyTicketMessage(message, deps);
 
   assert.equal(message.acked, false);
   assert.equal(message.nacked, true);
+  assert.equal(deps.lockReleaseCalls, 1);
 });
 
 void test("pubsub-listener compensates reservation and ACKs on terminal P0001 error", async () => {
@@ -312,8 +285,7 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   let compensationPayload: BuyTicketEvent | undefined;
   let failedOrderPayload: BuyTicketEvent | undefined;
   let receivedFailureReason: string | undefined;
-  let markedProcessed = 0;
-  let writtenOrderCacheEntry: OrderCacheEntry | undefined;
+  let finalizedEntry: FinalOrderCacheEntry | undefined;
   let e2eLatencyStatus: string | undefined;
   let e2eLatencySeconds: number | undefined;
 
@@ -334,11 +306,8 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
           receivedFailureReason = failureReason;
           return "updated";
         },
-        writeOrderCacheEntry: async (entry) => {
-          writtenOrderCacheEntry = entry;
-        },
-        markOrderProcessed: async () => {
-          markedProcessed += 1;
+        finalizeOrder: async (_payload, entry) => {
+          finalizedEntry = entry;
         },
         metrics: {
           onE2eLatency: (_, durationSeconds, status) => {
@@ -353,9 +322,8 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
   assert.deepEqual(compensationPayload, payload);
   assert.deepEqual(failedOrderPayload, payload);
   assert.equal(receivedFailureReason, "event not found");
-  assert.equal(markedProcessed, 1);
   assert.deepEqual(
-    writtenOrderCacheEntry,
+    finalizedEntry,
     failedOrderCacheEntrySchema.parse({
       orderId: payload.orderId,
       eventId: payload.eventId,
@@ -374,7 +342,7 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
 
 void test("pubsub-listener ACKs terminal P0001 error when failed order row is missing", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
-  let markedProcessed = 0;
+  let finalizeCalls = 0;
 
   await handleBuyTicketMessage(
     message,
@@ -386,14 +354,14 @@ void test("pubsub-listener ACKs terminal P0001 error when failed order row is mi
       async () => "already-released",
       {
         markOrderFailed: async () => "missing",
-        markOrderProcessed: async () => {
-          markedProcessed += 1;
+        finalizeOrder: async () => {
+          finalizeCalls += 1;
         },
       },
     ),
   );
 
-  assert.equal(markedProcessed, 1);
+  assert.equal(finalizeCalls, 1);
   assert.equal(message.acked, true);
   assert.equal(message.nacked, false);
 });
@@ -401,21 +369,21 @@ void test("pubsub-listener ACKs terminal P0001 error when failed order row is mi
 void test("pubsub-listener NACKs terminal P0001 error when compensation fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
-  await handleBuyTicketMessage(
-    message,
-    createDeps(
-      async () => {
-        const cause = { code: "P0001" };
-        throw new Error("event not found", { cause });
-      },
-      async () => {
-        throw new Error("redis unavailable");
-      },
-    ),
+  const deps = createDeps(
+    async () => {
+      const cause = { code: "P0001" };
+      throw new Error("event not found", { cause });
+    },
+    async () => {
+      throw new Error("redis unavailable");
+    },
   );
+
+  await handleBuyTicketMessage(message, deps);
 
   assert.equal(message.acked, false);
   assert.equal(message.nacked, true);
+  assert.equal(deps.lockReleaseCalls, 1);
 });
 
 void test("pubsub-listener NACKs terminal P0001 error when failed order update fails", async () => {
@@ -477,45 +445,45 @@ void test("pubsub-listener NACKs payloads that fail schema validation", async ()
   assert.equal(message.nacked, true);
 });
 
-void test("pubsub-listener NACKs terminal P0001 error when marking processed fails", async () => {
+void test("pubsub-listener NACKs terminal P0001 error when finalize fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
-  await handleBuyTicketMessage(
-    message,
-    createDeps(
-      async () => {
-        const cause = { code: "P0001" };
-        throw new Error("event not found", { cause });
+  const deps = createDeps(
+    async () => {
+      const cause = { code: "P0001" };
+      throw new Error("event not found", { cause });
+    },
+    async () => "released",
+    {
+      finalizeOrder: async () => {
+        throw new Error("finalize write failed");
       },
-      async () => "released",
-      {
-        markOrderProcessed: async () => {
-          throw new Error("processed marker write failed");
-        },
-      },
-    ),
+    },
   );
+
+  await handleBuyTicketMessage(message, deps);
 
   assert.equal(message.acked, false);
   assert.equal(message.nacked, true);
+  assert.equal(deps.lockReleaseCalls, 1);
 });
 
-void test("pubsub-listener NACKs successful messages when order cache write fails", async () => {
+void test("pubsub-listener NACKs successful messages when finalize fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
-  await handleBuyTicketMessage(
-    message,
-    createDeps(
-      async () => "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
-      async () => "already-released",
-      {
-        writeOrderCacheEntry: async () => {
-          throw new Error("order cache write failed");
-        },
+  const deps = createDeps(
+    async () => "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
+    async () => "already-released",
+    {
+      finalizeOrder: async () => {
+        throw new Error("finalize write failed");
       },
-    ),
+    },
   );
+
+  await handleBuyTicketMessage(message, deps);
 
   assert.equal(message.acked, false);
   assert.equal(message.nacked, true);
+  assert.equal(deps.lockReleaseCalls, 1);
 });
