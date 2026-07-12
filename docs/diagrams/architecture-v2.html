@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HFTS Architecture — V2</title>
+<style>
+  :root{
+    --bg:#0a0b10;
+    --panel:#12131b;
+    --panel-2:#0f1017;
+    --border:#252739;
+    --text:#e9e7f2;
+    --text-dim:#9793ac;
+    --text-faint:#6f6c85;
+    --brd1:#2a2c3d;                /* panel border gradient (fade) */
+    --brd2:#181a26;
+    --c-http:#4fd1ff;
+    --c-async:#ff5fa2;
+    --c-cache:#ffb454;
+    --c-db:#fb7185;
+    --c-metrics:#34d399;
+    --c-build:#a78bfa;
+    --c-app:#7c8cff;
+    --font-mono: ui-monospace,"JetBrains Mono","SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --font-sans: ui-sans-serif,"Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);}
+  /* light mode: only the CSS variables flip; every node/panel reads them. */
+  body.light{
+    --bg:#f5f6f9;
+    --panel:#ffffff;
+    --panel-2:#eef0f4;
+    --border:#e2e4ec;
+    --text:#1a1b23;
+    --text-dim:#52546a;
+    --text-faint:#83859a;
+    --brd1:#d5d8e3;
+    --brd2:#ecedf3;
+  }
+  .page{background:var(--bg); color:var(--text); font-family:var(--font-sans); padding:28px 0 48px;}
+  .container{max-width:1520px; margin:0 auto; padding:0 28px;}
+  .masthead{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px;}
+  .mode-btn{
+    flex:0 0 auto; font-family:var(--font-mono); font-size:11px; font-weight:600;
+    color:var(--text-dim); background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; padding:7px 12px; cursor:pointer; white-space:nowrap;
+    transition:color .12s ease, border-color .12s ease;
+  }
+  .mode-btn:hover{color:var(--text); border-color:var(--text-faint);}
+  h1{font-family:var(--font-mono); font-size:18px; font-weight:700; letter-spacing:-0.01em; margin:0 0 5px;}
+  .subtitle{font-size:11.5px; color:var(--text-faint); margin:0; font-family:var(--font-mono);}
+
+  .scroll-wrap{overflow-x:auto; padding-bottom:8px;}
+  .canvas{position:relative; width:1460px; height:700px; flex-shrink:0;}
+
+  /* flat panel fill + fading gradient border (fade lives ONLY in the border) */
+  .node{
+    position:absolute; z-index:2;
+    border:1px solid transparent;
+    border-radius:12px;
+    padding:0 14px;
+    display:flex; align-items:center; gap:11px;
+    background:
+      linear-gradient(var(--panel),var(--panel)) padding-box,
+      linear-gradient(135deg, var(--g1,#2a2c3d), var(--g2,#181a26)) border-box;
+  }
+  .node-name{font-family:var(--font-mono); font-size:12.5px; font-weight:700; color:var(--text); white-space:nowrap; line-height:1.2;}
+  .node-sub{font-size:9.5px; color:var(--text-faint); white-space:nowrap; font-family:var(--font-mono); margin-top:2px;}
+
+  .badge{flex:0 0 auto; width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:var(--bc,#333);}
+  .badge svg{width:18px; height:18px;}
+  .badge .letter{font-family:var(--font-mono); font-weight:800; font-size:12px; color:#fff;}
+  .badge--circle{border-radius:50%;}
+  .badge--square{border-radius:9px;}
+  .badge--hex{clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0% 50%);}
+  .badge--diamond{border-radius:6px; transform:rotate(45deg);}
+  .badge--diamond .inner{transform:rotate(-45deg); display:flex;}
+  .badge--tool{border-radius:8px;}
+
+  .connectors{position:absolute; top:0; left:0; pointer-events:none; z-index:1;}
+
+  .elabel{
+    position:absolute; z-index:3;
+    transform:translate(-50%,-50%);
+    font-family:var(--font-mono); font-size:9.5px; color:var(--text-dim);
+    background:var(--bg); padding:1px 6px; border-radius:5px;
+    white-space:nowrap; pointer-events:none; letter-spacing:.01em;
+  }
+
+  /* band captions sit behind the columns, flat, no fill */
+  .band{position:absolute; z-index:0; font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint);}
+
+  .panel-box{
+    position:absolute; z-index:2; border:1px solid transparent; border-radius:12px; padding:13px 15px;
+    background:
+      linear-gradient(var(--panel),var(--panel)) padding-box,
+      linear-gradient(135deg,var(--brd1),var(--brd2)) border-box;
+  }
+  .panel-box h4{font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint); margin:0 0 11px;}
+  .legend-item{display:flex; align-items:center; gap:9px; font-family:var(--font-mono); font-size:11px; color:var(--text-dim); margin-bottom:9px;}
+  .legend-item:last-child{margin-bottom:0;}
+  .swatch{flex:0 0 auto; width:20px; height:0; border-top:2px solid var(--sc); border-radius:2px;}
+  .swatch.dash{border-top-style:dashed;}
+
+  .tool-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:9px;}
+  .tool-tile{
+    width:100%; aspect-ratio:1; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--bc,#222); border:1px solid rgba(255,255,255,.10);
+  }
+  .tool-tile svg{width:21px; height:21px;}
+  .tool-tile .letter{font-family:var(--font-mono); font-weight:800; font-size:12px; color:#fff;}
+
+  .tip{position:relative;}
+  /* a .node is already an absolutely-positioned block, so it anchors its own
+     ::after tooltip — keep it absolute (must beat the later .tip rule). */
+  .node.tip{position:absolute;}
+  .tip::after{
+    content:attr(data-tip);
+    position:absolute; bottom:calc(100% + 9px); left:50%;
+    transform:translateX(-50%) translateY(4px);
+    background:#1c1e2c; border:1px solid #33364a; color:#f3f2fa;
+    font-family:var(--font-mono); font-size:10.5px; line-height:1.3; white-space:nowrap;
+    padding:5px 9px; border-radius:6px;
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity .12s ease, transform .12s ease;
+    box-shadow:0 6px 16px rgba(0,0,0,.55); z-index:50;
+  }
+  .tip::before{
+    content:""; position:absolute; bottom:calc(100% + 4px); left:50%;
+    transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--border);
+    opacity:0; visibility:hidden; transition:opacity .12s ease; z-index:50;
+  }
+  .tip:hover::after{opacity:1; visibility:visible; transform:translateX(-50%) translateY(0);}
+  .tip:hover::before{opacity:1; visibility:visible;}
+
+  .foot{margin-top:14px; font-size:10.5px; color:var(--text-faint); font-family:var(--font-mono);}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="container">
+    <div class="masthead">
+      <div>
+        <h1>High-Frequency Ticket System — V2</h1>
+        <p class="subtitle">runtime data path (solid) &middot; build &amp; deploy (dashed) &middot; hover devops nodes and toolchain tiles for names</p>
+      </div>
+      <button class="mode-btn" id="mode-btn" onclick="toggleMode(this)">☀&nbsp; Light</button>
+    </div>
+    <div class="scroll-wrap">
+      <div class="canvas" id="canvas"></div>
+    </div>
+    <p class="foot">docs/diagrams/architecture-v2.html &middot; grid layout — spine centered, cache left / metrics right, self-contained CI/CD &middot; source: docs/ARCHITECTURE.md, docs/REQUIREMENTS.md</p>
+  </div>
+</div>
+
+<script>
+/* light / dark toggle — flips a class on <body>; the CSS variables do the rest */
+function toggleMode(btn){
+  const light = document.body.classList.toggle('light');
+  btn.innerHTML = light ? '☾&nbsp; Dark' : '☀&nbsp; Light';
+}
+
+/* ---------- grid layout engine ----------------------------------------------
+   Columns are fixed lanes; the runtime spine runs straight down the centre.
+   Every edge computes its endpoints from the live node boxes (anchor()) and
+   builds orthogonal waypoints, so cache ops exit LEFT, metrics exit RIGHT, and
+   nothing crosses a foreign column. Move a node -> its arrows follow. */
+
+const C = { http:'#4fd1ff', async:'#ff5fa2', cache:'#ffb454', db:'#fb7185', metrics:'#34d399', build:'#a78bfa' };
+
+const H = 64;                        // node height
+const ROW = r => 40 + r*104;         // row index -> y
+const COL = { redis:40, spine:300, obs:690, dev:960, ref:1220 };
+const SPINE_W = 300, SIDE_W = 210, REF_W = 220;
+/* shared vertical lanes for the L-shaped arrows, centred in their gutters,
+   so every orthogonal edge in a group snaps to the same x and lines up. */
+const LANE = { cache: COL.redis + SIDE_W + 25, metrics: COL.spine + SPINE_W + 45 };
+
+const ICON = {
+  user:`<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="8.2" x2="21" y2="8.2"/><circle cx="6" cy="6.1" r=".6" fill="#fff" stroke="none"/><circle cx="8.6" cy="6.1" r=".6" fill="#fff" stroke="none"/></svg>`,
+  fastify:`<svg viewBox="0 0 24 24" fill="#f7df1e"><path d="M13 2 4 14h7l-1 8 10-13h-7l0-7z"/></svg>`,
+  redis:`<svg viewBox="0 0 24 24" fill="#fff"><rect x="4" y="3" width="16" height="4" rx="1.4"/><rect x="4" y="10" width="16" height="4" rx="1.4"/><rect x="4" y="17" width="16" height="4" rx="1.4"/></svg>`,
+  pubsub:`<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 9.2 4 4 0 0 0 7 18Z"/><circle cx="9" cy="21" r=".8" fill="#fff" stroke="none"/><circle cx="12" cy="21" r=".8" fill="#fff" stroke="none"/><circle cx="15" cy="21" r=".8" fill="#fff" stroke="none"/></svg>`,
+  postgres:`<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14a8 3 0 0 0 16 0V5"/><path d="M4 12a8 3 0 0 0 16 0"/></svg>`,
+  prom:`<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-1 3-4 4-4 8a4 4 0 0 0 8 0c0-1-.5-2-1-2 .3 1.2-.2 2-1 2-1 0-1.3-1-1-2 .6-1.8-.3-3.4-1-4Z"/></svg>`,
+  grafana:`<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,14 21,5"/><circle cx="21" cy="5" r="1.2" fill="#fff" stroke="none"/></svg>`,
+  turbo:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#ef4444" stroke-opacity=".55" stroke-width="1.2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#ef4444" stroke-width="1.2"/><circle cx="12" cy="12" r="3" fill="#ef4444"/></svg>`,
+  gha:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#2088ff" stroke-width="1.3"/><polygon points="10,8 10,16 16,12" fill="#2088ff"/></svg>`,
+  terraform:`<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" fill="#7b42bc"/><rect x="13" y="4" width="7" height="7" fill="#7b42bc" opacity=".7"/><rect x="4" y="13" width="7" height="7" fill="#7b42bc" opacity=".4"/></svg>`,
+  gke:`<svg viewBox="0 0 24 24"><polygon points="12,3 19,7.5 19,16.5 12,21 5,16.5 5,7.5" fill="none" stroke="#326ce5" stroke-width="1.4"/><circle cx="12" cy="12" r="2.4" fill="#326ce5"/></svg>`,
+  docker:`<svg viewBox="0 0 24 24"><rect x="3" y="8" width="8" height="6" rx="1" fill="#2496ed"/><rect x="9" y="8" width="8" height="6" rx="1" fill="#2496ed" opacity=".75"/><rect x="6" y="2.5" width="8" height="6" rx="1" fill="#2496ed" opacity=".5"/></svg>`,
+};
+
+/* id -> box + presentation. w defaults per column; h fixed. g1/g2 = border fade. */
+const nodes = {
+  /* --- runtime spine (centre column, top -> bottom) --- */
+  User:     {x:COL.spine, y:ROW(0), w:SPINE_W, shape:'circle', bc:'#7c5cff', g1:'#8b7cff', g2:'#4fd1ff', svg:ICON.user,     name:'User',           sub:'browser'},
+  Nextjs:   {x:COL.spine, y:ROW(1), w:SPINE_W, shape:'square', bc:'#000',    g1:'#4fd1ff', g2:'#7c8cff', svg:'<span class="letter">N</span>', name:'Next.js', sub:'apps/web · Tailwind'},
+  API:      {x:COL.spine, y:ROW(2), w:SPINE_W, shape:'square', bc:'#111',    g1:'#4fd1ff', g2:'#a78bfa', svg:ICON.fastify,  name:'Fastify API',    sub:'apps/api'},
+  PubSub:   {x:COL.spine, y:ROW(3), w:SPINE_W, shape:'hex',    bc:'#4285f4', g1:'#ff5fa2', g2:'#4285f4', svg:ICON.pubsub,   name:'Pub/Sub',        sub:'GCP broker'},
+  Worker:   {x:COL.spine, y:ROW(4), w:SPINE_W, shape:'square', bc:'#1a1a1a', g1:'#4fd1ff', g2:'#a78bfa', svg:ICON.fastify,  name:'Fastify Worker', sub:'apps/worker'},
+  Postgres: {x:COL.spine, y:ROW(5), w:SPINE_W, shape:'hex',    bc:'#336791', g1:'#fb7185', g2:'#7c8cff', svg:ICON.postgres, name:'PostgreSQL',     sub:'Cloud SQL'},
+
+  /* --- cache (left column, centred between API@r2 and Worker@r4) --- */
+  Redis:    {x:COL.redis, y:ROW(3), w:SIDE_W, shape:'hex', bc:'#dc382d', g1:'#ffb454', g2:'#fb7185', svg:ICON.redis, name:'Redis', sub:'Memorystore'},
+
+  /* --- observability (right column) --- */
+  k6:       {x:COL.obs, y:ROW(2), w:SIDE_W, shape:'diamond', bc:'#7d64ff', g1:'#a78bfa', g2:'#34d399', svg:'<span class="letter" style="font-size:9px">k6</span>', name:'k6', sub:'load-tests/'},
+  Prom:     {x:COL.obs, y:ROW(3), w:SIDE_W, shape:'diamond', bc:'#e6522c', g1:'#34d399', g2:'#e6522c', svg:ICON.prom,    name:'Prometheus', sub:'scrape 5s'},
+  Grafana:  {x:COL.obs, y:ROW(4), w:SIDE_W, shape:'diamond', bc:'#f46800', g1:'#34d399', g2:'#f46800', svg:ICON.grafana, name:'Grafana',    sub:'dashboards'},
+
+  /* --- build & deploy (right column, self-contained cluster) --- */
+  Turbo:    {x:COL.dev, y:ROW(0), w:SIDE_W, shape:'tool', bc:'#141018', g1:'#ef4444', g2:'#a78bfa', svg:ICON.turbo,     name:'Turborepo',  sub:'turbo run',     tip:'Turborepo — monorepo task runner'},
+  GHA:      {x:COL.dev, y:ROW(1), w:SIDE_W, shape:'tool', bc:'#0d1117', g1:'#2088ff', g2:'#a78bfa', svg:ICON.gha,       name:'GH Actions', sub:'CI/CD hub',     tip:'GitHub Actions — CI/CD pipeline'},
+  Docker:   {x:COL.dev, y:ROW(2), w:SIDE_W, shape:'tool', bc:'#062b45', g1:'#2496ed', g2:'#a78bfa', svg:ICON.docker,    name:'Docker',     sub:'build image',   tip:'Docker — image build + local compose infra'},
+  GKE:      {x:COL.dev, y:ROW(3), w:SIDE_W, shape:'tool', bc:'#0b1e3d', g1:'#326ce5', g2:'#a78bfa', svg:ICON.gke,       name:'GKE',        sub:'deploy target', tip:'Google Kubernetes Engine — hosts apps/*'},
+  Terraform:{x:COL.dev, y:ROW(4), w:SIDE_W, shape:'tool', bc:'#1a0f2e', g1:'#7b42bc', g2:'#a78bfa', svg:ICON.terraform, name:'Terraform',  sub:'IaC',           tip:'Terraform — infrastructure as code'},
+};
+
+/* bands: flat captions behind the columns (no fill, no fade) */
+const bands = [
+  {label:'runtime data path', x:COL.spine, y:ROW(0)-26, w:SPINE_W},
+  {label:'cache',             x:COL.redis, y:ROW(3)-26, w:SIDE_W},
+  {label:'observability',     x:COL.obs,   y:ROW(2)-26, w:SIDE_W},
+  {label:'build & deploy',    x:COL.dev,   y:ROW(0)-26, w:SIDE_W},
+];
+
+/* edges: endpoints resolved from node boxes. cache exits LEFT, metrics RIGHT,
+   spine flows straight DOWN, build stays inside its own column. */
+const edges = [
+  /* spine (solid, straight down) */
+  {from:'User',   fs:'bottom', to:'Nextjs', ts:'top', c:'http',  label:'GET /'},
+  {from:'Nextjs', fs:'bottom', to:'API',    ts:'top', c:'http',  label:'GET avail · POST buy · GET orders'},
+  {from:'API',    fs:'bottom',ft:.5, to:'PubSub', ts:'top',tt:.5, c:'async', label:'publish()'},
+  {from:'PubSub', fs:'bottom', to:'Worker', ts:'top', c:'async', label:'subscribe()'},
+  {from:'Worker', fs:'bottom',ft:.30, to:'Postgres', ts:'top',tt:.30, c:'db', label:'buy_ticket()'},
+  {from:'Worker', fs:'bottom',ft:.70, to:'Postgres', ts:'top',tt:.70, c:'db', label:'reconcile()'},
+
+  /* cache — exits LEFT into the Redis gutter (symmetric L's around Redis@r3) */
+  {from:'API',    fs:'left',ft:.72, to:'Redis', ts:'right',tt:.30, c:'cache', label:'EVAL · SETEX',
+     points:(a,b)=>[{x:LANE.cache,y:a.y},{x:LANE.cache,y:b.y}]},
+  {from:'Worker', fs:'left',ft:.28, to:'Redis', ts:'right',tt:.70, c:'cache', label:'GET · SET · INCR',
+     points:(a,b)=>[{x:LANE.cache,y:a.y},{x:LANE.cache,y:b.y}]},
+
+  /* metrics — exits RIGHT into the metrics gutter (symmetric L's onto Prom@r3) */
+  {from:'API',    fs:'right',ft:.5, to:'Prom', ts:'left',tt:.32, c:'metrics', label:'scrape /metrics',
+     points:(a,b)=>[{x:LANE.metrics,y:a.y},{x:LANE.metrics,y:b.y}]},
+  {from:'Worker', fs:'right',ft:.5, to:'Prom', ts:'left',tt:.70, c:'metrics', label:'scrape /metrics',
+     points:(a,b)=>[{x:LANE.metrics,y:a.y},{x:LANE.metrics,y:b.y}]},
+  {from:'k6',     fs:'bottom', to:'Prom',    ts:'top', c:'metrics', label:'remote write'},
+  {from:'Prom',   fs:'bottom', to:'Grafana', ts:'top', c:'metrics', label:'query()'},
+
+  /* build & deploy (dashed) — all inside the DevOps column, adjacent rows only */
+  {from:'GHA', fs:'top',    to:'Turbo',  ts:'bottom', c:'build', dash:true, label:'turbo run'},
+  {from:'GHA', fs:'bottom', to:'Docker', ts:'top',    c:'build', dash:true, label:'docker build'},
+  {from:'Docker', fs:'bottom', to:'GKE', ts:'top',    c:'build', dash:true, label:'push & deploy'},
+  {from:'Terraform', fs:'top', to:'GKE', ts:'bottom', c:'build', dash:true, label:'provisions'},
+];
+
+/* ---------- rendering -------------------------------------------------------- */
+function anchor(n, side, t=.5){
+  if(side==='top')    return {x:n.x + n.w*t, y:n.y};
+  if(side==='bottom') return {x:n.x + n.w*t, y:n.y + H};
+  if(side==='left')   return {x:n.x,         y:n.y + H*t};
+  return {x:n.x + n.w, y:n.y + H*t};            // right
+}
+
+function badge(n){
+  const inner = n.shape==='diamond' ? `<span class="inner">${n.svg}</span>` : n.svg;
+  return `<span class="badge badge--${n.shape}" style="--bc:${n.bc};">${inner}</span>`;
+}
+
+let svgPaths = '';
+let labels = '';
+for(const e of edges){
+  const A = nodes[e.from], B = nodes[e.to];
+  const a = anchor(A, e.fs, e.ft ?? .5);
+  const b = anchor(B, e.ts, e.tt ?? .5);
+  const wp = e.points ? e.points(a, b) : [];
+  const pts = [a, ...wp, b];
+  const d = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
+  const dash = e.dash ? 'stroke-dasharray="5 4" ' : '';
+  svgPaths += `<path d="${d}" stroke="${C[e.c]}" stroke-width="1.5" fill="none" ${dash}marker-end="url(#m-${e.c})"/>`;
+  const lp = wp.length
+    ? {x:(wp[0].x + wp[wp.length-1].x)/2, y:(wp[0].y + wp[wp.length-1].y)/2}
+    : {x:(a.x + b.x)/2, y:(a.y + b.y)/2};
+  labels += `<div class="elabel" style="left:${lp.x}px;top:${lp.y}px;">${e.label}</div>`;
+}
+
+let nodeHtml = '';
+for(const id in nodes){
+  const n = nodes[id];
+  const cls = 'node' + (n.tip ? ' tip' : '');
+  const dt  = n.tip ? ` data-tip="${n.tip}"` : '';
+  nodeHtml += `<div class="${cls}"${dt} style="left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${H}px;--g1:${n.g1};--g2:${n.g2};">`
+            + badge(n)
+            + `<div><div class="node-name">${n.name}</div><div class="node-sub">${n.sub}</div></div></div>`;
+}
+
+let bandHtml = '';
+for(const bd of bands){
+  bandHtml += `<div class="band" style="left:${bd.x}px;top:${bd.y}px;width:${bd.w}px;text-align:center;">${bd.label}</div>`;
+}
+
+const markers = Object.entries(C).map(([k,v]) =>
+  `<marker id="m-${k}" markerWidth="7" markerHeight="7" refX="5.5" refY="2.5" orient="auto"><path d="M0,0 L5.5,2.5 L0,5 Z" fill="${v}"/></marker>`).join('');
+
+const svg = `<svg class="connectors" width="1460" height="700"><defs>${markers}</defs>${svgPaths}</svg>`;
+
+/* reference column: legend + toolchain (build-time libs, no runtime edges) */
+const legend = `
+  <div class="panel-box" style="left:${COL.ref}px; top:${ROW(0)}px; width:${REF_W}px;">
+    <h4>Edge types</h4>
+    <div class="legend-item"><span class="swatch" style="--sc:${C.http}"></span>HTTP request</div>
+    <div class="legend-item"><span class="swatch" style="--sc:${C.async}"></span>async message</div>
+    <div class="legend-item"><span class="swatch" style="--sc:${C.cache}"></span>cache op</div>
+    <div class="legend-item"><span class="swatch" style="--sc:${C.db}"></span>database</div>
+    <div class="legend-item"><span class="swatch" style="--sc:${C.metrics}"></span>metrics</div>
+    <div class="legend-item"><span class="swatch dash" style="--sc:${C.build}"></span>build / deploy</div>
+  </div>`;
+
+const tools = [
+  {bc:'#3178c6', letter:'TS', tip:'TypeScript — strict, no any'},
+  {bc:'#0f172a', border:'#3178c6', tip:'tsgo — native preview compiler', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="#3178c6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,7 11,12 6,17"/><line x1="13" y1="17" x2="18" y2="17"/></svg>`},
+  {bc:'#1e3a5f', letter:'Z', tip:'Zod — DTO & env schemas'},
+  {bc:'#0f2e1a', tip:'Drizzle ORM — code-first, inferred types', svg:`<svg viewBox="0 0 24 24" fill="#c5f74f"><path d="M12 3c-4 6-6 9-6 12a6 6 0 0 0 12 0c0-3-2-6-6-12Z"/></svg>`},
+  {bc:'#3a2a10', tip:'pnpm — workspace package manager', svg:`<svg viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="5" fill="#f9ad00"/><rect x="9.5" y="3" width="5" height="5" fill="#f9ad00"/><rect x="16" y="3" width="5" height="5" fill="#f9ad00"/><rect x="9.5" y="9.5" width="5" height="5" fill="#f9ad00" opacity=".75"/><rect x="16" y="9.5" width="5" height="5" fill="#f9ad00" opacity=".75"/><rect x="16" y="16" width="5" height="5" fill="#f9ad00" opacity=".5"/></svg>`},
+  {bc:'#2a2a2a', tip:'Husky — git hooks', svg:`<svg viewBox="0 0 24 24" fill="#fff"><circle cx="8" cy="8" r="2"/><circle cx="16" cy="8" r="2"/><circle cx="6" cy="13" r="1.6"/><circle cx="18" cy="13" r="1.6"/><ellipse cx="12" cy="16" rx="4" ry="3.2"/></svg>`},
+  {bc:'#0c2b36', tip:'Tailwind CSS', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"><path d="M6 9c1.5-3 4-3 5.5 0s4 3 5.5 0"/><path d="M6 15c1.5-3 4-3 5.5 0s4 3 5.5 0"/></svg>`},
+  {bc:'#0f2e18', tip:'Node.js — v22 / v24 runtime', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="#339933" stroke-width="1.4"><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5"/></svg>`},
+];
+const toolTiles = tools.map(t=>{
+  const style = `--bc:${t.bc};` + (t.border?`border:1px solid ${t.border};`:'');
+  const inner = t.letter ? `<span class="letter">${t.letter}</span>` : t.svg;
+  return `<div class="tool-tile tip" data-tip="${t.tip}" style="${style}">${inner}</div>`;
+}).join('');
+const toolchain = `
+  <div class="panel-box" style="left:${COL.ref}px; top:${ROW(2)}px; width:${REF_W}px;">
+    <h4>Toolchain &middot; build-time</h4>
+    <div class="tool-grid">${toolTiles}</div>
+  </div>`;
+
+document.getElementById('canvas').innerHTML = svg + bandHtml + nodeHtml + labels + legend + toolchain;
+</script>
+</body>
+</html>
