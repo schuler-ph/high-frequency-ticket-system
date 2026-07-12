@@ -1,19 +1,10 @@
 import type { EventInventorySnapshot } from "@repo/db";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
 
 export type { EventInventorySnapshot } from "@repo/db";
 
-export type ReconcileRedisClient = {
-  get: (key: string) => Promise<string | null>;
-  scan: (
-    cursor: string,
-    matchToken: "MATCH",
-    pattern: string,
-    countToken: "COUNT",
-    count: number,
-  ) => Promise<[string, string[]]>;
-  mset: (values: Record<string, string>) => Promise<unknown>;
-};
+export type ReconcileRedisClient = Pick<RedisClient, "get" | "scan" | "mset">;
 
 export type ReconcileTicketAvailabilityDeps = {
   getEventInventorySnapshots: () => Promise<EventInventorySnapshot[]>;

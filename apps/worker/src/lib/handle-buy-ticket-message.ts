@@ -3,9 +3,9 @@ import type { Message } from "@google-cloud/pubsub";
 import type { FastifyBaseLogger } from "fastify";
 import {
   buyTicketEventSchema,
-  completedOrderCacheEntrySchema,
-  failedOrderCacheEntrySchema,
   type BuyTicketEvent,
+  type CompletedOrderCacheEntry,
+  type FailedOrderCacheEntry,
   type OrderCacheEntry,
 } from "@repo/types/tickets";
 import type { FailedOrderUpdateResult } from "@repo/db";
@@ -139,14 +139,12 @@ export async function handleBuyTicketMessage(
     await (deps.sleep ?? setTimeout)(1000);
 
     const ticketId = await deps.executeBuyTicket(parsed.data);
-    await deps.writeOrderCacheEntry(
-      completedOrderCacheEntrySchema.parse({
-        orderId: parsed.data.orderId,
-        eventId: parsed.data.eventId,
-        status: "completed",
-        ticketId,
-      }),
-    );
+    await deps.writeOrderCacheEntry({
+      orderId: parsed.data.orderId,
+      eventId: parsed.data.eventId,
+      status: "completed",
+      ticketId,
+    } satisfies CompletedOrderCacheEntry);
     await deps.markOrderProcessed(parsed.data);
 
     deps.logger.info(
@@ -181,14 +179,12 @@ export async function handleBuyTicketMessage(
           parsed.data,
           failureReason,
         );
-        await deps.writeOrderCacheEntry(
-          failedOrderCacheEntrySchema.parse({
-            orderId: parsed.data.orderId,
-            eventId: parsed.data.eventId,
-            status: "failed",
-            failureReason,
-          }),
-        );
+        await deps.writeOrderCacheEntry({
+          orderId: parsed.data.orderId,
+          eventId: parsed.data.eventId,
+          status: "failed",
+          failureReason,
+        } satisfies FailedOrderCacheEntry);
 
         deps.logger.warn(
           {

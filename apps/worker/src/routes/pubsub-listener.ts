@@ -5,11 +5,9 @@ import {
   markOrderFailed,
 } from "@repo/db";
 import { env } from "@repo/env";
-import {
-  orderCacheEntrySchema,
-  type OrderCacheEntry,
-} from "@repo/types/tickets";
+import type { OrderCacheEntry } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
@@ -36,30 +34,10 @@ end
 return 0
 `;
 
-type TicketRedisClient = {
-  get: (key: string) => Promise<string | null>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-    condition?: "NX",
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  scan: (
-    cursor: string,
-    matchToken: "MATCH",
-    pattern: string,
-    countToken: "COUNT",
-    count: number,
-  ) => Promise<[string, string[]]>;
-  mset: (values: Record<string, string>) => Promise<unknown>;
-};
+type TicketRedisClient = Pick<
+  RedisClient,
+  "get" | "set" | "del" | "eval" | "scan" | "mset"
+>;
 
 type PubSubListenerRouteDeps = {
   executeBuyTicket: typeof executeBuyTicket;
@@ -93,7 +71,7 @@ const writeOrderCacheEntry = async (
   entry: OrderCacheEntry,
 ): Promise<void> => {
   const key = orderRedisKeys.entry(entry.orderId);
-  const value = JSON.stringify(orderCacheEntrySchema.parse(entry));
+  const value = JSON.stringify(entry);
   const result = await redis.set(
     key,
     value,
@@ -124,8 +102,7 @@ const createPubSubListenerRoutes = (
   routeDeps: PubSubListenerRouteDeps = defaultPubSubListenerRouteDeps,
 ): FastifyPluginAsync => {
   const pubSubListenerRoutes: FastifyPluginAsync = async (fastify) => {
-    const redis = (fastify as typeof fastify & { redis: TicketRedisClient })
-      .redis;
+    const redis: TicketRedisClient = fastify.redis;
 
     fastify.pubsubSubscriber.onMessage(async (message) => {
       await handleBuyTicketMessage(message, {

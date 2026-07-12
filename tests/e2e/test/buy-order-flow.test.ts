@@ -13,26 +13,12 @@ import {
   type OrderCacheEntry,
 } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
 import orderStatusRoute from "../../../apps/api/src/routes/api/orders/status.ts";
 import ticketBuyRoute from "../../../apps/api/src/routes/api/tickets/buy.ts";
 import { handleBuyTicketMessage } from "../../../apps/worker/src/lib/handle-buy-ticket-message.ts";
 
-type InMemoryRedis = {
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  incr: (key: string) => Promise<number>;
-  get: (key: string) => Promise<string | null>;
-};
+type InMemoryRedis = Pick<RedisClient, "eval" | "set" | "del" | "incr" | "get">;
 
 type TestMessage = {
   id: string;
@@ -127,7 +113,7 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
 
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(payload: BuyTicketEvent) {
       publishedEvents.push(payload);

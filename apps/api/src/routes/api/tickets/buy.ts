@@ -3,13 +3,14 @@ import { env } from "@repo/env";
 import {
   buyTicketBodySchema,
   buyTicketResponseSchema,
-  pendingOrderCacheEntrySchema,
   ticketEventIdSchema,
   type BuyTicketBody,
   type BuyTicketEvent,
   type BuyTicketResponse,
+  type PendingOrderCacheEntry,
 } from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
+import type { RedisClient } from "@repo/types/redis-client";
 import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
@@ -20,6 +21,8 @@ import {
   publishRollbacksTotal,
   reservationsCreatedTotal,
 } from "../../../lib/metrics.ts";
+import type {} from "@fastify/redis";
+import type {} from "../../../plugins/pubsub.ts";
 
 const ATOMIC_RESERVE_TICKET_SCRIPT = `
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
@@ -30,21 +33,7 @@ end
 return redis.call("DECR", KEYS[1])
 `;
 
-type TicketRedisClient = {
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  incr: (key: string) => Promise<number>;
-};
+type TicketRedisClient = Pick<RedisClient, "eval" | "set" | "del" | "incr">;
 
 type TicketPublisher = {
   publishBuyTicket: (payload: BuyTicketEvent) => Promise<string>;
@@ -129,13 +118,11 @@ export async function queueBuyTicketPurchase({
   const orderId = createOrderId();
   const reservationKey = keys.reservation(orderId);
   const orderCacheKey = orderRedisKeys.entry(orderId);
-  const orderCacheValue = JSON.stringify(
-    pendingOrderCacheEntrySchema.parse({
-      orderId,
-      eventId,
-      status: "pending",
-    }),
-  );
+  const orderCacheValue = JSON.stringify({
+    orderId,
+    eventId,
+    status: "pending",
+  } satisfies PendingOrderCacheEntry);
 
   try {
     await redis.set(reservationKey, orderId, "EX", reservationTtlSeconds);
@@ -189,10 +176,7 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       },
     },
     handler: async (req, res) => {
-      const { redis, pubsubPublisher } = fastify as typeof fastify & {
-        redis: TicketRedisClient;
-        pubsubPublisher: TicketPublisher;
-      };
+      const { redis, pubsubPublisher } = fastify;
       const { eventId } = req.params;
       const response = await queueBuyTicketPurchase({
         eventId,

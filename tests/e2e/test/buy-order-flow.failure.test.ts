@@ -13,6 +13,7 @@ import {
   type OrderCacheEntry,
 } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
+import type { RedisClient } from "@repo/types/redis-client";
 import errorHandler from "../../../apps/api/src/plugins/error-handler.ts";
 import orderStatusRoute from "../../../apps/api/src/routes/api/orders/status.ts";
 import ticketBuyRoute from "../../../apps/api/src/routes/api/tickets/buy.ts";
@@ -32,22 +33,11 @@ const noopLogger: FastifyBaseLogger = {
   level: "info",
 } as unknown as FastifyBaseLogger;
 
-type InMemoryRedis = {
+type InMemoryRedis = Pick<
+  RedisClient,
+  "eval" | "set" | "del" | "incr" | "get"
+> & {
   store: Map<string, string>;
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  incr: (key: string) => Promise<number>;
-  get: (key: string) => Promise<string | null>;
 };
 
 function createInMemoryRedis(
@@ -130,7 +120,7 @@ void test("POST /api/tickets/:eventId/buy returns 409 when tickets are sold out 
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(_payload: BuyTicketEvent) {
       publishCalled = true;
@@ -167,7 +157,7 @@ void test("POST /api/tickets/:eventId/buy rolls back reservation and restores av
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(_payload: BuyTicketEvent): Promise<string> {
       throw new Error("Pub/Sub unavailable");
@@ -204,7 +194,7 @@ void test("Worker compensates reservation and marks order as failed on terminal 
   const fastify = Fastify({ logger: false });
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-  fastify.decorate("redis", redis);
+  fastify.decorate("redis", redis as unknown as typeof fastify.redis);
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(payload: BuyTicketEvent) {
       publishedEvents.push(payload);

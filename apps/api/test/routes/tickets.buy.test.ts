@@ -5,23 +5,10 @@ import {
   pendingOrderCacheEntrySchema,
 } from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
+import type { RedisClient } from "@repo/types/redis-client";
 import { queueBuyTicketPurchase } from "../../src/routes/api/tickets/buy.ts";
 
-type RedisMock = {
-  eval: (
-    script: string,
-    numKeys: number,
-    ...args: string[]
-  ) => Promise<number | string>;
-  set: (
-    key: string,
-    value: string,
-    mode: "EX",
-    seconds: number,
-  ) => Promise<"OK" | null>;
-  del: (key: string) => Promise<number>;
-  incr: (key: string) => Promise<number>;
-};
+type RedisMock = Pick<RedisClient, "eval" | "set" | "del" | "incr">;
 
 const ticketAvailabilityKey = (eventId: string) =>
   `tickets:event:${eventId}:available`;
