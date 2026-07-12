@@ -157,6 +157,18 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/api/src/routes/api/tickets/buy.ts`
   - `apps/api/test/routes/tickets.buy.test.ts`
 
+### Update 2026-07-12: Reserve+Reservation+Pending als ein atomares Lua-Script (EVALSHA)
+
+- **Kontext:** Der Buy-Hot-Path bezahlte drei sequenzielle Redis-Roundtrips (EVAL Check+DECR, SET Reservation-Key, SET Pending-Order) und brauchte einen mehrstufigen manuellen Rollback fuer den Zwischenzustand "Reservation gesetzt, Pending-Write fehlgeschlagen". `redis.eval()` uebertrug zudem den Script-Text bei jedem Request neu (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`, Massnahme 1).
+- **Entscheidung:** Check+DECR, Reservation-Key und Pending-Order-Key laufen in **einem** Lua-Script, registriert via ioredis `defineCommand` (EVALSHA mit automatischem Fallback). Der einzige verbleibende Fehlerpfad (Pub/Sub-Publish fehlgeschlagen) wird durch ein ebenso atomares Gegen-Script kompensiert: `DEL reservation` → `INCR available` nur bei tatsaechlich geloeschter Reservation → `DEL` Pending-Order.
+- **Begruendung:** 3→1 Roundtrip pro Kauf im API-Hot-Path, keine partiellen Zwischenzustaende und kein mehrstufiger Rollback-Code mehr; das Gegen-Script ist idempotent (kein Double-Increment bei Wiederholung). Die Semantik aus dem ADR-017-Update 2026-04-22 (Inventory-Rollback garantiert, Pending-Cleanup darf es nicht blockieren) bleibt erhalten und wird stärker: alles ist ein atomarer Schritt.
+- **Cluster-Caveat:** Das Script mischt Hash-Slots (`tickets:event:…` und `orders:…`) — zulaessig auf nicht-geclustertem Memorystore/Redis. Falls Redis Cluster je ein Thema wird, sind Hash-Tags einzuplanen und dieses ADR zu aktualisieren.
+- **Umsetzung:**
+  - `apps/api/src/lib/redis-scripts.ts`
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/api/test/routes/tickets.buy.test.ts`
+  - `tests/e2e/test/buy-order-flow.test.ts` / `buy-order-flow.failure.test.ts`
+
 ---
 
 ## ADR-006: Prometheus + Grafana für Monitoring

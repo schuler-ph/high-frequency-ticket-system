@@ -14,11 +14,16 @@ import {
 } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import type { RedisClient } from "@repo/types/redis-client";
+import type { TicketRedisScripts } from "../../../apps/api/src/lib/redis-scripts.ts";
 import orderStatusRoute from "../../../apps/api/src/routes/api/orders/status.ts";
 import ticketBuyRoute from "../../../apps/api/src/routes/api/tickets/buy.ts";
 import { handleBuyTicketMessage } from "../../../apps/worker/src/lib/handle-buy-ticket-message.ts";
 
-type InMemoryRedis = Pick<RedisClient, "eval" | "set" | "del" | "incr" | "get">;
+type InMemoryRedis = Pick<
+  RedisClient,
+  "set" | "del" | "incr" | "get" | "defineCommand"
+> &
+  TicketRedisScripts;
 
 type TestMessage = {
   id: string;
@@ -47,23 +52,44 @@ function createInMemoryRedis(
   const store = new Map<string, string>(Object.entries(initialValues));
 
   return {
-    async eval(_script: string, numKeys: number, ...args: string[]) {
-      assert.equal(numKeys, 1);
-      const key = args[0];
-
-      if (key == null) {
-        throw new Error("expected a Redis key");
-      }
-
-      const current = Number(store.get(key) ?? "0");
+    defineCommand() {},
+    async reserveTicket(
+      availableKey,
+      reservationKey,
+      orderCacheKey,
+      orderId,
+      _reservationTtlSeconds,
+      orderCacheValue,
+      _pendingOrderTtlSeconds,
+    ) {
+      const current = Number(store.get(availableKey) ?? "0");
 
       if (current <= 0) {
         return -1;
       }
 
-      const next = current - 1;
-      store.set(key, String(next));
-      return next;
+      const remaining = current - 1;
+      store.set(availableKey, String(remaining));
+      store.set(reservationKey, orderId);
+      store.set(orderCacheKey, orderCacheValue);
+      return remaining;
+    },
+    async releaseTicketReservation(
+      reservationKey,
+      availableKey,
+      orderCacheKey,
+    ) {
+      const released = store.delete(reservationKey) ? 1 : 0;
+
+      if (released === 1) {
+        store.set(
+          availableKey,
+          String(Number(store.get(availableKey) ?? "0") + 1),
+        );
+      }
+
+      store.delete(orderCacheKey);
+      return released;
     },
     async set(key: string, value: string, mode: "EX", _seconds: number) {
       assert.equal(mode, "EX");

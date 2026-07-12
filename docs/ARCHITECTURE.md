@@ -59,21 +59,22 @@ flowchart TD
 
 1. Nutzer klickt "Ticket kaufen" im Frontend
 2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
-3. API Gateway prüft Redis: tickets:event:{eventId}:available > 0 ?
-   - Umsetzung: atomar via Redis Lua (`EVAL`) in einem Schritt (Check + Decrement), damit nur bei `available > 0` reduziert wird.
-4. ✅ Ja → API legt Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL in Redis an.
-5. ✅ Reservation gesetzt → API schreibt zusaetzlich einen per `orderId` adressierbaren Pending-Status (`orders:{orderId}`) mit eigener Pending-TTL in Redis.
-6. ✅ Pending-Status geschrieben → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
-   ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out)
-   ❌ Publish-Fehler bei Schritt 6 → API versucht Reservation-Key und `available` in jedem Fall wiederherzustellen; Pending-Status-Cleanup ist nachgelagert und darf dieses Rollback nicht blockieren.
-7. Worker konsumiert BuyTicketEvent aus Pub/Sub
-8. Worker simuliert Payment-Processing (Sleep 1s)
-9. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
+3. API reserviert atomar in **einem** Redis-Roundtrip via Lua-Script (registriert per ioredis `defineCommand`, ausgefuehrt als `EVALSHA`; Quelle: `apps/api/src/lib/redis-scripts.ts`):
+   - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ohne jeden Schreibzugriff ab
+   - `DECR available`
+   - Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL
+   - Pending-Status `orders:{orderId}` mit eigener Pending-TTL
+4. ✅ Reserviert → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
+   ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
+   ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `DEL reservation`, `INCR available` nur wenn die Reservation tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
+5. Worker konsumiert BuyTicketEvent aus Pub/Sub
+6. Worker simuliert Payment-Processing (Sleep 1s)
+7. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
    - Vor dem DB-Write prueft der Worker Idempotenz ueber Redis (`processed`-Marker) und setzt einen kurzlebigen `processing`-Lock pro `orderId`.
    - Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Write).
    - Nach erfolgreichem oder terminal fehlgeschlagenem Processing ueberschreibt der Worker denselben Redis-Order-Key mit dem finalen Status inkl. Ticket-Referenz bzw. `failure_reason` und einer laengeren Final-Status-TTL fuer den spaeteren API-Read.
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
-10. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
+8. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
 
 ## Redis-Key-Lifecycle
 

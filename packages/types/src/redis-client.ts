@@ -22,6 +22,10 @@ export type RedisClient = {
     numKeys: number,
     ...args: (string | number)[]
   ): Promise<unknown>;
+  defineCommand(
+    name: string,
+    definition: { lua: string; numberOfKeys?: number },
+  ): void;
   scan(
     cursor: string,
     matchToken: "MATCH",

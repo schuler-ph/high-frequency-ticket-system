@@ -3,66 +3,91 @@ import { test } from "node:test";
 import {
   buyTicketBodySchema,
   pendingOrderCacheEntrySchema,
+  type BuyTicketEvent,
 } from "@repo/types/tickets";
 import { ConflictError } from "@repo/types/errors";
-import type { RedisClient } from "@repo/types/redis-client";
+import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import { queueBuyTicketPurchase } from "../../src/routes/api/tickets/buy.ts";
+import {
+  registerTicketRedisScripts,
+  type TicketRedisScripts,
+} from "../../src/lib/redis-scripts.ts";
 
-type RedisMock = Pick<RedisClient, "eval" | "set" | "del" | "incr">;
+const EVENT_ID = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+const ORDER_ID = "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23";
 
-const ticketAvailabilityKey = (eventId: string) =>
-  `tickets:event:${eventId}:available`;
-const ticketReservationKey = (eventId: string, orderId: string) =>
-  `tickets:event:${eventId}:reservation:${orderId}`;
-const orderCacheKey = (orderId: string) => `orders:${orderId}`;
+type ReserveCall = {
+  availableKey: string;
+  reservationKey: string;
+  orderCacheKey: string;
+  orderId: string;
+  reservationTtlSeconds: number;
+  orderCacheValue: string;
+  pendingOrderTtlSeconds: number;
+};
 
-void test("queueBuyTicketPurchase returns queued payload and publishes event", async () => {
-  let evalCalls = 0;
-  const setCalls: Array<{ key: string; value: string; seconds: number }> = [];
-  let delCalls = 0;
-  let incrCalls = 0;
-  let publishedPayload: unknown;
-  let reservationOrderId: string | undefined;
-  let pendingOrderEntry: unknown;
-  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+type ReleaseCall = {
+  reservationKey: string;
+  availableKey: string;
+  orderCacheKey: string;
+};
+
+function createScriptsMock(
+  overrides: Partial<TicketRedisScripts> = {},
+): TicketRedisScripts & {
+  reserveCalls: ReserveCall[];
+  releaseCalls: ReleaseCall[];
+} {
+  const reserveCalls: ReserveCall[] = [];
+  const releaseCalls: ReleaseCall[] = [];
+
+  return {
+    reserveCalls,
+    releaseCalls,
+    async reserveTicket(
+      availableKey,
+      reservationKey,
+      orderCacheKey,
+      orderId,
+      reservationTtlSeconds,
+      orderCacheValue,
+      pendingOrderTtlSeconds,
+    ) {
+      reserveCalls.push({
+        availableKey,
+        reservationKey,
+        orderCacheKey,
+        orderId,
+        reservationTtlSeconds,
+        orderCacheValue,
+        pendingOrderTtlSeconds,
+      });
+      return 999_999;
+    },
+    async releaseTicketReservation(
+      reservationKey,
+      availableKey,
+      orderCacheKey,
+    ) {
+      releaseCalls.push({ reservationKey, availableKey, orderCacheKey });
+      return 1;
+    },
+    ...overrides,
+  };
+}
+
+void test("queueBuyTicketPurchase reserves atomically in one script call and publishes the event", async () => {
+  const redis = createScriptsMock();
+  let publishedPayload: BuyTicketEvent | undefined;
 
   const response = await queueBuyTicketPurchase({
-    eventId,
+    eventId: EVENT_ID,
     body: {
       firstName: "Ada",
       lastName: "Lovelace",
     },
-    redis: {
-      async eval(_script: string, numKeys: number, ...args: string[]) {
-        assert.equal(numKeys, 1);
-        assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
-        evalCalls += 1;
-        return 999_999;
-      },
-      async set(key: string, value: string, mode: "EX", seconds: number) {
-        assert.equal(mode, "EX");
-        setCalls.push({ key, value, seconds });
-        if (key.startsWith("tickets:event:")) {
-          assert.equal(seconds, 120);
-          reservationOrderId = value;
-          assert.equal(key, ticketReservationKey(eventId, value));
-        } else {
-          assert.equal(seconds, 900);
-          pendingOrderEntry = JSON.parse(value);
-          assert.equal(key, orderCacheKey(reservationOrderId!));
-        }
-        return "OK";
-      },
-      async del(_key: string) {
-        delCalls += 1;
-        return 1;
-      },
-      async incr(key: string) {
-        assert.equal(key, ticketAvailabilityKey(eventId));
-        incrCalls += 1;
-        return 1_000_000;
-      },
-    } satisfies RedisMock,
+    redis,
+    createOrderId: () => ORDER_ID,
     pubsubPublisher: {
       async publishBuyTicket(payload) {
         publishedPayload = payload;
@@ -72,26 +97,27 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
   });
 
   assert.equal(response.message, "Ticket purchase queued");
-  assert.match(
-    response.orderId!,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  );
-  assert.equal(evalCalls, 1);
-  assert.equal(setCalls.length, 2);
-  assert.equal(delCalls, 0);
-  assert.equal(incrCalls, 0);
-  assert.equal(reservationOrderId, response.orderId);
-  assert.deepEqual(
-    pendingOrderEntry,
-    pendingOrderCacheEntrySchema.parse({
-      orderId: response.orderId,
-      eventId,
-      status: "pending",
-    }),
-  );
+  assert.equal(response.orderId, ORDER_ID);
+  assert.equal(redis.reserveCalls.length, 1);
+  assert.deepEqual(redis.reserveCalls[0], {
+    availableKey: ticketRedisKeys(EVENT_ID).available,
+    reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
+    orderCacheKey: orderRedisKeys.entry(ORDER_ID),
+    orderId: ORDER_ID,
+    reservationTtlSeconds: 120,
+    orderCacheValue: JSON.stringify(
+      pendingOrderCacheEntrySchema.parse({
+        orderId: ORDER_ID,
+        eventId: EVENT_ID,
+        status: "pending",
+      }),
+    ),
+    pendingOrderTtlSeconds: 900,
+  });
+  assert.equal(redis.releaseCalls.length, 0);
   assert.ok(publishedPayload);
-  assert.equal(publishedPayload.orderId, response.orderId);
-  assert.equal(publishedPayload.eventId, eventId);
+  assert.equal(publishedPayload.orderId, ORDER_ID);
+  assert.equal(publishedPayload.eventId, EVENT_ID);
   assert.equal(publishedPayload.firstName, "Ada");
   assert.equal(publishedPayload.lastName, "Lovelace");
   assert.ok(
@@ -100,47 +126,20 @@ void test("queueBuyTicketPurchase returns queued payload and publishes event", a
   );
 });
 
-void test("queueBuyTicketPurchase throws ConflictError when sold out", async () => {
-  let evalCalls = 0;
-  let setCalls = 0;
-  let delCalls = 0;
-  let incrCalls = 0;
-  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+void test("queueBuyTicketPurchase throws ConflictError when sold out and publishes nothing", async () => {
+  const redis = createScriptsMock({
+    reserveTicket: async () => -1,
+  });
 
   await assert.rejects(
     () =>
       queueBuyTicketPurchase({
-        eventId,
+        eventId: EVENT_ID,
         body: {
           firstName: "Ada",
           lastName: "Lovelace",
         },
-        redis: {
-          async eval(_script: string, numKeys: number, ...args: string[]) {
-            assert.equal(numKeys, 1);
-            assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
-            evalCalls += 1;
-            return -1;
-          },
-          async set(
-            _key: string,
-            _value: string,
-            _mode: "EX",
-            _seconds: number,
-          ) {
-            setCalls += 1;
-            return "OK";
-          },
-          async del(_key: string) {
-            delCalls += 1;
-            return 1;
-          },
-          async incr(key: string) {
-            assert.equal(key, ticketAvailabilityKey(eventId));
-            incrCalls += 1;
-            return 0;
-          },
-        } satisfies RedisMock,
+        redis,
         pubsubPublisher: {
           async publishBuyTicket() {
             throw new Error("should not be called");
@@ -154,10 +153,7 @@ void test("queueBuyTicketPurchase throws ConflictError when sold out", async () 
     },
   );
 
-  assert.equal(evalCalls, 1);
-  assert.equal(setCalls, 0);
-  assert.equal(delCalls, 0);
-  assert.equal(incrCalls, 0);
+  assert.equal(redis.releaseCalls.length, 0);
 });
 
 void test("buyTicketBodySchema validates request body", () => {
@@ -169,56 +165,23 @@ void test("buyTicketBodySchema validates request body", () => {
   assert.equal(result.success, false);
 });
 
-void test("queueBuyTicketPurchase rolls back reservation on publish failure", async () => {
-  const deletedKeys: string[] = [];
-  let incrCalls = 0;
-  let reservationOrderId: string | undefined;
-  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+void test("queueBuyTicketPurchase releases the reservation atomically on publish failure", async () => {
+  const redis = createScriptsMock();
+  let rollbackMetricFired = 0;
 
   await assert.rejects(
     () =>
       queueBuyTicketPurchase({
-        eventId,
+        eventId: EVENT_ID,
         body: {
           firstName: "Ada",
           lastName: "Lovelace",
         },
-        redis: {
-          async eval(_script: string, numKeys: number, ...args: string[]) {
-            assert.equal(numKeys, 1);
-            assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
-            return 999_999;
-          },
-          async set(key: string, value: string, mode: "EX", seconds: number) {
-            assert.equal(mode, "EX");
-            if (key.startsWith("tickets:event:")) {
-              assert.equal(seconds, 120);
-              reservationOrderId = value;
-              assert.equal(key, ticketReservationKey(eventId, value));
-            } else {
-              assert.equal(seconds, 900);
-              assert.equal(key, orderCacheKey(reservationOrderId!));
-              assert.deepEqual(
-                JSON.parse(value),
-                pendingOrderCacheEntrySchema.parse({
-                  orderId: reservationOrderId,
-                  eventId,
-                  status: "pending",
-                }),
-              );
-            }
-            return "OK";
-          },
-          async del(key: string) {
-            deletedKeys.push(key);
-            return 1;
-          },
-          async incr(key: string) {
-            assert.equal(key, ticketAvailabilityKey(eventId));
-            incrCalls += 1;
-            return 1_000_000;
-          },
-        } satisfies RedisMock,
+        redis,
+        createOrderId: () => ORDER_ID,
+        onPublishRollback: () => {
+          rollbackMetricFired += 1;
+        },
         pubsubPublisher: {
           async publishBuyTicket() {
             throw new Error("pubsub unavailable");
@@ -228,60 +191,32 @@ void test("queueBuyTicketPurchase rolls back reservation on publish failure", as
     /pubsub unavailable/,
   );
 
-  assert.deepEqual(deletedKeys, [
-    ticketReservationKey(eventId, reservationOrderId!),
-    orderCacheKey(reservationOrderId!),
+  assert.deepEqual(redis.releaseCalls, [
+    {
+      reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
+      availableKey: ticketRedisKeys(EVENT_ID).available,
+      orderCacheKey: orderRedisKeys.entry(ORDER_ID),
+    },
   ]);
-  assert.equal(incrCalls, 1);
+  assert.equal(rollbackMetricFired, 1);
 });
 
-void test("queueBuyTicketPurchase still restores availability when pending cleanup fails", async () => {
-  const deletedKeys: string[] = [];
-  let incrCalls = 0;
-  let reservationOrderId: string | undefined;
-  const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
+void test("queueBuyTicketPurchase aggregates publish and release errors when the rollback script fails", async () => {
+  const redis = createScriptsMock({
+    releaseTicketReservation: async () => {
+      throw new Error("release failed");
+    },
+  });
 
   await assert.rejects(
     () =>
       queueBuyTicketPurchase({
-        eventId,
+        eventId: EVENT_ID,
         body: {
           firstName: "Ada",
           lastName: "Lovelace",
         },
-        redis: {
-          async eval(_script: string, numKeys: number, ...args: string[]) {
-            assert.equal(numKeys, 1);
-            assert.deepEqual(args, [ticketAvailabilityKey(eventId)]);
-            return 999_999;
-          },
-          async set(key: string, value: string, mode: "EX", seconds: number) {
-            assert.equal(mode, "EX");
-            if (key.startsWith("tickets:event:")) {
-              assert.equal(seconds, 120);
-              reservationOrderId = value;
-            } else {
-              assert.equal(seconds, 900);
-              assert.equal(key, orderCacheKey(reservationOrderId!));
-            }
-
-            return "OK";
-          },
-          async del(key: string) {
-            deletedKeys.push(key);
-
-            if (key === orderCacheKey(reservationOrderId!)) {
-              throw new Error("pending cleanup failed");
-            }
-
-            return 1;
-          },
-          async incr(key: string) {
-            assert.equal(key, ticketAvailabilityKey(eventId));
-            incrCalls += 1;
-            return 1_000_000;
-          },
-        } satisfies RedisMock,
+        redis,
         pubsubPublisher: {
           async publishBuyTicket() {
             throw new Error("pubsub unavailable");
@@ -296,20 +231,30 @@ void test("queueBuyTicketPurchase still restores availability when pending clean
       );
       assert.equal(error.errors.length, 2);
 
-      const [originalError, cleanupError] = error.errors;
+      const [originalError, releaseError] = error.errors;
 
       assert.ok(originalError instanceof Error);
       assert.equal(originalError.message, "pubsub unavailable");
-      assert.ok(cleanupError instanceof Error);
-      assert.equal(cleanupError.message, "pending cleanup failed");
+      assert.ok(releaseError instanceof Error);
+      assert.equal(releaseError.message, "release failed");
 
       return true;
     },
   );
+});
 
-  assert.deepEqual(deletedKeys, [
-    ticketReservationKey(eventId, reservationOrderId!),
-    orderCacheKey(reservationOrderId!),
+void test("registerTicketRedisScripts registers both scripts once via defineCommand", () => {
+  const definedCommands: Array<{ name: string; numberOfKeys?: number }> = [];
+
+  const scripts = registerTicketRedisScripts({
+    defineCommand(name, definition) {
+      definedCommands.push({ name, numberOfKeys: definition.numberOfKeys });
+    },
+  });
+
+  assert.ok(scripts);
+  assert.deepEqual(definedCommands, [
+    { name: "reserveTicket", numberOfKeys: 3 },
+    { name: "releaseTicketReservation", numberOfKeys: 3 },
   ]);
-  assert.equal(incrCalls, 1);
 });
