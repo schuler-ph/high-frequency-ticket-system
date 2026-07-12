@@ -26,8 +26,15 @@ export type TopicLike = {
   exists?: () => Promise<[boolean]>;
 };
 
+export type SubscriptionOptionsLike = {
+  flowControl?: { maxMessages?: number };
+};
+
 export type PubSubClientLike = {
-  subscription(subscriptionName: string): SubscriptionLike;
+  subscription(
+    subscriptionName: string,
+    options?: SubscriptionOptionsLike,
+  ): SubscriptionLike;
   topic(topicName: string): TopicLike;
   createTopic?: (topicName: string) => Promise<unknown>;
 };
@@ -126,7 +133,11 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
   const subscriptionName =
     opts.subscriptionName ?? env.PUBSUB_SUBSCRIPTION_BUY_TICKET;
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;
-  const subscription = client.subscription(subscriptionName);
+  // Explizite Flow-Control statt Library-Default (~1.000 in-flight): begrenzt
+  // die gleichzeitigen Handler (Payment-Mock 1 s) und damit den DB-Druck.
+  const subscription = client.subscription(subscriptionName, {
+    flowControl: { maxMessages: env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES },
+  });
   const autoCreate =
     opts.autoCreateSubscription ?? Boolean(env.PUBSUB_EMULATOR_HOST);
 
@@ -203,6 +214,7 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
       subscription: subscriptionName,
       topic: topicName,
       emulatorHost: env.PUBSUB_EMULATOR_HOST,
+      flowControlMaxMessages: env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES,
     },
     "Registered Pub/Sub subscriber plugin",
   );

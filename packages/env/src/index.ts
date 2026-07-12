@@ -14,6 +14,15 @@ export const env = createEnv({
     PUBSUB_EMULATOR_HOST: z.string().min(1),
     PUBSUB_TOPIC_BUY_TICKET: z.string().min(1),
     PUBSUB_SUBSCRIPTION_BUY_TICKET: z.string().min(1),
+    // Max. gleichzeitig zugestellte Pub/Sub-Nachrichten pro Worker-Instanz.
+    // Mit dem 1-s-Payment-Mock entspricht das ~N Kaeufen/s pro Worker.
+    PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500),
+    // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(20),
     REDIS_RESERVATION_TTL_SECONDS: z.coerce
       .number()
       .int()
