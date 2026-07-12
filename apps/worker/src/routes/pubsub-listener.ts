@@ -18,6 +18,7 @@ import {
   ordersFailedTotal,
   orderE2eLatencySeconds,
   processingLockConflictsTotal,
+  redisDbDriftTickets,
   workerCompensationsTotal,
   workerIdempotencyHitsTotal,
   workerRedeliveriesTotal,
@@ -27,7 +28,7 @@ import type {} from "../plugins/pubsub.ts";
 
 type TicketRedisClient = Pick<
   RedisClient,
-  "get" | "scan" | "mset" | "defineCommand"
+  "get" | "scan" | "mset" | "incrby" | "defineCommand"
 >;
 
 type PubSubListenerRouteDeps = {
@@ -57,12 +58,17 @@ const runStartupReconcile = async (
     PubSubListenerRouteDeps,
     "listEventInventorySnapshots" | "reconcileTicketAvailability"
   > & {
-    redis: Pick<RedisClient, "get" | "scan" | "mset">;
+    redis: Pick<RedisClient, "get" | "scan" | "mset" | "incrby">;
   },
 ): Promise<void> => {
   await deps.reconcileTicketAvailability({
     getEventInventorySnapshots: deps.listEventInventorySnapshots,
     redis: deps.redis,
+    onEventReconciled: (eventId, redisAvailable, computedAvailable) =>
+      redisDbDriftTickets.set(
+        { event_id: eventId },
+        redisAvailable - computedAvailable,
+      ),
   });
 };
 

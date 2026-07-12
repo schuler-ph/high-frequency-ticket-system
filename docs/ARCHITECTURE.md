@@ -113,9 +113,9 @@ Nach jedem Reconcile-Lauf schreibt der Worker den aktuellen Konsistenzstand als 
 - **Wert 0** = perfekte Konsistenz zwischen Redis und PostgreSQL
 - **Positiver Wert** = Redis zählt mehr verfügbare Tickets als PostgreSQL → häufig nach TTL-Ablauf von Reservations ohne Kompensation
 - **Negativer Wert** = Redis zählt weniger → seltener, z. B. nach Worker-Restart vor Reconcile
-- Sourcedatei: `apps/worker/src/lib/reconcile-ticket-availability.ts`
+- Sourcedateien: `apps/worker/src/lib/reconcile-ticket-availability.ts` (Messung), `apps/worker/src/lib/metrics.ts` (Gauge), `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung)
 
-Der Reconcile-Loop liefert diese Messung ohnehin als Nebenprodukt seiner Arbeit, ohne zusätzliche DB-Scans.
+Der Reconcile-Loop liefert diese Messung ohnehin als Nebenprodukt seiner Arbeit, ohne zusätzliche DB-Scans. Die Korrektur selbst erfolgt als **Delta** (`INCRBY` um die gemessene Drift) statt als absolutes Überschreiben — Reservierungen, die zwischen Messung und Korrektur passieren, gehen dadurch nicht verloren.
 
 ## Worker ACK/NACK-Regeln (Stand 2026-03-21)
 

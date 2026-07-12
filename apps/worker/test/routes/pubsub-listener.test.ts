@@ -100,6 +100,7 @@ function createRouteTestFastify() {
       get: async () => null,
       set: async () => "OK" as const,
       del: async () => 0,
+      incrby: async () => 0,
       defineCommand: () => undefined,
       scan: async () => ["0", []] as [string, string[]],
       mset: async () => "OK",

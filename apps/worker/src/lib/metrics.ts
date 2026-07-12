@@ -1,4 +1,4 @@
-import { Counter, Histogram, Registry } from "prom-client";
+import { Counter, Gauge, Histogram, Registry } from "prom-client";
 
 export const workerRegistry = new Registry();
 
@@ -40,6 +40,13 @@ export const workerIdempotencyHitsTotal = new Counter({
 export const processingLockConflictsTotal = new Counter({
   name: "processing_lock_conflicts_total",
   help: "Messages nacked because the processing lock was already held by another worker",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const redisDbDriftTickets = new Gauge({
+  name: "redis_db_drift_tickets",
+  help: "Redis available counter minus DB-computed availability per event (0 = consistent)",
   labelNames: ["event_id"] as const,
   registers: [workerRegistry],
 });
