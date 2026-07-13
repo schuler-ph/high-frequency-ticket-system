@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
+import { withStartupTimeout } from "../lib/startup-timeout.ts";
+
+const unreachableHint = (operation: string, timeoutMs: number): string =>
+  `Pub/Sub ${operation} timed out after ${timeoutMs}ms. Is the emulator reachable at PUBSUB_EMULATOR_HOST=${env.PUBSUB_EMULATOR_HOST}? Start it with \`docker compose up -d\`.`;
 
 export type PubSubAttributes = Record<string, string>;
 
@@ -61,26 +65,51 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
         return;
       }
 
-      let exists = false;
+      const timeoutMs = env.PUBSUB_STARTUP_TIMEOUT_MS;
+      fastify.log.info(
+        { topic: topicName },
+        "Verifying Pub/Sub topic connectivity",
+      );
+
       try {
-        [exists] = await topic.exists();
+        let exists = false;
+        try {
+          [exists] = await withStartupTimeout(
+            topic.exists(),
+            timeoutMs,
+            unreachableHint("topic existence check", timeoutMs),
+          );
+        } catch (err) {
+          if (!isGrpcCode(err, 5)) throw err;
+        }
+
+        if (exists) return;
+
+        if (!autoCreate || !client.createTopic) {
+          throw new Error(
+            `Configured Pub/Sub topic "${topicName}" does not exist. Create it before starting the API.`,
+          );
+        }
+
+        try {
+          await withStartupTimeout(
+            client.createTopic(topicName),
+            timeoutMs,
+            unreachableHint("topic creation", timeoutMs),
+          );
+          fastify.log.info(
+            { topic: topicName },
+            "Created missing Pub/Sub topic",
+          );
+        } catch (err) {
+          if (!isGrpcCode(err, 6)) throw err;
+        }
       } catch (err) {
-        if (!isGrpcCode(err, 5)) throw err;
-      }
-
-      if (exists) return;
-
-      if (!autoCreate || !client.createTopic) {
-        throw new Error(
-          `Configured Pub/Sub topic "${topicName}" does not exist. Create it before starting the API.`,
+        fastify.log.error(
+          { err, topic: topicName },
+          "Pub/Sub publisher startup check failed",
         );
-      }
-
-      try {
-        await client.createTopic(topicName);
-        fastify.log.info({ topic: topicName }, "Created missing Pub/Sub topic");
-      } catch (err) {
-        if (!isGrpcCode(err, 6)) throw err;
+        throw err;
       }
     });
   }

@@ -23,6 +23,12 @@ export const env = createEnv({
       .default(500),
     // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
     DATABASE_POOL_MAX: z.coerce.number().int().positive().default(20),
+    // Startup-Fail-Fast: obere Schranke, wie lange API/Worker beim Boot auf
+    // eine erreichbare Infrastruktur warten, bevor sie mit einer klaren,
+    // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).
+    // Bewusst unter dem Fastify/avvio-Default (10 s) gehalten.
+    REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+    PUBSUB_STARTUP_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
     REDIS_RESERVATION_TTL_SECONDS: z.coerce
       .number()
       .int()
