@@ -2,6 +2,10 @@ import type { Message } from "@google-cloud/pubsub";
 import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
+import { withStartupTimeout } from "../lib/startup-timeout.ts";
+
+const unreachableHint = (operation: string, timeoutMs: number): string =>
+  `Pub/Sub ${operation} timed out after ${timeoutMs}ms. Is the emulator reachable at PUBSUB_EMULATOR_HOST=${env.PUBSUB_EMULATOR_HOST}? Start it with \`docker compose up -d\`.`;
 
 export type MessageHandler = (message: Message) => Promise<void>;
 
@@ -65,6 +69,7 @@ export async function ensureSubscription(
   topicName: string,
   autoCreate: boolean,
   log: FastifyBaseLogger,
+  timeoutMs: number,
 ): Promise<void> {
   if (!subscription.exists) {
     log.warn(
@@ -74,9 +79,18 @@ export async function ensureSubscription(
     return;
   }
 
+  log.info(
+    { subscription: subscriptionName, topic: topicName },
+    "Verifying Pub/Sub subscription connectivity",
+  );
+
   let exists = false;
   try {
-    [exists] = await subscription.exists();
+    [exists] = await withStartupTimeout(
+      subscription.exists(),
+      timeoutMs,
+      unreachableHint("subscription existence check", timeoutMs),
+    );
   } catch (err) {
     if (!isGrpcCode(err, 5)) throw err;
   }
@@ -94,14 +108,22 @@ export async function ensureSubscription(
   if (topic.exists) {
     let topicExists = false;
     try {
-      [topicExists] = await topic.exists();
+      [topicExists] = await withStartupTimeout(
+        topic.exists(),
+        timeoutMs,
+        unreachableHint("topic existence check", timeoutMs),
+      );
     } catch (err) {
       if (!isGrpcCode(err, 5)) throw err;
     }
 
     if (!topicExists && client.createTopic) {
       try {
-        await client.createTopic(topicName);
+        await withStartupTimeout(
+          client.createTopic(topicName),
+          timeoutMs,
+          unreachableHint("topic creation", timeoutMs),
+        );
         log.info({ topic: topicName }, "Created missing Pub/Sub topic");
       } catch (err) {
         if (!isGrpcCode(err, 6)) throw err;
@@ -116,7 +138,11 @@ export async function ensureSubscription(
   }
 
   try {
-    await topic.createSubscription(subscriptionName);
+    await withStartupTimeout(
+      topic.createSubscription(subscriptionName),
+      timeoutMs,
+      unreachableHint("subscription creation", timeoutMs),
+    );
     log.info(
       { subscription: subscriptionName, topic: topicName },
       "Created missing Pub/Sub subscription",
@@ -142,14 +168,23 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
     opts.autoCreateSubscription ?? Boolean(env.PUBSUB_EMULATOR_HOST);
 
   if (opts.ensureSubscriptionExists !== false) {
-    await ensureSubscription(
-      subscription,
-      client,
-      subscriptionName,
-      topicName,
-      autoCreate,
-      fastify.log,
-    );
+    try {
+      await ensureSubscription(
+        subscription,
+        client,
+        subscriptionName,
+        topicName,
+        autoCreate,
+        fastify.log,
+        env.PUBSUB_STARTUP_TIMEOUT_MS,
+      );
+    } catch (err) {
+      fastify.log.error(
+        { err, subscription: subscriptionName, topic: topicName },
+        "Pub/Sub subscriber startup check failed",
+      );
+      throw err;
+    }
   }
 
   let messageHandler: MessageHandler | null = null;

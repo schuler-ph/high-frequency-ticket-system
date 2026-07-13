@@ -11,6 +11,9 @@ function createFakeFastify() {
     log: {
       info: () => undefined,
       warn: () => undefined,
+      error: () => undefined,
+      fatal: () => undefined,
+      debug: () => undefined,
     },
     addHook(name: string, hook: () => Promise<void>) {
       hooks[name] ??= [];

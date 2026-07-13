@@ -1,13 +1,22 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
 import type { Message } from "@google-cloud/pubsub";
+import type { FastifyBaseLogger } from "fastify";
 import {
   type PubSubClientLike,
   type SubscriptionLike,
   type TopicLike,
   type PubSubSubscriber,
+  ensureSubscription,
   pubSubSubscriberPlugin,
 } from "../../src/plugins/pubsub.ts";
+import { StartupTimeoutError } from "../../src/lib/startup-timeout.ts";
+
+const noopLog = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+} as unknown as FastifyBaseLogger;
 
 function createFakeFastify() {
   const hooks: Record<string, Array<() => Promise<void>>> = {};
@@ -265,6 +274,44 @@ void test("pubsub subscriber fails on startup when subscription is missing and a
       autoCreateSubscription: false,
     });
   }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
+});
+
+void test("ensureSubscription fails fast with an actionable error when the emulator is unreachable", async () => {
+  // subscription.exists() never resolves — the original hang that surfaced only
+  // as an opaque Fastify plugin timeout with no hint about the cause.
+  const hangingSubscription: SubscriptionLike = {
+    on() {},
+    removeAllListeners() {},
+    close() {
+      return Promise.resolve();
+    },
+    exists() {
+      return new Promise<[boolean]>(() => {});
+    },
+  };
+  const fakeClient = createClientMock({
+    subscription: hangingSubscription,
+    topicExists: true,
+  });
+
+  await assert.rejects(
+    () =>
+      ensureSubscription(
+        hangingSubscription,
+        fakeClient,
+        "buy-ticket-worker",
+        "buy-ticket",
+        true,
+        noopLog,
+        20,
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof StartupTimeoutError);
+      assert.match(err.message, /PUBSUB_EMULATOR_HOST/);
+      assert.match(err.message, /docker compose up -d/);
+      return true;
+    },
+  );
 });
 
 void test("pubsub subscriber nacks messages when handler throws", async () => {
