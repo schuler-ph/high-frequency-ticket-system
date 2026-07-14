@@ -40,7 +40,7 @@ BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 k6 run load-tests/spike.js
 
 ## Umgebungsvariablen
 
-| Variable   | Default                 | Beschreibung                 |
-| ---------- | ----------------------- | ---------------------------- |
+| Variable   | Default                  | Beschreibung                 |
+| ---------- | ------------------------ | ---------------------------- |
 | `BASE_URL` | `http://localhost:10002` | API-Basis-URL                |
-| `EVENT_ID` | `freq-2025`             | Event-ID für Ticket-Requests |
+| `EVENT_ID` | `freq-2025`              | Event-ID für Ticket-Requests |

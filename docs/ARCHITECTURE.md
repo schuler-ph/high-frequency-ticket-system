@@ -59,16 +59,16 @@ flowchart TD
 
 Alle lokalen Services (Docker Compose + native `pnpm dev`-Prozesse) nutzen einen zusammenhaengenden Port-Block `10001`–`10008`, um Kollisionen mit anderen lokalen Projekten zu vermeiden und die Zuordnung auf einen Blick lesbar zu halten. Quelle der Wahrheit fuer alle Konfigurationsdateien (`docker-compose.yml`, `.env`, `.env.test`, CI, k6, Debug-Skripte).
 
-| Service              | Host-Port | Container-/Prozess-Port | Betrieben von                          |
-| --------------------- | --------- | ------------------------ | --------------------------------------- |
-| Web (Next.js)         | `10001`   | `10001` (nativer Prozess) | `pnpm --filter web dev`                 |
-| API (Fastify)         | `10002`   | `10002` (nativer Prozess) | `pnpm --filter api dev`                 |
-| Worker (Fastify)      | `10003`   | `10003` (nativer Prozess) | `pnpm --filter worker dev`              |
-| Redis                 | `10004`   | `6379`                    | Docker Compose (`hts-redis`)            |
-| Pub/Sub Emulator      | `10005`   | `8085`                    | Docker Compose (`hts-pubsub`)           |
-| PostgreSQL            | `10006`   | `5432`                    | Docker Compose (`hts-postgres`)         |
-| Prometheus            | `10007`   | `9090`                    | Docker Compose (`hts-prometheus`)       |
-| Grafana               | `10008`   | `3000`                    | Docker Compose (`hts-grafana`)          |
+| Service          | Host-Port | Container-/Prozess-Port   | Betrieben von                     |
+| ---------------- | --------- | ------------------------- | --------------------------------- |
+| Web (Next.js)    | `10001`   | `10001` (nativer Prozess) | `pnpm --filter web dev`           |
+| API (Fastify)    | `10002`   | `10002` (nativer Prozess) | `pnpm --filter api dev`           |
+| Worker (Fastify) | `10003`   | `10003` (nativer Prozess) | `pnpm --filter worker dev`        |
+| Redis            | `10004`   | `6379`                    | Docker Compose (`hts-redis`)      |
+| Pub/Sub Emulator | `10005`   | `8085`                    | Docker Compose (`hts-pubsub`)     |
+| PostgreSQL       | `10006`   | `5432`                    | Docker Compose (`hts-postgres`)   |
+| Prometheus       | `10007`   | `9090`                    | Docker Compose (`hts-prometheus`) |
+| Grafana          | `10008`   | `3000`                    | Docker Compose (`hts-grafana`)    |
 
 Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana → Prometheus): Es gilt immer der **Container-Port** (rechte Spalte), nicht der Host-Port. Der Grafana-Datasource-Provisioning-Eintrag (`monitoring/grafana/provisioning/datasources/prometheus.yml`) zeigt deshalb auf `http://prometheus:9090`, waehrend Prometheus selbst die App-Metriken von API/Worker ueber `host.docker.internal:10002` bzw. `host.docker.internal:10003` scraped (Host-Ports, da API/Worker als native Prozesse ausserhalb von Docker laufen).
 
