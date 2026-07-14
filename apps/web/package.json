@@ -4,9 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 10002",
+    "dev": "next dev --port 10001",
     "build": "next build",
-    "start": "next start --port 10002",
+    "start": "next start --port 10001",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit"
   },

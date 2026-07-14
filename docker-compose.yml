@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: hts-postgres
     ports:
-      - "5432:5432"
+      - "10006:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     container_name: hts-redis
     ports:
-      - "6379:6379"
+      - "10004:6379"
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
@@ -37,7 +37,7 @@ services:
     platform: linux/amd64
     container_name: hts-pubsub
     ports:
-      - "8085:8085"
+      - "10005:8085"
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     environment:
       PUBSUB_PROJECT_ID: high-frequency-ticket-system
@@ -52,7 +52,7 @@ services:
     image: prom/prometheus:v3.4.0
     container_name: hts-prometheus
     ports:
-      - "9090:9090"
+      - "10007:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -68,7 +68,7 @@ services:
     image: grafana/grafana:12.0.1
     container_name: hts-grafana
     ports:
-      - "3001:3001"
+      - "10008:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro

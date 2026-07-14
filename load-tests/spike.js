@@ -1,7 +1,7 @@
 import http from "k6/http";
 import { check } from "k6";
 
-const BASE_URL = __ENV.BASE_URL || "http://localhost:10001";
+const BASE_URL = __ENV.BASE_URL || "http://localhost:10002";
 // Default: Frequency Festival 20XX Main Sale (1M tickets, matches local seed)
 const EVENT_ID = __ENV.EVENT_ID || "00000000-0000-4000-8000-000000000000";
 

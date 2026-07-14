@@ -2,7 +2,7 @@ import { Client } from "pg";
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/high_frequency_tickets";
+  "postgresql://postgres:postgres@localhost:10006/high_frequency_tickets";
 
 const fail = (message: string): never => {
   console.error(`[db:debug:buy-ticket-function] ${message}`);

@@ -8,7 +8,7 @@ The API expects shared variables from the workspace root `.env` file via `@repo/
 
 - `GOOGLE_CLOUD_PROJECT` (default: `high-frequency-ticket-system`)
 - `PUBSUB_TOPIC_BUY_TICKET` (default: `buy-ticket`)
-- `PUBSUB_EMULATOR_HOST` (optional, e.g. `localhost:8085` for local emulator)
+- `PUBSUB_EMULATOR_HOST` (optional, e.g. `localhost:10005` for local emulator)
 
 ## Available Scripts
 
@@ -17,7 +17,7 @@ In the project directory, you can run:
 ### `npm run dev`
 
 To start the app in dev mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Open [http://localhost:10002](http://localhost:10002) to view it in the browser.
 
 ### `npm start`
 

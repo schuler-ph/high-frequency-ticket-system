@@ -143,9 +143,13 @@ docker compose up -d
 
 Startet lokal:
 
-- PostgreSQL auf `localhost:5432`
-- Redis auf `localhost:6379`
-- Pub/Sub Emulator auf `localhost:8085`
+- PostgreSQL auf `localhost:10006`
+- Redis auf `localhost:10004`
+- Pub/Sub Emulator auf `localhost:10005`
+- Prometheus auf `localhost:10007`
+- Grafana auf `localhost:10008`
+
+Vollstaendige Standardport-Liste: siehe `docs/ARCHITECTURE.md#standardports`.
 
 ### 3. Environment konfigurieren
 
@@ -157,11 +161,11 @@ Beispiel fuer `.env` im Repository-Root:
 NODE_ENV=development
 LOG_LEVEL=info
 
-REDIS_URL=redis://localhost:6379
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/high_frequency_tickets
+REDIS_URL=redis://localhost:10004
+DATABASE_URL=postgresql://postgres:postgres@localhost:10006/high_frequency_tickets
 
 GOOGLE_CLOUD_PROJECT=high-frequency-ticket-system
-PUBSUB_EMULATOR_HOST=localhost:8085
+PUBSUB_EMULATOR_HOST=localhost:10005
 PUBSUB_TOPIC_BUY_TICKET=buy-ticket
 PUBSUB_SUBSCRIPTION_BUY_TICKET=buy-ticket-sub
 ```
@@ -184,9 +188,16 @@ pnpm run dev
 
 Standardports:
 
-- API: `http://localhost:10001`
-- Web: `http://localhost:10002`
+- Web: `http://localhost:10001`
+- API: `http://localhost:10002`
 - Worker: `http://localhost:10003`
+- Redis: `localhost:10004`
+- Pub/Sub Emulator: `localhost:10005`
+- PostgreSQL: `localhost:10006`
+- Prometheus: `http://localhost:10007`
+- Grafana: `http://localhost:10008`
+
+Vollstaendige Standardport-Liste inkl. Begruendung: siehe `docs/ARCHITECTURE.md#standardports`.
 
 ## API Endpunkte
 
