@@ -33,14 +33,9 @@
           "refId": "B"
         },
         {
-          "expr": "sum(rate(processing_lock_conflicts_total{job=\"worker\"}[1m]))",
-          "legendFormat": "Lock Conflicts / s",
-          "refId": "C"
-        },
-        {
           "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m]))",
           "legendFormat": "Compensations / s",
-          "refId": "D"
+          "refId": "C"
         }
       ],
       "title": "Worker Reliability Events (rate per second)",
@@ -78,14 +73,9 @@
           "refId": "B"
         },
         {
-          "expr": "sum(increase(processing_lock_conflicts_total{job=\"worker\"}[5m]))",
-          "legendFormat": "Lock Conflicts (5m)",
-          "refId": "C"
-        },
-        {
           "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[5m]))",
           "legendFormat": "Compensations (5m)",
-          "refId": "D"
+          "refId": "C"
         }
       ],
       "title": "Reliability Event Counts (last 5 minutes)",
@@ -172,14 +162,9 @@
           "refId": "B"
         },
         {
-          "expr": "sum(increase(processing_lock_conflicts_total{job=\"worker\"}[$__range]))",
-          "legendFormat": "Total Lock Conflicts",
-          "refId": "C"
-        },
-        {
           "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[$__range]))",
           "legendFormat": "Total Compensations",
-          "refId": "D"
+          "refId": "C"
         }
       ],
       "title": "Cumulative Reliability Events (Dashboard Time Range)",

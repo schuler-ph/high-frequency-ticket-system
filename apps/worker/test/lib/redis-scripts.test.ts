@@ -13,8 +13,7 @@ void test("registerWorkerRedisScripts registers all worker scripts once via defi
 
   assert.ok(scripts);
   assert.deepEqual(definedCommands, [
-    { name: "beginOrderProcessing", numberOfKeys: 2 },
-    { name: "finalizeOrderProcessing", numberOfKeys: 3 },
+    { name: "finalizeOrderProcessing", numberOfKeys: 2 },
     { name: "compensateReservation", numberOfKeys: 2 },
   ]);
 });

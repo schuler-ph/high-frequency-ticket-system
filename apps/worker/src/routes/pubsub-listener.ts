@@ -19,7 +19,6 @@ import {
   ordersCompletedTotal,
   ordersFailedTotal,
   orderE2eLatencySeconds,
-  processingLockConflictsTotal,
   redisDbDriftTickets,
   workerCompensationsTotal,
   workerIdempotencyHitsTotal,
@@ -79,13 +78,6 @@ export const buyTicketOutcomePolicy: {
   duplicate: {
     ack: true,
     record: (o) => workerIdempotencyHitsTotal.inc({ event_id: o.eventId }),
-  },
-  "lock-conflict": {
-    ack: false,
-    record: (o) => {
-      processingLockConflictsTotal.inc({ event_id: o.eventId });
-      workerRedeliveriesTotal.inc({ event_id: o.eventId });
-    },
   },
   "invalid-payload": { ack: false },
   "terminal-failed": {
@@ -159,21 +151,15 @@ const createPubSubListenerRoutes = (
       const outcome = await handleBuyTicketMessage(message, {
         logger: fastify.log,
         executeBuyTicket: routeDeps.executeBuyTicket,
-        beginOrderProcessing: async (payload) => {
+        isOrderProcessed: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);
-          return scripts.beginOrderProcessing(
-            keys.processed(payload.orderId),
-            keys.processing(payload.orderId),
-            payload.orderId,
-            env.REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS,
-          );
+          return (await redis.get(keys.processed(payload.orderId))) !== null;
         },
         finalizeOrder: async (payload, entry) => {
           const keys = ticketRedisKeys(payload.eventId);
           await scripts.finalizeOrderProcessing(
             orderRedisKeys.entry(payload.orderId),
             keys.processed(payload.orderId),
-            keys.processing(payload.orderId),
             JSON.stringify(entry),
             env.REDIS_FINAL_ORDER_TTL_SECONDS,
             payload.orderId,
@@ -191,10 +177,6 @@ const createPubSubListenerRoutes = (
         },
         markOrderFailed: async (payload, failureReason) =>
           routeDeps.markOrderFailed(payload.orderId, failureReason),
-        releaseProcessingLock: async (payload) => {
-          const keys = ticketRedisKeys(payload.eventId);
-          await fastify.redis.del(keys.processing(payload.orderId));
-        },
       });
 
       applyBuyTicketOutcome(message, outcome);

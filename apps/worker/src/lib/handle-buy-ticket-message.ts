@@ -16,8 +16,6 @@ type BuyTicketPayload = BuyTicketEvent;
 
 type CompensationResult = "released" | "already-released";
 
-type OrderProcessingBegin = "duplicate" | "acquired" | "locked";
-
 /**
  * Ergebnis der Message-Verarbeitung. Der Handler fasst weder ack/nack noch
  * Metriken an — er berechnet nur diesen Wert. Das Mapping Outcome →
@@ -27,7 +25,6 @@ type OrderProcessingBegin = "duplicate" | "acquired" | "locked";
 export type BuyTicketOutcome =
   | { kind: "completed"; eventId: string; queuedAt: number }
   | { kind: "duplicate"; eventId: string }
-  | { kind: "lock-conflict"; eventId: string }
   | { kind: "invalid-payload" }
   | { kind: "terminal-failed"; eventId: string; queuedAt: number }
   | { kind: "compensation-failed"; eventId: string }
@@ -43,14 +40,11 @@ export type BuyTicketMessageHandlerDeps = {
     payload: BuyTicketPayload,
     failureReason: string,
   ) => Promise<FailedOrderUpdateResult>;
-  beginOrderProcessing: (
-    payload: BuyTicketPayload,
-  ) => Promise<OrderProcessingBegin>;
+  isOrderProcessed: (payload: BuyTicketPayload) => Promise<boolean>;
   finalizeOrder: (
     payload: BuyTicketPayload,
     entry: FinalOrderCacheEntry,
   ) => Promise<void>;
-  releaseProcessingLock: (payload: BuyTicketPayload) => Promise<void>;
   sleep?: (ms: number) => Promise<unknown>;
 };
 
@@ -107,27 +101,15 @@ export async function handleBuyTicketMessage(
     "Received BuyTicketEvent",
   );
 
-  const begin = await deps.beginOrderProcessing(parsed.data);
-
-  if (begin === "duplicate") {
+  // Reine Redis-Optimierung fuer Redeliveries — die Idempotenz-Garantie
+  // selbst traegt die buy_ticket-DB-Transaktion (ON CONFLICT, ADR-004).
+  if (await deps.isOrderProcessed(parsed.data)) {
     deps.logger.info(
       { messageId: message.id, eventId, orderId },
       "Skipping already processed BuyTicketEvent",
     );
     return { kind: "duplicate", eventId };
   }
-
-  if (begin === "locked") {
-    deps.logger.warn(
-      { messageId: message.id, eventId, orderId },
-      "BuyTicketEvent is already being processed, nacking for redelivery",
-    );
-    return { kind: "lock-conflict", eventId };
-  }
-
-  // finalizeOrder gibt den Processing-Lock atomar mit frei; das finally
-  // muss ihn nur auf Fehlerpfaden vor der Finalisierung freigeben.
-  let finalized = false;
 
   try {
     await (deps.sleep ?? setTimeout)(1000);
@@ -139,7 +121,6 @@ export async function handleBuyTicketMessage(
       status: "completed",
       ticketId,
     } satisfies CompletedOrderCacheEntry);
-    finalized = true;
 
     deps.logger.info(
       { messageId: message.id, eventId, orderId, ticketId },
@@ -165,7 +146,6 @@ export async function handleBuyTicketMessage(
           status: "failed",
           failureReason,
         } satisfies FailedOrderCacheEntry);
-        finalized = true;
       } catch (compensationError) {
         deps.logger.error(
           {
@@ -201,16 +181,5 @@ export async function handleBuyTicketMessage(
       "Error processing BuyTicketEvent",
     );
     return { kind: "transient-error", eventId };
-  } finally {
-    if (!finalized) {
-      try {
-        await deps.releaseProcessingLock(parsed.data);
-      } catch (lockReleaseError) {
-        deps.logger.error(
-          { messageId: message.id, eventId, orderId, lockReleaseError },
-          "Failed to release BuyTicketEvent processing lock",
-        );
-      }
-    }
   }
 }

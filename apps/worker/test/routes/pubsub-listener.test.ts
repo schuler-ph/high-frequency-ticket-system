@@ -48,24 +48,17 @@ function createDeps(
   compensateReservation: BuyTicketMessageHandlerDeps["compensateReservation"] = async () =>
     "already-released",
   overrides: Partial<BuyTicketMessageHandlerDeps> = {},
-): BuyTicketMessageHandlerDeps & { lockReleaseCalls: number } {
-  const tracker = { lockReleaseCalls: 0 };
-
-  return Object.assign(tracker, {
+): BuyTicketMessageHandlerDeps {
+  return {
     logger: noopLogger,
     executeBuyTicket,
     compensateReservation,
     markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
-    beginOrderProcessing: async (): Promise<
-      "duplicate" | "acquired" | "locked"
-    > => "acquired",
+    isOrderProcessed: async () => false,
     finalizeOrder: async () => undefined,
-    releaseProcessingLock: async () => {
-      tracker.lockReleaseCalls += 1;
-    },
     sleep: async () => undefined,
     ...overrides,
-  });
+  };
 }
 
 function createValidPayload(): BuyTicketEvent {
@@ -99,7 +92,6 @@ function createRouteTestFastify() {
       mset: async () => "OK",
       // registerWorkerRedisScripts castet den Client — die per defineCommand
       // erzeugten Command-Methoden muss der Fake selbst mitbringen.
-      beginOrderProcessing: async () => "acquired" as const,
       finalizeOrderProcessing: async () => 1,
       compensateReservation: async () => 0,
     },
@@ -147,7 +139,6 @@ void test("outcome policy encodes the documented ACK/NACK table exactly", () => 
   assert.deepEqual(ackByKind, {
     completed: true,
     duplicate: true,
-    "lock-conflict": false,
     "invalid-payload": false,
     "terminal-failed": true,
     "compensation-failed": false,
@@ -159,7 +150,6 @@ void test("applyBuyTicketOutcome ACKs exactly once for ack-outcomes and NACKs ot
   const outcomes: BuyTicketOutcome[] = [
     { kind: "completed", eventId: "e-1", queuedAt: Date.now() },
     { kind: "duplicate", eventId: "e-1" },
-    { kind: "lock-conflict", eventId: "e-1" },
     { kind: "invalid-payload" },
     { kind: "terminal-failed", eventId: "e-1", queuedAt: Date.now() },
     { kind: "compensation-failed", eventId: "e-1" },
@@ -295,8 +285,6 @@ void test("handler returns completed outcome and finalizes atomically on success
       ticketId,
     }),
   );
-  // finalizeOrder released the lock as part of its atomic script
-  assert.equal(deps.lockReleaseCalls, 0);
 });
 
 void test("handler returns duplicate outcome for already-processed messages", async () => {
@@ -312,7 +300,7 @@ void test("handler returns duplicate outcome for already-processed messages", as
       },
       async () => "already-released",
       {
-        beginOrderProcessing: async () => "duplicate",
+        isOrderProcessed: async () => true,
       },
     ),
   );
@@ -321,29 +309,7 @@ void test("handler returns duplicate outcome for already-processed messages", as
   assert.equal(outcome.kind, "duplicate");
 });
 
-void test("handler returns lock-conflict outcome when the processing lock is held", async () => {
-  const message = createMessage(JSON.stringify(createValidPayload()));
-  let executeCalls = 0;
-
-  const outcome = await handleBuyTicketMessage(
-    message,
-    createDeps(
-      async () => {
-        executeCalls += 1;
-        return "ticket-1";
-      },
-      async () => "already-released",
-      {
-        beginOrderProcessing: async () => "locked",
-      },
-    ),
-  );
-
-  assert.equal(executeCalls, 0);
-  assert.equal(outcome.kind, "lock-conflict");
-});
-
-void test("handler returns transient-error outcome and releases the lock when DB execution fails", async () => {
+void test("handler returns transient-error outcome when DB execution fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
   const deps = createDeps(async () => {
@@ -353,7 +319,6 @@ void test("handler returns transient-error outcome and releases the lock when DB
   const outcome = await handleBuyTicketMessage(message, deps);
 
   assert.equal(outcome.kind, "transient-error");
-  assert.equal(deps.lockReleaseCalls, 1);
 });
 
 void test("handler compensates reservation and returns terminal-failed outcome on P0001", async () => {
@@ -444,7 +409,6 @@ void test("handler returns compensation-failed outcome when compensation fails o
   const outcome = await handleBuyTicketMessage(message, deps);
 
   assert.equal(outcome.kind, "compensation-failed");
-  assert.equal(deps.lockReleaseCalls, 1);
 });
 
 void test("handler returns compensation-failed outcome when failed order update fails", async () => {
@@ -522,7 +486,6 @@ void test("handler returns compensation-failed outcome when finalize fails on P0
   const outcome = await handleBuyTicketMessage(message, deps);
 
   assert.equal(outcome.kind, "compensation-failed");
-  assert.equal(deps.lockReleaseCalls, 1);
 });
 
 void test("handler returns transient-error outcome when finalize fails on the success path", async () => {
@@ -541,5 +504,4 @@ void test("handler returns transient-error outcome when finalize fails on the su
   const outcome = await handleBuyTicketMessage(message, deps);
 
   assert.equal(outcome.kind, "transient-error");
-  assert.equal(deps.lockReleaseCalls, 1);
 });

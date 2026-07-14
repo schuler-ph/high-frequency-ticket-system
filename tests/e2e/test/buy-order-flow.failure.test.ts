@@ -240,7 +240,7 @@ void test("Worker compensates reservation and marks order as failed on terminal 
       },
       compensateReservation: async () => "released",
       markOrderFailed: async () => "updated",
-      beginOrderProcessing: async () => "acquired",
+      isOrderProcessed: async () => false,
       finalizeOrder: async (payload, entry: OrderCacheEntry) => {
         await redis.set(
           orderRedisKeys.entry(payload.orderId),
@@ -249,7 +249,6 @@ void test("Worker compensates reservation and marks order as failed on terminal 
           86400,
         );
       },
-      releaseProcessingLock: async () => undefined,
       sleep: async () => undefined,
     });
 

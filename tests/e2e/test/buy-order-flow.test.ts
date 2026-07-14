@@ -176,7 +176,7 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
       executeBuyTicket: async () => ticketId,
       compensateReservation: async () => "already-released",
       markOrderFailed: async () => "updated",
-      beginOrderProcessing: async () => "acquired",
+      isOrderProcessed: async () => false,
       finalizeOrder: async (payload, entry: OrderCacheEntry) => {
         await redis.set(
           orderRedisKeys.entry(payload.orderId),
@@ -185,7 +185,6 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
           3600,
         );
       },
-      releaseProcessingLock: async () => undefined,
       sleep: async () => undefined,
     });
 

@@ -37,13 +37,6 @@ export const workerIdempotencyHitsTotal = new Counter({
   registers: [workerRegistry],
 });
 
-export const processingLockConflictsTotal = new Counter({
-  name: "processing_lock_conflicts_total",
-  help: "Messages nacked because the processing lock was already held by another worker",
-  labelNames: ["event_id"] as const,
-  registers: [workerRegistry],
-});
-
 export const redisDbDriftTickets = new Gauge({
   name: "redis_db_drift_tickets",
   help: "Redis available counter minus DB-computed availability per event (0 = consistent)",

@@ -115,6 +115,19 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/routes/pubsub-listener.ts`
   - `apps/worker/test/routes/pubsub-listener.test.ts`
 
+### Update 2026-07-14: Idempotenz-Schicht = DB-Transaktion; `processing`-Lock entfernt
+
+- **Kontext:** Die `buy_ticket`-SQL-Function (Migration 0008) ist eine einzelne Transaktion mit `INSERT INTO orders … ON CONFLICT (id) DO NOTHING`, die bei Duplikaten das existierende Ticket zurueckliefert — sie ist damit bereits vollstaendig idempotent und nebenlaeufigkeitssicher. Der Redis-`processing`-Lock duplizierte diese Garantie: Sein einziger Effekt war, dass parallele Doppel-Zustellungen sofort ge-NACKt wurden und heiss rotierten, statt harmlos in den `ON CONFLICT`-Pfad zu laufen (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`, Befund D1 / Massnahme 4).
+- **Entscheidung:** Der `processing`-Lock entfaellt ersatzlos (Key-Familie, SET-NX-Erwerb, Release im `finally`, Lock-Conflict-NACK-Pfad, `processing_lock_conflicts_total`-Metrik samt Dashboard-Panels, `REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS`). Die Idempotenz-Garantie traegt explizit die DB-Transaktion. Der `processed`-Marker **bleibt** als reine Redis-Optimierung: Redeliveries werden weiterhin sofort ge-ACKt und sparen den 1-s-Payment-Sleep plus DB-Roundtrip.
+- **Begruendung:** Das Learning "Idempotenz via `orderId`" wird nicht verletzt, sondern in die Schicht verlagert, die es laengst implementiert. Parallele Doppel-Zustellungen (selten) serialisieren an der Row-Lock der ersten `INSERT` und landen im Conflict-Pfad — Ergebnis: beide Zustellungen werden als `completed` ge-ACKt, kein doppelter `sold_count`, kein NACK-Hot-Loop. Weniger Zustaende, weniger Fehlerpfade, 1 Redis-Roundtrip weniger vor jedem DB-Write.
+- **Umsetzung:**
+  - `apps/worker/src/lib/handle-buy-ticket-message.ts` (kein `finally`/Lock-Release mehr)
+  - `apps/worker/src/lib/redis-scripts.ts` (`beginOrderProcessing`-Script entfaellt, Finalize ohne Lock-DEL)
+  - `apps/worker/src/routes/pubsub-listener.ts` / `apps/worker/src/lib/metrics.ts`
+  - `packages/types/src/redis-keys.ts` / `packages/env/src/index.ts` / `.env.test`
+  - `monitoring/grafana/provisioning/dashboards/worker-reliability.json`
+  - `docs/ARCHITECTURE.md` (Key-Lifecycle- und ACK/NACK-Tabelle)
+
 ---
 
 ## ADR-005: Redis als Read-Cache

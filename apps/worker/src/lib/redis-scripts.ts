@@ -1,38 +1,18 @@
 import type { RedisClient } from "@repo/types/redis-client";
 
 /**
- * Idempotenz-Check + Processing-Lock in einem Redis-Roundtrip.
- * Liefert "duplicate", wenn die Order bereits final verarbeitet wurde
- * (`processed`-Marker existiert), "acquired" bei erfolgreichem Lock,
- * sonst "locked" (parallele Zustellung haelt den Lock).
+ * Finaler Order-Zustand + `processed`-Marker in einem Redis-Roundtrip
+ * (statt SET + SET sequenziell). Der `processed`-Marker ist eine reine
+ * Redis-Optimierung fuer Redeliveries — die Idempotenz-Garantie selbst
+ * traegt die `buy_ticket`-DB-Transaktion (ON CONFLICT, siehe ADR-004).
  *
- * KEYS[1] = processedKey, KEYS[2] = processingKey
- * ARGV[1] = orderId, ARGV[2] = lockTtlSeconds
- */
-const BEGIN_ORDER_PROCESSING_SCRIPT = `
-if redis.call("EXISTS", KEYS[1]) == 1 then
-  return "duplicate"
-end
-
-if redis.call("SET", KEYS[2], ARGV[1], "EX", ARGV[2], "NX") then
-  return "acquired"
-end
-
-return "locked"
-`;
-
-/**
- * Finaler Order-Zustand + `processed`-Marker + Lock-Release in einem
- * Redis-Roundtrip (statt SET + SET + DEL sequenziell).
- *
- * KEYS[1] = orderCacheKey, KEYS[2] = processedKey, KEYS[3] = processingKey
+ * KEYS[1] = orderCacheKey, KEYS[2] = processedKey
  * ARGV[1] = orderCacheValue, ARGV[2] = orderCacheTtlSeconds,
  * ARGV[3] = orderId, ARGV[4] = processedTtlSeconds
  */
 const FINALIZE_ORDER_PROCESSING_SCRIPT = `
 redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
 redis.call("SET", KEYS[2], ARGV[3], "EX", ARGV[4])
-redis.call("DEL", KEYS[3])
 return 1
 `;
 
@@ -54,16 +34,9 @@ return 0
 `;
 
 export type WorkerRedisScripts = {
-  beginOrderProcessing(
-    processedKey: string,
-    processingKey: string,
-    orderId: string,
-    lockTtlSeconds: number,
-  ): Promise<"duplicate" | "acquired" | "locked">;
   finalizeOrderProcessing(
     orderCacheKey: string,
     processedKey: string,
-    processingKey: string,
     orderCacheValue: string,
     orderCacheTtlSeconds: number,
     orderId: string,
@@ -83,12 +56,8 @@ export type WorkerRedisScripts = {
 export const registerWorkerRedisScripts = (
   client: Pick<RedisClient, "defineCommand">,
 ): WorkerRedisScripts => {
-  client.defineCommand("beginOrderProcessing", {
-    numberOfKeys: 2,
-    lua: BEGIN_ORDER_PROCESSING_SCRIPT,
-  });
   client.defineCommand("finalizeOrderProcessing", {
-    numberOfKeys: 3,
+    numberOfKeys: 2,
     lua: FINALIZE_ORDER_PROCESSING_SCRIPT,
   });
   client.defineCommand("compensateReservation", {

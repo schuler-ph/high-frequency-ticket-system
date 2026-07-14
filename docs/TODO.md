@@ -155,19 +155,19 @@
 
 ## Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`)
 
-Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) — umgesetzt:
+Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3/4) — umgesetzt:
 
 - [x] #10: Redis-Typ-Schatten/Casts durch zentrales `@repo/types/redis-client` ersetzen; Zod-Parse selbst konstruierter Literale durch `satisfies` (Zod bleibt an allen externen Grenzen).
 - [x] #1: Reserve+Reservation+Pending-Order als **ein** atomares Lua-Script via ioredis `defineCommand`/EVALSHA; Publish-Rollback als idempotentes Gegen-Script (3→1 RTT, ADR-005-Update).
 - [x] #2: Worker Idempotenz-Check+Lock als ein Script (`beginOrderProcessing`), Finalisierung (Order-Cache + `processed`-Marker + Lock-Release) als ein Script (5→2 RTT pro Message, ACK/NACK-Semantik unveraendert).
 - [x] #6: Reconcile korrigiert `available` als Delta (`INCRBY`) statt absolutem `MSET` (schliesst das Lost-Decrement-Fenster); `redis_db_drift_tickets`-Gauge (ADR-023) verdrahtet.
 - [x] #8: `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` (Default 500) und `DATABASE_POOL_MAX` (Default 20) als explizite, aufeinander abgestimmte Env-Knobs (siehe ARCHITECTURE.md "Worker-Durchsatz & Backpressure").
+- [x] #3: Handler liefert `BuyTicketOutcome`-Wert; ACK/NACK + Metriken als Policy-Tabelle (`buyTicketOutcomePolicy`) im Listener — die Doku-Tabelle ist woertlich Code, ack/nack genau einmal pro Nachricht.
+- [x] #4: `processing`-Lock gestrichen — Idempotenz traegt die `buy_ticket`-DB-Transaktion (ON CONFLICT); `processed`-Marker bleibt als Redelivery-Shortcut (ADR-004-Update, Key-Lifecycle-/ACK-NACK-Tabelle, Worker-Reliability-Dashboard).
 
 Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 
-- [ ] Lokalen Lasttest als Baseline ausfuehren (Phase-4-Punkt) und Vorher-Zahlen fuer #4/#5/#7 dokumentieren.
-- [ ] #3: Handler auf Outcome-Wert + ACK/NACK-Tabelle umbauen (Metrik-Callbacks durch Outcome-Mapping ersetzen).
-- [ ] #4: `processing`-Lock streichen — Idempotenz traegt die DB-Transaktion (`buy_ticket` ON CONFLICT); ADR-004-Update, Key-Lifecycle-Tabelle, Worker-Reliability-Dashboard.
+- [ ] Lokalen Lasttest als Baseline ausfuehren (Phase-4-Punkt) und Vorher-Zahlen fuer #5/#7 dokumentieren.
 - [ ] #5: Reservierungen zusaetzlich in Sorted Set (Score = Expiry): `ZCOUNT` statt Keyspace-SCAN im Reconcile; abgelaufene Reservierungen deterministisch zurueckbuchen (ADR-022/023-Update).
 - [ ] #7: `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Aggregation im Reconcile); Order direkt als `completed` einfuegen (ADR-011-Update, Migration + `db:push`, Guardrail-Script `check-buy-ticket-contract.mjs`).
 - [ ] #9: Topic/Subscription-Provisioning (Emulator-Bootstrapping) nach `scripts/local/` verschieben; `*Like`-Typen und Zweiphasen-Start entfernen.
@@ -198,7 +198,7 @@ Wenn der Worker horizontal skaliert wird, darf nur ein Pod reconcilieren. Zwei O
 - [ ] Definiere Polling-Strategie fuer Order-Status (Backoff + Jitter, optional Long-Polling) zur Load-Reduktion.
 - [ ] Konfiguriere `maxDeliveryAttempts` + Dead-Letter Topic pro Subscription, um Retry-Stuerme zu begrenzen.
 - [ ] Definiere klare Poison-Message-Policy (ACK+DLQ vs. NACK) fuer invalides JSON, Schema-Fehler und unbekannte Event-Versionen.
-- [ ] Implementiere Worker-Graceful-Shutdown mit Drain-Verhalten (in-flight Messages abschliessen, Locks sauber freigeben).
+- [ ] Implementiere Worker-Graceful-Shutdown mit Drain-Verhalten (in-flight Messages abschliessen; Processing-Locks existieren seit dem ADR-004-Update 2026-07-14 nicht mehr).
 - [ ] Ergänze Reaper-Job fuer stale `pending` Orders und abgelaufene Reservationen inkl. sicherer Kompensation.
 - [ ] Erstelle Replay-Tooling fuer DLQ-Nachrichten (selektiver Replay nach Fehlerklasse, Dry-Run-Modus).
 - [ ] Definiere SLOs + Alerting fuer Resilience-Signale (NACK-Rate, Redelivery-Rate, DLQ-Groesse, stuck pending orders).

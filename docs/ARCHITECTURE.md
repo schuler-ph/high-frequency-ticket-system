@@ -87,8 +87,8 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
 6. Worker simuliert Payment-Processing (Sleep 1s)
 7. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
-   - Vor dem DB-Write prueft der Worker Idempotenz ueber Redis (`processed`-Marker) und setzt einen kurzlebigen `processing`-Lock pro `orderId`.
-   - Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Write).
+   - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein 1-s-Payment-Sleep, kein zweiter DB-Roundtrip).
+   - Parallele Doppel-Zustellungen derselben `orderId` laufen harmlos in den `ON CONFLICT`-Pfad der DB-Transaktion — ein separater Processing-Lock existiert nicht mehr.
    - Nach erfolgreichem oder terminal fehlgeschlagenem Processing ueberschreibt der Worker denselben Redis-Order-Key mit dem finalen Status inkl. Ticket-Referenz bzw. `failure_reason` und einer laengeren Final-Status-TTL fuer den spaeteren API-Read.
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
 8. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
@@ -97,14 +97,13 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
 
 Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 
-| Key-Muster                                      | Zweck                                                  | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                           |
-| ----------------------------------------------- | ------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `tickets:event:{eventId}:total`                 | Kapazitäts-Snapshot                                    | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                        |
-| `tickets:event:{eventId}:available`             | Aktuelle Verfügbarkeit                                 | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                   |
-| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker                          | 120 s                             | API (`POST /buy`)                                                          | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
-| `tickets:event:{eventId}:processing:{orderId}`  | Distributed Lock (verhindert parallele Verarbeitung)   | 60 s                              | Worker                                                                     | Worker (DEL nach Verarbeitung)                                                   |
-| `tickets:event:{eventId}:processed:{orderId}`   | Idempotenz-Marker (verhindert Redelivery-Doppel-Write) | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                    |
-| `orders:{orderId}`                              | Order-Cache-Eintrag (`pending` → `completed`/`failed`) | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                 |
+| Key-Muster                                      | Zweck                                                                                           | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `tickets:event:{eventId}:total`                 | Kapazitäts-Snapshot                                                                             | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                        |
+| `tickets:event:{eventId}:available`             | Aktuelle Verfügbarkeit                                                                          | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                   |
+| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker                                                                   | 120 s                             | API (`POST /buy`)                                                          | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
+| `tickets:event:{eventId}:processed:{orderId}`   | Redelivery-Shortcut (spart Sleep + DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004) | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                    |
+| `orders:{orderId}`                              | Order-Cache-Eintrag (`pending` → `completed`/`failed`)                                          | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                 |
 
 Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
 
@@ -134,7 +133,7 @@ Nach jedem Reconcile-Lauf schreibt der Worker den aktuellen Konsistenzstand als 
 
 Der Reconcile-Loop liefert diese Messung ohnehin als Nebenprodukt seiner Arbeit, ohne zusätzliche DB-Scans. Die Korrektur selbst erfolgt als **Delta** (`INCRBY` um die gemessene Drift) statt als absolutes Überschreiben — Reservierungen, die zwischen Messung und Korrektur passieren, gehen dadurch nicht verloren.
 
-## Worker ACK/NACK-Regeln (Stand 2026-03-21)
+## Worker ACK/NACK-Regeln (Stand 2026-07-14)
 
 Der Worker behandelt Pub/Sub-Nachrichten mit folgenden Regeln:
 
@@ -144,7 +143,6 @@ Der Worker behandelt Pub/Sub-Nachrichten mit folgenden Regeln:
 | Nachricht fuer bereits verarbeitete `orderId` (`processed`-Marker vorhanden)                       | ACK       | Idempotenter Kurzschluss ohne erneuten DB-Write                                                                                    |
 | Ungültiges JSON im Payload                                                                         | NACK      | Technischer Fehler im Message-Format, Retry/Redelivery möglich                                                                     |
 | Payload verletzt Zod-Schema                                                                        | NACK      | Nachricht ist im aktuellen Flow nicht verarbeitbar; aktuell als Retry klassifiziert                                                |
-| Processing-Lock fuer dieselbe `orderId` bereits gesetzt                                            | NACK      | Eine parallele Zustellung verarbeitet bereits; spaetere Redelivery wird erneut geprueft                                            |
 | Technischer Fehler beim DB-Write                                                                   | NACK      | Transienter Infrastrukturfehler, Redelivery soll erneut versuchen                                                                  |
 | Business-Fehler `P0001` (Event nicht gefunden) + Kompensation erfolgreich/optional bereits erfolgt | ACK       | Terminaler Fachfehler; Reservation wurde freigegeben oder war bereits freigegeben, Order wird wenn vorhanden als `failed` markiert |
 | Business-Fehler `P0001` (Event nicht gefunden) + Kompensation fehlgeschlagen                       | NACK      | Reservation konnte nicht sicher freigegeben werden; Retry soll Kompensation nachholen                                              |
