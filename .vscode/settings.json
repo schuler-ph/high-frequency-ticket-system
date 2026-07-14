@@ -47,6 +47,16 @@
         "tooltip": "Open the VS Code Run Task picker",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask"
+      },
+      {
+        "name": "$(git-merge) Merge hfts-dev1 → main",
+        "color": "#E06C75",
+        "tooltip": "Checkout main, pull latest, and merge hfts-dev1 locally (no push)",
+        "cwd": "${workspaceFolder}",
+        "singleInstance": true,
+        "focus": true,
+        "saveAll": true,
+        "command": "git checkout main && git pull && git merge hfts-dev1"
       }
     ],
     "defaultColor": "white",
