@@ -10,7 +10,7 @@ import {
 } from "@repo/types/tickets";
 import type { FailedOrderUpdateResult } from "@repo/db";
 
-type BuyTicketMessage = Pick<Message, "id" | "data" | "ack" | "nack">;
+type BuyTicketMessage = Pick<Message, "id" | "data">;
 
 type BuyTicketPayload = BuyTicketEvent;
 
@@ -18,19 +18,20 @@ type CompensationResult = "released" | "already-released";
 
 type OrderProcessingBegin = "duplicate" | "acquired" | "locked";
 
-type MessageHandlerMetrics = {
-  onOrderCompleted?: (eventId: string) => void;
-  onOrderFailed?: (eventId: string) => void;
-  onCompensation?: (eventId: string) => void;
-  onRedelivery?: (eventId: string) => void;
-  onIdempotencyHit?: (eventId: string) => void;
-  onLockConflict?: (eventId: string) => void;
-  onE2eLatency?: (
-    eventId: string,
-    durationSeconds: number,
-    status: "completed" | "failed",
-  ) => void;
-};
+/**
+ * Ergebnis der Message-Verarbeitung. Der Handler fasst weder ack/nack noch
+ * Metriken an — er berechnet nur diesen Wert. Das Mapping Outcome →
+ * ACK/NACK + Counter lebt als Tabelle im Listener (`buyTicketOutcomePolicy`)
+ * und entspricht 1:1 der ACK/NACK-Tabelle in `docs/ARCHITECTURE.md`.
+ */
+export type BuyTicketOutcome =
+  | { kind: "completed"; eventId: string; queuedAt: number }
+  | { kind: "duplicate"; eventId: string }
+  | { kind: "lock-conflict"; eventId: string }
+  | { kind: "invalid-payload" }
+  | { kind: "terminal-failed"; eventId: string; queuedAt: number }
+  | { kind: "compensation-failed"; eventId: string }
+  | { kind: "transient-error"; eventId: string };
 
 export type BuyTicketMessageHandlerDeps = {
   logger: FastifyBaseLogger;
@@ -51,7 +52,6 @@ export type BuyTicketMessageHandlerDeps = {
   ) => Promise<void>;
   releaseProcessingLock: (payload: BuyTicketPayload) => Promise<void>;
   sleep?: (ms: number) => Promise<unknown>;
-  metrics?: MessageHandlerMetrics;
 };
 
 const getCauseCode = (error: unknown): string | undefined => {
@@ -77,7 +77,7 @@ const getFailureReason = (error: unknown): string => {
 export async function handleBuyTicketMessage(
   message: BuyTicketMessage,
   deps: BuyTicketMessageHandlerDeps,
-): Promise<void> {
+): Promise<BuyTicketOutcome> {
   const rawPayload = message.data?.toString("utf8") ?? "";
 
   let payload: unknown;
@@ -88,8 +88,7 @@ export async function handleBuyTicketMessage(
       { messageId: message.id, error },
       "Invalid BuyTicketEvent payload JSON",
     );
-    message.nack();
-    return;
+    return { kind: "invalid-payload" };
   }
 
   const parsed = buyTicketEventSchema.safeParse(payload);
@@ -98,12 +97,13 @@ export async function handleBuyTicketMessage(
       { messageId: message.id, issues: parsed.error.issues },
       "BuyTicketEvent payload failed validation",
     );
-    message.nack();
-    return;
+    return { kind: "invalid-payload" };
   }
 
+  const { eventId, orderId, queuedAt } = parsed.data;
+
   deps.logger.info(
-    { messageId: message.id, eventId: parsed.data.eventId },
+    { messageId: message.id, eventId },
     "Received BuyTicketEvent",
   );
 
@@ -111,31 +111,18 @@ export async function handleBuyTicketMessage(
 
   if (begin === "duplicate") {
     deps.logger.info(
-      {
-        messageId: message.id,
-        eventId: parsed.data.eventId,
-        orderId: parsed.data.orderId,
-      },
+      { messageId: message.id, eventId, orderId },
       "Skipping already processed BuyTicketEvent",
     );
-    deps.metrics?.onIdempotencyHit?.(parsed.data.eventId);
-    message.ack();
-    return;
+    return { kind: "duplicate", eventId };
   }
 
   if (begin === "locked") {
     deps.logger.warn(
-      {
-        messageId: message.id,
-        eventId: parsed.data.eventId,
-        orderId: parsed.data.orderId,
-      },
+      { messageId: message.id, eventId, orderId },
       "BuyTicketEvent is already being processed, nacking for redelivery",
     );
-    deps.metrics?.onLockConflict?.(parsed.data.eventId);
-    deps.metrics?.onRedelivery?.(parsed.data.eventId);
-    message.nack();
-    return;
+    return { kind: "lock-conflict", eventId };
   }
 
   // finalizeOrder gibt den Processing-Lock atomar mit frei; das finally
@@ -147,31 +134,19 @@ export async function handleBuyTicketMessage(
 
     const ticketId = await deps.executeBuyTicket(parsed.data);
     await deps.finalizeOrder(parsed.data, {
-      orderId: parsed.data.orderId,
-      eventId: parsed.data.eventId,
+      orderId,
+      eventId,
       status: "completed",
       ticketId,
     } satisfies CompletedOrderCacheEntry);
     finalized = true;
 
     deps.logger.info(
-      {
-        messageId: message.id,
-        eventId: parsed.data.eventId,
-        orderId: parsed.data.orderId,
-        ticketId,
-      },
+      { messageId: message.id, eventId, orderId, ticketId },
       "Successfully processed BuyTicketEvent",
     );
 
-    deps.metrics?.onOrderCompleted?.(parsed.data.eventId);
-    deps.metrics?.onE2eLatency?.(
-      parsed.data.eventId,
-      (Date.now() - parsed.data.queuedAt) / 1000,
-      "completed",
-    );
-    message.ack();
-    return;
+    return { kind: "completed", eventId, queuedAt };
   } catch (error) {
     if (getCauseCode(error) === "P0001") {
       const failureReason = getFailureReason(error);
@@ -185,8 +160,8 @@ export async function handleBuyTicketMessage(
           failureReason,
         );
         await deps.finalizeOrder(parsed.data, {
-          orderId: parsed.data.orderId,
-          eventId: parsed.data.eventId,
+          orderId,
+          eventId,
           status: "failed",
           failureReason,
         } satisfies FailedOrderCacheEntry);
@@ -195,22 +170,21 @@ export async function handleBuyTicketMessage(
         deps.logger.error(
           {
             messageId: message.id,
-            eventId: parsed.data.eventId,
-            orderId: parsed.data.orderId,
+            eventId,
+            orderId,
             error,
             compensationError,
           },
           "Failed to compensate reservation or persist failed order after terminal BuyTicketEvent error",
         );
-        message.nack();
-        return;
+        return { kind: "compensation-failed", eventId };
       }
 
       deps.logger.warn(
         {
           messageId: message.id,
-          eventId: parsed.data.eventId,
-          orderId: parsed.data.orderId,
+          eventId,
+          orderId,
           compensation: compensationResult,
           failedOrderUpdate,
           failureReason,
@@ -219,36 +193,21 @@ export async function handleBuyTicketMessage(
         "Compensated reservation after terminal BuyTicketEvent error",
       );
 
-      deps.metrics?.onCompensation?.(parsed.data.eventId);
-      deps.metrics?.onOrderFailed?.(parsed.data.eventId);
-      deps.metrics?.onE2eLatency?.(
-        parsed.data.eventId,
-        (Date.now() - parsed.data.queuedAt) / 1000,
-        "failed",
-      );
-      message.ack();
-      return;
+      return { kind: "terminal-failed", eventId, queuedAt };
     }
 
     deps.logger.error(
-      { messageId: message.id, eventId: parsed.data.eventId, error },
+      { messageId: message.id, eventId, error },
       "Error processing BuyTicketEvent",
     );
-    deps.metrics?.onRedelivery?.(parsed.data.eventId);
-    message.nack();
-    return;
+    return { kind: "transient-error", eventId };
   } finally {
     if (!finalized) {
       try {
         await deps.releaseProcessingLock(parsed.data);
       } catch (lockReleaseError) {
         deps.logger.error(
-          {
-            messageId: message.id,
-            eventId: parsed.data.eventId,
-            orderId: parsed.data.orderId,
-            lockReleaseError,
-          },
+          { messageId: message.id, eventId, orderId, lockReleaseError },
           "Failed to release BuyTicketEvent processing lock",
         );
       }

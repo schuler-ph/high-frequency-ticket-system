@@ -111,27 +111,13 @@ function createInMemoryRedis(
 type TestMessage = {
   id: string;
   data: Buffer;
-  acked: boolean;
-  nacked: boolean;
-  ack: () => void;
-  nack: () => void;
 };
 
 function createMessage(payload: BuyTicketEvent): TestMessage {
-  const message: TestMessage = {
+  return {
     id: "msg-1",
     data: Buffer.from(JSON.stringify(payload)),
-    acked: false,
-    nacked: false,
-    ack() {
-      message.acked = true;
-    },
-    nack() {
-      message.nacked = true;
-    },
   };
-
-  return message;
 }
 
 void test("POST /api/tickets/:eventId/buy returns 409 when tickets are sold out and does not set reservation or order cache", async () => {
@@ -247,7 +233,7 @@ void test("Worker compensates reservation and marks order as failed on terminal 
     assert.equal(publishedEvents.length, 1);
 
     const workerMessage = createMessage(publishedEvents[0]!);
-    await handleBuyTicketMessage(workerMessage, {
+    const outcome = await handleBuyTicketMessage(workerMessage, {
       logger: noopLogger,
       executeBuyTicket: async () => {
         throw new Error("Event not found", { cause: { code: "P0001" } });
@@ -267,8 +253,7 @@ void test("Worker compensates reservation and marks order as failed on terminal 
       sleep: async () => undefined,
     });
 
-    assert.equal(workerMessage.acked, true);
-    assert.equal(workerMessage.nacked, false);
+    assert.equal(outcome.kind, "terminal-failed");
 
     const cachedFailedOrder = await redis.get(orderRedisKeys.entry(orderId));
     assert.notEqual(cachedFailedOrder, null);

@@ -28,10 +28,6 @@ type InMemoryRedis = Pick<
 type TestMessage = {
   id: string;
   data: Buffer;
-  acked: boolean;
-  nacked: boolean;
-  ack: () => void;
-  nack: () => void;
 };
 
 const noopLogger: FastifyBaseLogger = {
@@ -112,20 +108,10 @@ function createInMemoryRedis(
 }
 
 function createMessage(payload: BuyTicketEvent): TestMessage {
-  const message: TestMessage = {
+  return {
     id: "msg-1",
     data: Buffer.from(JSON.stringify(payload)),
-    acked: false,
-    nacked: false,
-    ack() {
-      message.acked = true;
-    },
-    nack() {
-      message.nacked = true;
-    },
   };
-
-  return message;
 }
 
 void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:orderId returns the final Redis-backed ticket state", async () => {
@@ -185,7 +171,7 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
     );
 
     const workerMessage = createMessage(publishedEvents[0]!);
-    await handleBuyTicketMessage(workerMessage, {
+    const outcome = await handleBuyTicketMessage(workerMessage, {
       logger: noopLogger,
       executeBuyTicket: async () => ticketId,
       compensateReservation: async () => "already-released",
@@ -203,8 +189,7 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
       sleep: async () => undefined,
     });
 
-    assert.equal(workerMessage.acked, true);
-    assert.equal(workerMessage.nacked, false);
+    assert.equal(outcome.kind, "completed");
 
     const cachedCompletedOrder = await redis.get(
       orderRedisKeys.entry(buyBody.orderId),

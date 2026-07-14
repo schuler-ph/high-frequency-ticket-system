@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import type { Message } from "@google-cloud/pubsub";
 import {
   executeBuyTicket,
   listEventInventorySnapshots,
@@ -10,6 +11,7 @@ import type { RedisClient } from "@repo/types/redis-client";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
+  type BuyTicketOutcome,
 } from "../lib/handle-buy-ticket-message.ts";
 import { registerWorkerRedisScripts } from "../lib/redis-scripts.ts";
 import { reconcileTicketAvailability } from "../lib/reconcile-ticket-availability.ts";
@@ -43,6 +45,80 @@ const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
   listEventInventorySnapshots,
   markOrderFailed,
   reconcileTicketAvailability,
+};
+
+const observeE2eLatency = (
+  eventId: string,
+  queuedAt: number,
+  status: "completed" | "failed",
+): void => {
+  orderE2eLatencySeconds.observe(
+    { event_id: eventId, status },
+    (Date.now() - queuedAt) / 1000,
+  );
+};
+
+/**
+ * Die ACK/NACK-Tabelle aus `docs/ARCHITECTURE.md` als Code: pro Outcome-Kind
+ * genau eine Zeile mit ACK-Entscheidung und Metriken. Neue Faelle sind eine
+ * neue Zeile, kein neuer try/catch-Ast im Handler.
+ */
+export const buyTicketOutcomePolicy: {
+  [K in BuyTicketOutcome["kind"]]: {
+    ack: boolean;
+    record?: (outcome: Extract<BuyTicketOutcome, { kind: K }>) => void;
+  };
+} = {
+  completed: {
+    ack: true,
+    record: (o) => {
+      ordersCompletedTotal.inc({ event_id: o.eventId });
+      observeE2eLatency(o.eventId, o.queuedAt, "completed");
+    },
+  },
+  duplicate: {
+    ack: true,
+    record: (o) => workerIdempotencyHitsTotal.inc({ event_id: o.eventId }),
+  },
+  "lock-conflict": {
+    ack: false,
+    record: (o) => {
+      processingLockConflictsTotal.inc({ event_id: o.eventId });
+      workerRedeliveriesTotal.inc({ event_id: o.eventId });
+    },
+  },
+  "invalid-payload": { ack: false },
+  "terminal-failed": {
+    ack: true,
+    record: (o) => {
+      workerCompensationsTotal.inc({ event_id: o.eventId });
+      ordersFailedTotal.inc({ event_id: o.eventId });
+      observeE2eLatency(o.eventId, o.queuedAt, "failed");
+    },
+  },
+  "compensation-failed": { ack: false },
+  "transient-error": {
+    ack: false,
+    record: (o) => workerRedeliveriesTotal.inc({ event_id: o.eventId }),
+  },
+};
+
+export const applyBuyTicketOutcome = (
+  message: Pick<Message, "ack" | "nack">,
+  outcome: BuyTicketOutcome,
+): void => {
+  const policy = buyTicketOutcomePolicy[outcome.kind] as {
+    ack: boolean;
+    record?: (outcome: BuyTicketOutcome) => void;
+  };
+
+  policy.record?.(outcome);
+
+  if (policy.ack) {
+    message.ack();
+  } else {
+    message.nack();
+  }
 };
 
 const getReconcileIntervalMs = (): number => {
@@ -80,28 +156,9 @@ const createPubSubListenerRoutes = (
     const scripts = registerWorkerRedisScripts(redis);
 
     fastify.pubsubSubscriber.onMessage(async (message) => {
-      await handleBuyTicketMessage(message, {
+      const outcome = await handleBuyTicketMessage(message, {
         logger: fastify.log,
         executeBuyTicket: routeDeps.executeBuyTicket,
-        metrics: {
-          onOrderCompleted: (eventId) =>
-            ordersCompletedTotal.inc({ event_id: eventId }),
-          onOrderFailed: (eventId) =>
-            ordersFailedTotal.inc({ event_id: eventId }),
-          onCompensation: (eventId) =>
-            workerCompensationsTotal.inc({ event_id: eventId }),
-          onRedelivery: (eventId) =>
-            workerRedeliveriesTotal.inc({ event_id: eventId }),
-          onIdempotencyHit: (eventId) =>
-            workerIdempotencyHitsTotal.inc({ event_id: eventId }),
-          onLockConflict: (eventId) =>
-            processingLockConflictsTotal.inc({ event_id: eventId }),
-          onE2eLatency: (eventId, durationSeconds, status) =>
-            orderE2eLatencySeconds.observe(
-              { event_id: eventId, status },
-              durationSeconds,
-            ),
-        },
         beginOrderProcessing: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);
           return scripts.beginOrderProcessing(
@@ -139,6 +196,8 @@ const createPubSubListenerRoutes = (
           await fastify.redis.del(keys.processing(payload.orderId));
         },
       });
+
+      applyBuyTicketOutcome(message, outcome);
     });
 
     let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;

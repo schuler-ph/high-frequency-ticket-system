@@ -11,16 +11,17 @@ import type { FailedOrderUpdateResult } from "@repo/db";
 import {
   handleBuyTicketMessage,
   type BuyTicketMessageHandlerDeps,
+  type BuyTicketOutcome,
 } from "../../src/lib/handle-buy-ticket-message.ts";
-import { createPubSubListenerRoutes } from "../../src/routes/pubsub-listener.ts";
+import {
+  applyBuyTicketOutcome,
+  buyTicketOutcomePolicy,
+  createPubSubListenerRoutes,
+} from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
   id: string;
   data: Buffer;
-  acked: boolean;
-  nacked: boolean;
-  ack: () => void;
-  nack: () => void;
 };
 
 const noopLogger: FastifyBaseLogger = {
@@ -36,20 +37,10 @@ const noopLogger: FastifyBaseLogger = {
 } as unknown as FastifyBaseLogger;
 
 function createMessage(payload: string): TestMessage {
-  const message: TestMessage = {
+  return {
     id: "msg-1",
     data: Buffer.from(payload),
-    acked: false,
-    nacked: false,
-    ack() {
-      message.acked = true;
-    },
-    nack() {
-      message.nacked = true;
-    },
   };
-
-  return message;
 }
 
 function createDeps(
@@ -90,7 +81,9 @@ function createValidPayload(): BuyTicketEvent {
 function createRouteTestFastify() {
   const hooks: Record<string, Array<() => Promise<void>>> = {};
   let registeredMessageHandler:
-    | ((message: TestMessage) => Promise<void>)
+    | ((
+        message: TestMessage & { ack: () => void; nack: () => void },
+      ) => Promise<void>)
     | undefined;
   const startCalls: string[] = [];
 
@@ -104,9 +97,18 @@ function createRouteTestFastify() {
       defineCommand: () => undefined,
       scan: async () => ["0", []] as [string, string[]],
       mset: async () => "OK",
+      // registerWorkerRedisScripts castet den Client — die per defineCommand
+      // erzeugten Command-Methoden muss der Fake selbst mitbringen.
+      beginOrderProcessing: async () => "acquired" as const,
+      finalizeOrderProcessing: async () => 1,
+      compensateReservation: async () => 0,
     },
     pubsubSubscriber: {
-      onMessage(handler: (message: TestMessage) => Promise<void>) {
+      onMessage(
+        handler: (
+          message: TestMessage & { ack: () => void; nack: () => void },
+        ) => Promise<void>,
+      ) {
         registeredMessageHandler = handler;
       },
       start() {
@@ -131,6 +133,62 @@ function createRouteTestFastify() {
     startCalls,
   };
 }
+
+// --- Outcome-Policy: die ACK/NACK-Tabelle aus ARCHITECTURE.md als Assertion ---
+
+void test("outcome policy encodes the documented ACK/NACK table exactly", () => {
+  const ackByKind = Object.fromEntries(
+    Object.entries(buyTicketOutcomePolicy).map(([kind, policy]) => [
+      kind,
+      policy.ack,
+    ]),
+  );
+
+  assert.deepEqual(ackByKind, {
+    completed: true,
+    duplicate: true,
+    "lock-conflict": false,
+    "invalid-payload": false,
+    "terminal-failed": true,
+    "compensation-failed": false,
+    "transient-error": false,
+  });
+});
+
+void test("applyBuyTicketOutcome ACKs exactly once for ack-outcomes and NACKs otherwise", () => {
+  const outcomes: BuyTicketOutcome[] = [
+    { kind: "completed", eventId: "e-1", queuedAt: Date.now() },
+    { kind: "duplicate", eventId: "e-1" },
+    { kind: "lock-conflict", eventId: "e-1" },
+    { kind: "invalid-payload" },
+    { kind: "terminal-failed", eventId: "e-1", queuedAt: Date.now() },
+    { kind: "compensation-failed", eventId: "e-1" },
+    { kind: "transient-error", eventId: "e-1" },
+  ];
+
+  for (const outcome of outcomes) {
+    let acked = 0;
+    let nacked = 0;
+
+    applyBuyTicketOutcome(
+      {
+        ack: () => {
+          acked += 1;
+        },
+        nack: () => {
+          nacked += 1;
+        },
+      },
+      outcome,
+    );
+
+    const expectedAck = buyTicketOutcomePolicy[outcome.kind].ack;
+    assert.equal(acked, expectedAck ? 1 : 0, `ack count for ${outcome.kind}`);
+    assert.equal(nacked, expectedAck ? 0 : 1, `nack count for ${outcome.kind}`);
+  }
+});
+
+// --- Listener-Verdrahtung ---
 
 void test("pubsub-listener reconciles ticket availability once before starting the subscriber", async () => {
   const startupOrder: string[] = [];
@@ -169,12 +227,43 @@ void test("pubsub-listener reconciles ticket availability once before starting t
   assert.equal(startCalls.length, 1);
 });
 
-void test("pubsub-listener ACKs successful messages and finalizes atomically", async () => {
+void test("pubsub-listener message handler applies the outcome policy (completed → ACK)", async () => {
+  const { fastify, getRegisteredMessageHandler } = createRouteTestFastify();
+
+  const route = createPubSubListenerRoutes({
+    executeBuyTicket: async () => "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
+    listEventInventorySnapshots: async () => [],
+    markOrderFailed: async () => "updated",
+    reconcileTicketAvailability: async () => undefined,
+  });
+
+  await route(fastify as never, {} as never);
+
+  const handler = getRegisteredMessageHandler();
+  assert.ok(handler);
+
+  let acked = 0;
+  let nacked = 0;
+  await handler({
+    ...createMessage(JSON.stringify(createValidPayload())),
+    ack: () => {
+      acked += 1;
+    },
+    nack: () => {
+      nacked += 1;
+    },
+  });
+
+  assert.equal(acked, 1);
+  assert.equal(nacked, 0);
+});
+
+// --- Handler-Outcomes pro Szenario ---
+
+void test("handler returns completed outcome and finalizes atomically on success", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
   let finalizedEntry: FinalOrderCacheEntry | undefined;
-  let e2eLatencyStatus: string | undefined;
-  let e2eLatencySeconds: number | undefined;
   const ticketId = "2c4fd22c-f5be-4bf7-bb45-5019d92666ab";
 
   const deps = createDeps(
@@ -187,18 +276,16 @@ void test("pubsub-listener ACKs successful messages and finalizes atomically", a
       finalizeOrder: async (_payload, entry) => {
         finalizedEntry = entry;
       },
-      metrics: {
-        onE2eLatency: (_, durationSeconds, status) => {
-          e2eLatencySeconds = durationSeconds;
-          e2eLatencyStatus = status;
-        },
-      },
     },
   );
 
-  await handleBuyTicketMessage(message, deps);
+  const outcome = await handleBuyTicketMessage(message, deps);
 
   assert.equal(executeCalls, 1);
+  assert.equal(outcome.kind, "completed");
+  assert.ok(outcome.kind === "completed");
+  assert.equal(outcome.eventId, "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b");
+  assert.ok(outcome.queuedAt > 0);
   assert.deepEqual(
     finalizedEntry,
     completedOrderCacheEntrySchema.parse({
@@ -208,22 +295,15 @@ void test("pubsub-listener ACKs successful messages and finalizes atomically", a
       ticketId,
     }),
   );
-  assert.equal(message.acked, true);
-  assert.equal(message.nacked, false);
   // finalizeOrder released the lock as part of its atomic script
   assert.equal(deps.lockReleaseCalls, 0);
-  assert.equal(e2eLatencyStatus, "completed");
-  assert.ok(
-    typeof e2eLatencySeconds === "number" && e2eLatencySeconds >= 0,
-    `expected e2eLatencySeconds >= 0, got ${String(e2eLatencySeconds)}`,
-  );
 });
 
-void test("pubsub-listener ACKs and skips duplicate already-processed messages", async () => {
+void test("handler returns duplicate outcome for already-processed messages", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
@@ -238,15 +318,14 @@ void test("pubsub-listener ACKs and skips duplicate already-processed messages",
   );
 
   assert.equal(executeCalls, 0);
-  assert.equal(message.acked, true);
-  assert.equal(message.nacked, false);
+  assert.equal(outcome.kind, "duplicate");
 });
 
-void test("pubsub-listener NACKs when processing lock cannot be acquired", async () => {
+void test("handler returns lock-conflict outcome when the processing lock is held", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let executeCalls = 0;
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
@@ -261,35 +340,31 @@ void test("pubsub-listener NACKs when processing lock cannot be acquired", async
   );
 
   assert.equal(executeCalls, 0);
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "lock-conflict");
 });
 
-void test("pubsub-listener NACKs messages and releases the lock when DB execution fails", async () => {
+void test("handler returns transient-error outcome and releases the lock when DB execution fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
   const deps = createDeps(async () => {
     throw new Error("db unavailable");
   });
 
-  await handleBuyTicketMessage(message, deps);
+  const outcome = await handleBuyTicketMessage(message, deps);
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "transient-error");
   assert.equal(deps.lockReleaseCalls, 1);
 });
 
-void test("pubsub-listener compensates reservation and ACKs on terminal P0001 error", async () => {
+void test("handler compensates reservation and returns terminal-failed outcome on P0001", async () => {
   const payload = createValidPayload();
   const message = createMessage(JSON.stringify(payload));
   let compensationPayload: BuyTicketEvent | undefined;
   let failedOrderPayload: BuyTicketEvent | undefined;
   let receivedFailureReason: string | undefined;
   let finalizedEntry: FinalOrderCacheEntry | undefined;
-  let e2eLatencyStatus: string | undefined;
-  let e2eLatencySeconds: number | undefined;
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
@@ -309,12 +384,6 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
         finalizeOrder: async (_payload, entry) => {
           finalizedEntry = entry;
         },
-        metrics: {
-          onE2eLatency: (_, durationSeconds, status) => {
-            e2eLatencySeconds = durationSeconds;
-            e2eLatencyStatus = status;
-          },
-        },
       },
     ),
   );
@@ -331,20 +400,14 @@ void test("pubsub-listener compensates reservation and ACKs on terminal P0001 er
       failureReason: "event not found",
     }),
   );
-  assert.equal(message.acked, true);
-  assert.equal(message.nacked, false);
-  assert.equal(e2eLatencyStatus, "failed");
-  assert.ok(
-    typeof e2eLatencySeconds === "number" && e2eLatencySeconds >= 0,
-    `expected e2eLatencySeconds >= 0, got ${String(e2eLatencySeconds)}`,
-  );
+  assert.equal(outcome.kind, "terminal-failed");
 });
 
-void test("pubsub-listener ACKs terminal P0001 error when failed order row is missing", async () => {
+void test("handler returns terminal-failed outcome on P0001 when failed order row is missing", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
   let finalizeCalls = 0;
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
@@ -362,11 +425,10 @@ void test("pubsub-listener ACKs terminal P0001 error when failed order row is mi
   );
 
   assert.equal(finalizeCalls, 1);
-  assert.equal(message.acked, true);
-  assert.equal(message.nacked, false);
+  assert.equal(outcome.kind, "terminal-failed");
 });
 
-void test("pubsub-listener NACKs terminal P0001 error when compensation fails", async () => {
+void test("handler returns compensation-failed outcome when compensation fails on P0001", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
   const deps = createDeps(
@@ -379,17 +441,16 @@ void test("pubsub-listener NACKs terminal P0001 error when compensation fails", 
     },
   );
 
-  await handleBuyTicketMessage(message, deps);
+  const outcome = await handleBuyTicketMessage(message, deps);
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "compensation-failed");
   assert.equal(deps.lockReleaseCalls, 1);
 });
 
-void test("pubsub-listener NACKs terminal P0001 error when failed order update fails", async () => {
+void test("handler returns compensation-failed outcome when failed order update fails", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(
       async () => {
@@ -405,25 +466,23 @@ void test("pubsub-listener NACKs terminal P0001 error when failed order update f
     ),
   );
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "compensation-failed");
 });
 
-void test("pubsub-listener NACKs invalid JSON payloads", async () => {
+void test("handler returns invalid-payload outcome for invalid JSON", async () => {
   const message = createMessage("{invalid-json");
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(async () => {
       throw new Error("must not be called");
     }),
   );
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "invalid-payload");
 });
 
-void test("pubsub-listener NACKs payloads that fail schema validation", async () => {
+void test("handler returns invalid-payload outcome for schema violations", async () => {
   const invalidPayload = {
     orderId: "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23",
     firstName: "Max",
@@ -432,7 +491,7 @@ void test("pubsub-listener NACKs payloads that fail schema validation", async ()
   const message = createMessage(JSON.stringify(invalidPayload));
   let executeCalls = 0;
 
-  await handleBuyTicketMessage(
+  const outcome = await handleBuyTicketMessage(
     message,
     createDeps(async () => {
       executeCalls += 1;
@@ -441,11 +500,10 @@ void test("pubsub-listener NACKs payloads that fail schema validation", async ()
   );
 
   assert.equal(executeCalls, 0);
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "invalid-payload");
 });
 
-void test("pubsub-listener NACKs terminal P0001 error when finalize fails", async () => {
+void test("handler returns compensation-failed outcome when finalize fails on P0001", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
   const deps = createDeps(
@@ -461,14 +519,13 @@ void test("pubsub-listener NACKs terminal P0001 error when finalize fails", asyn
     },
   );
 
-  await handleBuyTicketMessage(message, deps);
+  const outcome = await handleBuyTicketMessage(message, deps);
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "compensation-failed");
   assert.equal(deps.lockReleaseCalls, 1);
 });
 
-void test("pubsub-listener NACKs successful messages when finalize fails", async () => {
+void test("handler returns transient-error outcome when finalize fails on the success path", async () => {
   const message = createMessage(JSON.stringify(createValidPayload()));
 
   const deps = createDeps(
@@ -481,9 +538,8 @@ void test("pubsub-listener NACKs successful messages when finalize fails", async
     },
   );
 
-  await handleBuyTicketMessage(message, deps);
+  const outcome = await handleBuyTicketMessage(message, deps);
 
-  assert.equal(message.acked, false);
-  assert.equal(message.nacked, true);
+  assert.equal(outcome.kind, "transient-error");
   assert.equal(deps.lockReleaseCalls, 1);
 });
