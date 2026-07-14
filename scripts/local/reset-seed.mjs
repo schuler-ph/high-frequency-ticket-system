@@ -9,7 +9,7 @@ const POSTGRES_USER = "postgres";
 const DEFAULT_PROJECT_ID = "high-frequency-ticket-system";
 const DEFAULT_PUBSUB_TOPIC = "buy-ticket";
 const DEFAULT_PUBSUB_SUBSCRIPTION = "buy-ticket-worker";
-const DEFAULT_PUBSUB_HOST = "localhost:8085";
+const DEFAULT_PUBSUB_HOST = "localhost:10005";
 const SEED_TIMESTAMP = "2026-01-01T00:00:00Z";
 
 const EVENT_FIXTURES = [

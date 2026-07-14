@@ -22,7 +22,7 @@ docker compose ps
 k6 run load-tests/spike.js
 
 # Mit custom Base-URL oder Event-ID
-BASE_URL=http://localhost:3001 EVENT_ID=freq-2025 k6 run load-tests/spike.js
+BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 k6 run load-tests/spike.js
 ```
 
 ## Lastprofil
@@ -42,5 +42,5 @@ BASE_URL=http://localhost:3001 EVENT_ID=freq-2025 k6 run load-tests/spike.js
 
 | Variable   | Default                 | Beschreibung                 |
 | ---------- | ----------------------- | ---------------------------- |
-| `BASE_URL` | `http://localhost:3001` | API-Basis-URL                |
+| `BASE_URL` | `http://localhost:10002` | API-Basis-URL                |
 | `EVENT_ID` | `freq-2025`             | Event-ID für Ticket-Requests |
