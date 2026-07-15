@@ -23,17 +23,17 @@
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Redeliveries / s",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(worker_idempotency_hits_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(worker_idempotency_hits_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Idempotency Hits / s",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Compensations / s",
           "refId": "C"
         }
@@ -63,17 +63,17 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "showThresholdLabels": false, "showThresholdMarkers": true },
       "targets": [
         {
-          "expr": "sum(increase(worker_redeliveries_total{job=\"worker\"}[5m]))",
+          "expr": "sum(increase(worker_redeliveries_total{job=\"worker\"}[5m])) or vector(0)",
           "legendFormat": "Redeliveries (5m)",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(worker_idempotency_hits_total{job=\"worker\"}[5m]))",
+          "expr": "sum(increase(worker_idempotency_hits_total{job=\"worker\"}[5m])) or vector(0)",
           "legendFormat": "Idempotency Hits (5m)",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[5m]))",
+          "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[5m])) or vector(0)",
           "legendFormat": "Compensations (5m)",
           "refId": "C"
         }
@@ -96,12 +96,12 @@
       "options": { "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
+          "expr": "(sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
           "legendFormat": "Redelivery Rate",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m])) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
+          "expr": "(sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
           "legendFormat": "Compensation Rate",
           "refId": "B"
         }

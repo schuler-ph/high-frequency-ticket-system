@@ -28,12 +28,12 @@
           "refId": "A"
         },
         {
-          "expr": "sum(rate(publish_rollbacks_total{job=\"api\"}[1m]))",
+          "expr": "sum(rate(publish_rollbacks_total{job=\"api\"}[1m])) or vector(0)",
           "legendFormat": "Publish Rollbacks / s",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Worker Compensations / s",
           "refId": "C"
         }
@@ -63,7 +63,7 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
       "targets": [
         {
-          "expr": "sum(increase(publish_rollbacks_total{job=\"api\"}[5m])) / (sum(increase(reservations_created_total{job=\"api\"}[5m])) > 0)",
+          "expr": "(sum(increase(publish_rollbacks_total{job=\"api\"}[5m])) or vector(0)) / (sum(increase(reservations_created_total{job=\"api\"}[5m])) > 0)",
           "legendFormat": "Rollback Rate (5m)",
           "refId": "A"
         }
@@ -93,7 +93,7 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
       "targets": [
         {
-          "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[5m])) / (sum(increase(reservations_created_total{job=\"api\"}[5m])) > 0)",
+          "expr": "(sum(increase(worker_compensations_total{job=\"worker\"}[5m])) or vector(0)) / (sum(increase(reservations_created_total{job=\"api\"}[5m])) > 0)",
           "legendFormat": "Compensation Rate (5m)",
           "refId": "A"
         }

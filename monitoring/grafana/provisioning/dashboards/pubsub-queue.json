@@ -42,7 +42,7 @@
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "sum(increase(orders_accepted_total{job=\"api\"}[2m])) - sum(increase(orders_completed_total{job=\"worker\"}[2m])) - sum(increase(orders_failed_total{job=\"worker\"}[2m]))",
+          "expr": "(sum(increase(orders_accepted_total{job=\"api\"}[2m])) or vector(0)) - (sum(increase(orders_completed_total{job=\"worker\"}[2m])) or vector(0)) - (sum(increase(orders_failed_total{job=\"worker\"}[2m])) or vector(0))",
           "legendFormat": "Queue Depth (approx, 2m window)",
           "refId": "A"
         },
@@ -52,7 +52,7 @@
           "refId": "B"
         },
         {
-          "expr": "sum(rate(orders_completed_total{job=\"worker\"}[1m])) + sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "expr": "(sum(rate(orders_completed_total{job=\"worker\"}[1m])) or vector(0)) + (sum(rate(orders_failed_total{job=\"worker\"}[1m])) or vector(0))",
           "legendFormat": "Dequeue Rate (completed+failed / s)",
           "refId": "C"
         }
@@ -80,12 +80,12 @@
           "refId": "A"
         },
         {
-          "expr": "sum(rate(orders_completed_total{job=\"worker\"}[1m])) + sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "expr": "(sum(rate(orders_completed_total{job=\"worker\"}[1m])) or vector(0)) + (sum(rate(orders_failed_total{job=\"worker\"}[1m])) or vector(0))",
           "legendFormat": "Consumer Rate (Worker finished)",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Redelivery Rate (NACK backlog)",
           "refId": "C"
         }

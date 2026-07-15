@@ -33,7 +33,7 @@
           "refId": "B"
         },
         {
-          "expr": "sum(rate(orders_failed_total{job=\"worker\"}[1m]))",
+          "expr": "sum(rate(orders_failed_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "failed / s",
           "refId": "C"
         }
@@ -57,7 +57,7 @@
       "options": { "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "sum(increase(orders_accepted_total{job=\"api\"}[5m])) - sum(increase(orders_completed_total{job=\"worker\"}[5m])) - sum(increase(orders_failed_total{job=\"worker\"}[5m]))",
+          "expr": "(sum(increase(orders_accepted_total{job=\"api\"}[5m])) or vector(0)) - (sum(increase(orders_completed_total{job=\"worker\"}[5m])) or vector(0)) - (sum(increase(orders_failed_total{job=\"worker\"}[5m])) or vector(0))",
           "legendFormat": "pending (approx)",
           "refId": "A"
         }
@@ -121,7 +121,7 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
       "targets": [
         {
-          "expr": "sum(increase(orders_failed_total{job=\"worker\"}[5m])) / (sum(increase(orders_accepted_total{job=\"api\"}[5m])) > 0)",
+          "expr": "(sum(increase(orders_failed_total{job=\"worker\"}[5m])) or vector(0)) / (sum(increase(orders_accepted_total{job=\"api\"}[5m])) > 0)",
           "legendFormat": "Failure Rate",
           "refId": "A"
         }
