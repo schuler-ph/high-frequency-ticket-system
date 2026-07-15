@@ -109,6 +109,8 @@ export type OrderStatusNotFoundResponse = z.infer<
 export const ticketAvailabilityResponseSchema = z.object({
   available: z.number().int().nullable(),
   total: z.number().int().nullable(),
+  // Unix-Ms-Timestamp, ab dem der Verkauf startet. `null` => sofort offen.
+  opensAt: z.number().int().nullable(),
 });
 
 export type TicketAvailabilityResponse = z.infer<

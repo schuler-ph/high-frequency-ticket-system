@@ -7,6 +7,8 @@ import { env } from "../lib/env";
 interface AvailabilityState {
   available: number | null;
   total: number | null;
+  // Unix-Ms-Timestamp des Verkaufsstarts; `null` => sofort offen.
+  opensAt: number | null;
   loading: boolean;
   error: string | null;
 }
@@ -15,6 +17,7 @@ export function useTicketAvailability(intervalMs = 3000): AvailabilityState {
   const [state, setState] = useState<AvailabilityState>({
     available: null,
     total: null,
+    opensAt: null,
     loading: true,
     error: null,
   });
@@ -27,6 +30,7 @@ export function useTicketAvailability(intervalMs = 3000): AvailabilityState {
       setState({
         available: data.available,
         total: data.total,
+        opensAt: data.opensAt,
         loading: false,
         error: null,
       });

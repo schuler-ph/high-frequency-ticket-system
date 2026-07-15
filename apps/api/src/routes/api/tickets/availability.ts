@@ -39,14 +39,19 @@ const ticketAvailabilityRoute: FastifyPluginAsyncZod = async (
       const keys = ticketRedisKeys(req.params.eventId);
 
       // API liest Ticket-Verfügbarkeiten ausschließlich aus dem Redis-Cache
-      const [totalStr, availableStr] = await fastify.redis.mget(
+      const [totalStr, availableStr, opensAtStr] = await fastify.redis.mget(
         keys.total,
         keys.available,
+        keys.opensAt,
       );
+
+      // Fehlt der Key oder ist er "0", gilt das Event als sofort offen (null).
+      const opensAt = parseRedisCount(opensAtStr);
 
       return res.status(200).send({
         available: parseRedisCount(availableStr),
         total: parseRedisCount(totalStr),
+        opensAt: opensAt && opensAt > 0 ? opensAt : null,
       });
     },
   });

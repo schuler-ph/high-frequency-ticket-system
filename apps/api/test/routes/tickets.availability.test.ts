@@ -9,7 +9,9 @@ import { ticketAvailabilityResponseSchema } from "@repo/types/tickets";
 import ticketAvailabilityRoute from "../../src/routes/api/tickets/availability.ts";
 
 type RedisMock = {
-  mget: (...keys: string[]) => Promise<[string | null, string | null]>;
+  mget: (
+    ...keys: string[]
+  ) => Promise<[string | null, string | null, string | null]>;
 };
 
 const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
@@ -21,9 +23,10 @@ void test("GET /:eventId/availability returns numeric availability counts", asyn
       assert.deepEqual(keys, [
         `tickets:event:${eventId}:total`,
         `tickets:event:${eventId}:available`,
+        `tickets:event:${eventId}:opensAt`,
       ]);
 
-      return ["1000000", "843291"];
+      return ["1000000", "843291", "1780000000000"];
     },
   };
 
@@ -48,6 +51,7 @@ void test("GET /:eventId/availability returns numeric availability counts", asyn
     assert.deepEqual(body, {
       available: 843_291,
       total: 1_000_000,
+      opensAt: 1_780_000_000_000,
     });
   } finally {
     await fastify.close();
@@ -61,9 +65,10 @@ void test("GET /:eventId/availability preserves missing counters as null", async
       assert.deepEqual(keys, [
         `tickets:event:${eventId}:total`,
         `tickets:event:${eventId}:available`,
+        `tickets:event:${eventId}:opensAt`,
       ]);
 
-      return [null, null];
+      return [null, null, null];
     },
   };
 
@@ -83,6 +88,38 @@ void test("GET /:eventId/availability preserves missing counters as null", async
     assert.deepEqual(JSON.parse(response.body), {
       available: null,
       total: null,
+      opensAt: null,
+    });
+  } finally {
+    await fastify.close();
+  }
+});
+
+void test('GET /:eventId/availability treats opensAt "0" as immediately open (null)', async () => {
+  const fastify = Fastify({ logger: false });
+  const redis: RedisMock = {
+    async mget() {
+      return ["1000000", "1000000", "0"];
+    },
+  };
+
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.decorate("redis", redis);
+  await fastify.register(ticketAvailabilityRoute);
+  await fastify.ready();
+
+  try {
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/${eventId}/availability`,
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(JSON.parse(response.body), {
+      available: 1_000_000,
+      total: 1_000_000,
+      opensAt: null,
     });
   } finally {
     await fastify.close();
