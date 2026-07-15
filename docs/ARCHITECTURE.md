@@ -57,20 +57,21 @@ flowchart TD
 
 ## Standardports
 
-Alle lokalen Services (Docker Compose + native `pnpm dev`-Prozesse) nutzen einen zusammenhaengenden Port-Block `10001`–`10008`, um Kollisionen mit anderen lokalen Projekten zu vermeiden und die Zuordnung auf einen Blick lesbar zu halten. Quelle der Wahrheit fuer alle Konfigurationsdateien (`docker-compose.yml`, `.env`, `.env.test`, CI, k6, Debug-Skripte).
+Alle lokalen Services (Docker Compose + native `pnpm dev`-Prozesse) nutzen einen zusammenhaengenden Port-Block `10001`–`10009`, um Kollisionen mit anderen lokalen Projekten zu vermeiden und die Zuordnung auf einen Blick lesbar zu halten. Quelle der Wahrheit fuer alle Konfigurationsdateien (`docker-compose.yml`, `.env`, `.env.test`, CI, k6, Debug-Skripte).
 
-| Service          | Host-Port | Container-/Prozess-Port   | Betrieben von                     |
-| ---------------- | --------- | ------------------------- | --------------------------------- |
-| Web (Next.js)    | `10001`   | `10001` (nativer Prozess) | `pnpm --filter web dev`           |
-| API (Fastify)    | `10002`   | `10002` (nativer Prozess) | `pnpm --filter api dev`           |
-| Worker (Fastify) | `10003`   | `10003` (nativer Prozess) | `pnpm --filter worker dev`        |
-| Redis            | `10004`   | `6379`                    | Docker Compose (`hts-redis`)      |
-| Pub/Sub Emulator | `10005`   | `8085`                    | Docker Compose (`hts-pubsub`)     |
-| PostgreSQL       | `10006`   | `5432`                    | Docker Compose (`hts-postgres`)   |
-| Prometheus       | `10007`   | `9090`                    | Docker Compose (`hts-prometheus`) |
-| Grafana          | `10008`   | `3000`                    | Docker Compose (`hts-grafana`)    |
+| Service          | Host-Port | Container-/Prozess-Port   | Betrieben von                          |
+| ---------------- | --------- | ------------------------- | -------------------------------------- |
+| Web (Next.js)    | `10001`   | `10001` (nativer Prozess) | `pnpm --filter web dev`                |
+| API (Fastify)    | `10002`   | `10002` (nativer Prozess) | `pnpm --filter api dev`                |
+| Worker (Fastify) | `10003`   | `10003` (nativer Prozess) | `pnpm --filter worker dev`             |
+| Redis            | `10004`   | `6379`                    | Docker Compose (`hts-redis`)           |
+| Pub/Sub Emulator | `10005`   | `8085`                    | Docker Compose (`hts-pubsub`)          |
+| PostgreSQL       | `10006`   | `5432`                    | Docker Compose (`hts-postgres`)        |
+| Prometheus       | `10007`   | `9090`                    | Docker Compose (`hts-prometheus`)      |
+| Grafana          | `10008`   | `3000`                    | Docker Compose (`hts-grafana`)         |
+| Redis Exporter   | `10009`   | `9121`                    | Docker Compose (`hts-redis-exporter`)  |
 
-Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana → Prometheus): Es gilt immer der **Container-Port** (rechte Spalte), nicht der Host-Port. Der Grafana-Datasource-Provisioning-Eintrag (`monitoring/grafana/provisioning/datasources/prometheus.yml`) zeigt deshalb auf `http://prometheus:9090`, waehrend Prometheus selbst die App-Metriken von API/Worker ueber `host.docker.internal:10002` bzw. `host.docker.internal:10003` scraped (Host-Ports, da API/Worker als native Prozesse ausserhalb von Docker laufen).
+Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana → Prometheus): Es gilt immer der **Container-Port** (rechte Spalte), nicht der Host-Port. Der Grafana-Datasource-Provisioning-Eintrag (`monitoring/grafana/provisioning/datasources/prometheus.yml`) zeigt deshalb auf `http://prometheus:9090`, waehrend Prometheus selbst die App-Metriken von API/Worker ueber `host.docker.internal:10002` bzw. `host.docker.internal:10003` scraped (Host-Ports, da API/Worker als native Prozesse ausserhalb von Docker laufen). Den `redis_exporter` scraped Prometheus dagegen container-intern per Service-Name (`redis_exporter:9121`), da beide im selben Compose-Netzwerk laufen; der Host-Port `10009` dient nur dem manuellen Debugging.
 
 ## Datenfluss: Ticket-Kauf (Happy Path)
 
@@ -267,12 +268,13 @@ flowchart LR
 
 ### Grafana-Dashboards (geplant)
 
-| Dashboard       | Metriken                                      | Quelle                   |
-| --------------- | --------------------------------------------- | ------------------------ |
-| API Performance | RPS, Latenz (p50/p95/p99), Error Rate         | `prom-client` in Fastify |
-| Redis Cache     | Hit/Miss Ratio, Key Count, Memory Usage       | Redis Exporter           |
-| Message Queue   | Queue Depth, Processing Rate, Consumer Lag    | Pub/Sub Metrics          |
-| k6 Lasttest     | Virtual Users, Request Duration, Failure Rate | k6 → Prometheus          |
+| Dashboard       | Metriken                                                       | Quelle                            |
+| --------------- | -------------------------------------------------------------- | --------------------------------- |
+| API Performance | RPS, Latenz (p50/p95/p99), Error Rate                          | `prom-client` in Fastify          |
+| Redis Cache     | Hit/Miss Ratio, Key Count, Memory Usage                        | Redis Exporter (`hts-redis-exporter`) |
+| DB & Runtime    | Pool-Connections/-Wait, Query-Latenz, Lock-Waits, Event-Loop-Lag, CPU | `prom-client` in Worker + Node-Default-Metriken |
+| Message Queue   | Queue Depth, Processing Rate, Consumer Lag                     | Pub/Sub Metrics                   |
+| k6 Lasttest     | Virtual Users, Request Duration, Failure Rate                  | k6 → Prometheus                   |
 
 ## Workspace-Struktur
 

@@ -5,7 +5,9 @@ import * as schema from "./schema.ts";
 
 // Expliziter Pool statt Default (10 Connections): Groesse ist auf die
 // Pub/Sub-Flow-Control des Workers abgestimmt (PUBSUB_FLOW_CONTROL_MAX_MESSAGES).
-const pool = new pg.Pool({
+// Exportiert, damit der Worker Pool-Saettigung (`totalCount`/`idleCount`/
+// `waitingCount`) als Prometheus-Gauge beobachten kann (ADR-026).
+export const pool = new pg.Pool({
   connectionString: env.DATABASE_URL,
   max: env.DATABASE_POOL_MAX,
 });

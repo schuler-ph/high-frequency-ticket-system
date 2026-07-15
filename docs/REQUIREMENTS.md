@@ -54,6 +54,8 @@ Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.
 ## Observability & Monitoring
 
 - **Prometheus:** Sammelt Metriken von der App. Scraped alle 5 Sekunden den `/metrics`-Endpunkt der Fastify-Server und speichert Zeitreihendaten (RPS, Latenz-Histogramme, Error-Counter). Läuft lokal als Docker-Container.
+- **redis_exporter:** Exportiert Redis-INFO-Metriken (Hit/Miss-Ratio, Key-Count, Memory) als Prometheus-Serien. Läuft als Docker-Container (`hts-redis-exporter`, Host-Port `10009`) und wird von Prometheus container-intern gescraped.
+- **DB- & Runtime-Metriken:** Der Worker exponiert PostgreSQL-Bottleneck-Signale (`db_pool_connections` inkl. Pool-Wait, `db_query_duration_seconds`, `db_locks_waiting`) via `prom-client`; Prozess-CPU und Event-Loop-Lag kommen aus den `prom-client`-Default-Metriken. Dienen der belastbaren Engpass-Zuordnung im Lasttest (Dashboard „DB & Runtime“).
 - **Grafana:** Visualisierungs-Tool, das sich mit Prometheus verbindet und Live-Dashboards baut (Linien-Charts, Heatmaps, Gauges). Die Dashboards werden als JSON im Repo versioniert.
 - **k6:** Open-Source Lasttest-Tool von Grafana Labs. Simuliert tausende parallele User via JavaScript-Skripte. Exportiert Ergebnisse direkt an Prometheus → Live-Visualisierung in Grafana während des Tests.
 - **README-Beweise:** Screenshots der Grafana-Dashboards unter Last als Nachweis der Skalierbarkeit.
