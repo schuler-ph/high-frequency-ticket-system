@@ -10,15 +10,30 @@ const DEFAULT_PROJECT_ID = "high-frequency-ticket-system";
 const DEFAULT_PUBSUB_TOPIC = "buy-ticket";
 const DEFAULT_PUBSUB_SUBSCRIPTION = "buy-ticket-worker";
 const DEFAULT_PUBSUB_HOST = "localhost:10005";
+const DEFAULT_DATABASE_URL =
+  "postgres://postgres:postgres@localhost:10006/high_frequency_tickets";
 const SEED_TIMESTAMP = "2026-01-01T00:00:00Z";
+
+// Kapazitaet des Haupt-Events. Default 1.000.000 (Lastprofil laut ARCHITECTURE.md
+// und ADR-025). Fuer schnelle Smoke-Tests der Sold-Out-Transition (z.B. den
+// reaktiven SIGINT-Stop in run-spike.mjs oder eine CI-Smoke-Profile) kann eine
+// kleine Kapazitaet via `SEED_CAPACITY` gesetzt werden, ohne das Fixture zu
+// veraendern.
+const SEED_CAPACITY = Number(process.env.SEED_CAPACITY ?? 1_000_000);
+
+if (!Number.isInteger(SEED_CAPACITY) || SEED_CAPACITY <= 0) {
+  throw new Error(
+    `SEED_CAPACITY must be a positive integer, got ${JSON.stringify(process.env.SEED_CAPACITY)}`,
+  );
+}
 
 const EVENT_FIXTURES = [
   {
     id: "00000000-0000-4000-8000-000000000000",
     name: "Frequency Festival 20XX Main Sale",
-    totalCapacity: 1_000_000,
+    totalCapacity: SEED_CAPACITY,
     soldCount: 0,
-    available: 1_000_000,
+    available: SEED_CAPACITY,
   },
 ];
 
@@ -38,14 +53,22 @@ const subscriptionName =
   process.env.PUBSUB_SUBSCRIPTION_BUY_TICKET ?? DEFAULT_PUBSUB_SUBSCRIPTION;
 const pubsubHost = process.env.PUBSUB_EMULATOR_HOST ?? DEFAULT_PUBSUB_HOST;
 
+// Optionales Sale-Unlock-Gate fuer Lasttests: > 0 => Reservierungen sind erst
+// ab `Date.now() + N Sekunden` erlaubt (Redis-Key `opensAt`, siehe
+// packages/types/src/redis-keys.ts). 0/unset => Event ist sofort offen
+// (bestehendes Default-Verhalten fuer normalen Dev-/Testbetrieb).
+const SALE_OPENS_IN_SECONDS = Number(process.env.SALE_OPENS_IN_SECONDS ?? 0);
+const opensAt =
+  SALE_OPENS_IN_SECONDS > 0 ? Date.now() + SALE_OPENS_IN_SECONDS * 1000 : 0;
+
 const pubsubBaseUrl = pubsubHost.startsWith("http://")
   ? pubsubHost
   : `http://${pubsubHost}`;
 
 const quoteSql = (value) => `'${String(value).replace(/'/g, "''")}'`;
 
-const runCommand = (command) => {
-  execSync(command, { stdio: "inherit" });
+const runCommand = (command, env = {}) => {
+  execSync(command, { env: { ...process.env, ...env }, stdio: "inherit" });
 };
 
 const checkContainers = () => {
@@ -70,7 +93,9 @@ const checkContainers = () => {
 
 const resetPostgres = () => {
   console.log("[local:reset-seed] Applying DB schema via drizzle push...");
-  runCommand("pnpm --filter @repo/db run db:push");
+  runCommand("pnpm --filter @repo/db run db:push", {
+    DATABASE_URL: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+  });
 
   const eventValues = EVENT_FIXTURES.map(
     (event) =>
@@ -136,6 +161,8 @@ const resetRedis = () => {
     String(event.totalCapacity),
     `tickets:event:${event.id}:available`,
     String(event.available),
+    `tickets:event:${event.id}:opensAt`,
+    String(opensAt),
   ]);
 
   execFileSync(
@@ -145,6 +172,16 @@ const resetRedis = () => {
       stdio: "inherit",
     },
   );
+
+  if (opensAt > 0) {
+    console.log(
+      `[local:reset-seed] Sale unlock gate active: opens at ${new Date(opensAt).toISOString()} (in ${SALE_OPENS_IN_SECONDS}s)`,
+    );
+  } else {
+    console.log(
+      "[local:reset-seed] Sale unlock gate inactive: events are open immediately.",
+    );
+  }
 };
 
 const pubSubRequest = async (method, path, expectedStatuses, body) => {

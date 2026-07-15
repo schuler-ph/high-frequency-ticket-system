@@ -2,15 +2,23 @@ import type { RedisClient } from "@repo/types/redis-client";
 
 /**
  * Reserviert ein Ticket atomar in einem einzigen Redis-Roundtrip:
- * Check `available > 0` + DECR + Reservation-Key + Pending-Order-Key.
- * Liefert den neuen `available`-Stand oder -1 bei Sold-Out (dann wurde
- * nichts geschrieben).
+ * Check Sale-Unlock (`opensAt`) + Check `available > 0` + DECR +
+ * Reservation-Key + Pending-Order-Key. Liefert den neuen `available`-Stand,
+ * -1 bei Sold-Out, oder -2 wenn der Verkauf noch nicht freigegeben ist
+ * (in beiden Fehlerfaellen wurde nichts geschrieben).
  *
- * KEYS[1] = available, KEYS[2] = reservationKey, KEYS[3] = orderCacheKey
+ * KEYS[1] = available, KEYS[2] = reservationKey, KEYS[3] = orderCacheKey,
+ * KEYS[4] = opensAtKey
  * ARGV[1] = orderId, ARGV[2] = reservationTtlSeconds,
- * ARGV[3] = orderCacheValue, ARGV[4] = pendingOrderTtlSeconds
+ * ARGV[3] = orderCacheValue, ARGV[4] = pendingOrderTtlSeconds,
+ * ARGV[5] = nowMs
  */
 const RESERVE_TICKET_SCRIPT = `
+local opensAt = tonumber(redis.call("GET", KEYS[4]) or "0")
+if opensAt > 0 and tonumber(ARGV[5]) < opensAt then
+  return -2
+end
+
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
 if current <= 0 then
   return -1
@@ -43,10 +51,12 @@ export type TicketRedisScripts = {
     availableKey: string,
     reservationKey: string,
     orderCacheKey: string,
+    opensAtKey: string,
     orderId: string,
     reservationTtlSeconds: number,
     orderCacheValue: string,
     pendingOrderTtlSeconds: number,
+    nowMs: number,
   ): Promise<number>;
   releaseTicketReservation(
     reservationKey: string,
@@ -65,7 +75,7 @@ export const registerTicketRedisScripts = (
   client: Pick<RedisClient, "defineCommand">,
 ): TicketRedisScripts => {
   client.defineCommand("reserveTicket", {
-    numberOfKeys: 3,
+    numberOfKeys: 4,
     lua: RESERVE_TICKET_SCRIPT,
   });
   client.defineCommand("releaseTicketReservation", {

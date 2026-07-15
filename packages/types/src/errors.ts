@@ -57,6 +57,13 @@ export class ConflictError extends AppError {
   }
 }
 
+// 425 Too Early (RFC 8470)
+export class TooEarlyError extends AppError {
+  constructor(message: string = "Too Early") {
+    super(message, 425);
+  }
+}
+
 // 500 Internal Server Error
 export class InternalServerError extends AppError {
   constructor(message: string = "Internal Server Error") {

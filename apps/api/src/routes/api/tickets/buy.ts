@@ -9,7 +9,7 @@ import {
   type BuyTicketResponse,
   type PendingOrderCacheEntry,
 } from "@repo/types/tickets";
-import { ConflictError } from "@repo/types/errors";
+import { ConflictError, TooEarlyError } from "@repo/types/errors";
 import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
@@ -63,16 +63,23 @@ export async function queueBuyTicketPurchase({
     eventId,
     status: "pending",
   } satisfies PendingOrderCacheEntry);
+  const now = Date.now();
 
   const availableAfterReserve = await redis.reserveTicket(
     keys.available,
     reservationKey,
     orderCacheKey,
+    keys.opensAt,
     orderId,
     reservationTtlSeconds,
     orderCacheValue,
     pendingOrderTtlSeconds,
+    now,
   );
+
+  if (availableAfterReserve === -2) {
+    throw new TooEarlyError("Tickets are not yet on sale");
+  }
 
   if (availableAfterReserve < 0) {
     throw new ConflictError("Tickets sold out");
@@ -84,7 +91,7 @@ export async function queueBuyTicketPurchase({
     await pubsubPublisher.publishBuyTicket({
       orderId,
       eventId,
-      queuedAt: Date.now(),
+      queuedAt: now,
       ...body,
     });
   } catch (error) {

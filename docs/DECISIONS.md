@@ -31,6 +31,8 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                    |
 | ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Fertig           | Phase 3.5: zyklischer Reconcile mit self-scheduling setTimeout, Betriebsmodi via Env-Vars, sauber via Fastify onClose stoppbar |
 | ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge                    |
+| ADR-024 Sale-Unlock-Gate (425 Too Early)                   | Fertig           | Phase 4: `opensAt`-Redis-Key im atomaren Reserve-Script, TooEarlyError, Seed-Skript-Unterstuetzung                             |
+| ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                |
 
 ### Status-Definitionen
 
@@ -519,3 +521,57 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/lib/handle-buy-ticket-message.ts`
   - `apps/worker/src/lib/reconcile-ticket-availability.ts`
   - `apps/worker/src/lib/metrics.ts`
+
+---
+
+## ADR-024: Sale-Unlock-Gate (425 Too Early)
+
+- **Datum:** 2026-07-15
+- **Kontext:** Der lokale Lasttest sollte einen echten Ticket-Sale nachbilden — Nutzer stroemen vor Verkaufsstart auf die Seite (Warm-Up/Pre-Sale-Hype), koennen aber noch nichts kaufen. Bisher war der Verkauf ab `t=0` offen; es gab keinen Mechanismus, Kaufversuche vor einem definierten Zeitpunkt abzulehnen.
+- **Entscheidung:** Ein neuer Redis-Key `tickets:event:{eventId}:opensAt` (Unix-Ms-Timestamp) wird als **erster Check** im bestehenden atomaren Reserve-Lua-Script gepruft (`apps/api/src/lib/redis-scripts.ts`). Ist `opensAt > 0` und liegt der uebergebene `nowMs` davor, bricht das Script sofort ohne jeden Schreibzugriff ab und liefert den Sentinel `-2`. Die API mappt das auf eine neue `TooEarlyError` (HTTP 425 Too Early, RFC 8470). Fehlt der Key oder ist er `0`, gilt das Event weiterhin als sofort offen (Rueckwaertskompatibilitaet fuer alle bestehenden Flows und Tests).
+- **Begruendung:**
+  - **Ein Roundtrip, keine Race Condition:** Der Check laeuft im selben atomaren Script wie Sold-Out-Check + Reservierung. Eine separate Pruefung davor (z.B. ein eigener Redis-`GET` oder ein DB-Read) wuerde entweder einen zusaetzlichen Roundtrip auf dem Hot-Path kosten oder ein TOCTOU-Fenster zwischen Check und Reservierung oeffnen.
+  - **Redis-only, passend zur bestehenden Architektur:** Die Gate-Entscheidung ist reiner Lesezugriff auf einen Redis-Key, kein DB-Write und kein DB-Read — die Regel "API liest Verfuegbarkeiten ausschliesslich aus Redis" (ADR-005) bleibt vollstaendig intakt, es entsteht keine neue Abhaengigkeit.
+  - **425 statt 409/403:** RFC 8470 beschreibt 425 Too Early exakt fuer "Server lehnt eine Anfrage ab, die er (noch) nicht verarbeiten will, der Client soll es spaeter erneut versuchen" — semantisch praeziser als eine Wiederverwendung von 409 (Conflict, bereits fuer Sold-Out belegt) oder 403 (Forbidden, impliziert keine zeitliche Bedingung).
+  - **`nowMs` statt Redis-Serverzeit:** Der Zeitvergleich nutzt den vom Aufrufer uebergebenen `Date.now()`-Wert (`ARGV[5]`) statt `redis.call("TIME")` im Script, um von Redis' Replikationsverhalten fuer Lua-Scripte unabhaengig zu bleiben und denselben Zeitstempel auch fuer `queuedAt` im Pub/Sub-Payload wiederzuverwenden (ein `Date.now()`-Aufruf pro Request statt zwei).
+- **Bekannte Einschraenkung (Cloud):** Da `nowMs` aus der Uhr des jeweiligen API-Prozesses stammt, oeffnet sich das Gate bei mehreren API-Replicas exakt so praezise wie deren Uhren synchron sind — bei Uhr-Drift zwischen Pods faellt der Verkaufsstart pro Pod um die Drift-Spanne unterschiedlich. Lokal (ein Prozess) irrelevant; in GKE ist NTP-Sync (Standard) fuer die typischerweise geforderte Sekunden-Genauigkeit ausreichend. Ist sub-sekunden-exakter, prozessuebergreifend identischer Unlock noetig, muesste stattdessen `redis.call("TIME")` (eine autoritative Uhr) genutzt werden — mit dem oben genannten Trade-off.
+- **Alternativen:**
+  - Separater Redis-`GET` vor dem Reserve-Script: einfacher zu lesen, aber ein zusaetzlicher Roundtrip und ein Race-Fenster zwischen Check und `DECR`.
+  - Gate in PostgreSQL (`events.opens_at`-Spalte, Check in `buy_ticket`): wuerde einen DB-Read in den API-Hot-Path zwingen — widerspricht ADR-005.
+  - HTTP 403 Forbidden statt 425: wiederverwendet eine bestehende Error-Klasse ohne neue Abstraktion, aber verliert die "retry later" Semantik, die 425 explizit transportiert.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts` (`opensAt`)
+  - `packages/types/src/errors.ts` (`TooEarlyError`)
+  - `apps/api/src/lib/redis-scripts.ts`
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/api/test/routes/tickets.buy.test.ts`
+  - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
+  - `docs/ARCHITECTURE.md` (Happy-Path, Redis-Key-Lifecycle)
+
+---
+
+## ADR-025: Reaktive Sold-Out-Orchestrierung im lokalen Lasttest
+
+- **Datum:** 2026-07-15
+- **Kontext:** Der bisherige `load-tests/spike.js` fuhr ein rein zeitbasiertes RPS-Profil ueber sechs feste Phasen. Da der Verkauf ab `t=0` offen war und die Phasenuebergaenge unabhaengig vom tatsaechlichen `available`-Stand liefen, verkaufte sich das 1M-Ticket-Kontingent je nach lokal erreichtem Durchsatz zu einem zufaelligen Zeitpunkt aus — haeufig mitten in einer Hoch-RPS-Phase statt am Uebergang zu einer bewusst niedrigeren "Sold Out"-Phase, wie es das urspruengliche Lastprofil (siehe ARCHITECTURE.md) vorsah.
+- **Entscheidung:**
+  1. Der Lasttest wird in zwei k6-Scripte gesplittet: `load-tests/spike-phase-a.js` (Warm-Up 1.000 RPS flat/45s → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS mit 15-min-Sicherheitsnetz) und `load-tests/spike-phase-b.js` (Cool-Down 1.000 RPS flat/1min). Gemeinsame Iterations-Logik liegt in `load-tests/lib/scenario-helpers.js`.
+  2. Ein neues Node-Orchestrator-Script `scripts/local/run-spike.mjs` (analog zu `reset-seed.mjs`) fuehrt den Ablauf: `pnpm seed` mit `SALE_OPENS_IN_SECONDS` → Phase A als Kindprozess starten → `GET /api/tickets/:eventId/availability` alle 3s pollen → bei 3 aufeinanderfolgenden `available: 0`-Antworten `SIGINT` an den Phase-A-Prozess senden (k6s eingebauter graceful Stop) → Phase B starten.
+  3. `pnpm spike` ruft direkt den Orchestrator auf.
+- **Begruendung:**
+  - k6s `ramping-arrival-rate`-Executor kennt nur zeitbasierte Stages; es gibt keinen eingebauten Mechanismus, eine Stage anhand einer Laufzeit-Bedingung (hier: Sold-Out) vorzeitig zu beenden. Ein externer Prozess, der den ohnehin vorhandenen Availability-Endpoint pollt und k6 per POSIX-Signal stoppt, ist der pragmatischste Weg, echte Reaktivitaet zu erreichen, ohne k6 selbst zu patchen oder auf den (fuer diesen Zweck ungeeigneten) `externally-controlled`-Executor auszuweichen, der nur VU-Anzahl, nicht Arrival-Rate steuert.
+  - Drei aufeinanderfolgende Null-Polls statt eines einzelnen verhindern, dass ein kurzzeitiger Rueckgang (z. B. durch den periodischen Reconcile-Loop) faelschlich als Sold-Out interpretiert wird.
+  - Das 15-Minuten-Sicherheitsnetz in Phase A stellt sicher, dass ein manueller `k6 run load-tests/spike-phase-a.js` (ohne Orchestrator) trotzdem terminiert.
+  - Die Aufteilung in zwei Dateien mit gemeinsamen Helpers vermeidet Code-Duplikation und haelt jede Phase als eigenstaendig lauffaehiges k6-Script fuer manuelles Debugging nutzbar.
+- **Alternativen:**
+  - Einzelnes k6-Script mit grosszuegig bemessener fester "Sustain"-Dauer: kein neuer Code noetig, aber der Uebergang zu Cool-Down bleibt ein Timer-Ratespiel statt eines echten Signals — genau das Problem, das geloest werden sollte.
+  - k6 `externally-controlled`-Executor mit externem Steuerprozess: technisch moeglich, aber der Executor ist auf VU-Skalierung ausgelegt, nicht auf Arrival-Rate, und ist in aktuellen k6-Versionen als Legacy markiert.
+  - Kapazitaet lokal drastisch reduzieren (z. B. 5.000 statt 1.000.000 Tickets), um Sold-Out sicher in eine feste Zeitspanne zu zwingen: veraendert das Lastbild und die Realitaetsnaehe des Tests unnoetig; per Benutzerentscheidung wurde die Kapazitaet bei 1.000.000 belassen.
+- **Umsetzung:**
+  - `load-tests/lib/scenario-helpers.js`
+  - `load-tests/spike-phase-a.js`
+  - `load-tests/spike-phase-b.js`
+  - `scripts/local/run-spike.mjs`
+  - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
+  - `package.json` (`spike`-Skript)
+  - `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `load-tests/README.md`

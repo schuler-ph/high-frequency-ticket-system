@@ -54,10 +54,12 @@ function createInMemoryRedis(
       availableKey,
       reservationKey,
       orderCacheKey,
+      _opensAtKey,
       orderId,
       _reservationTtlSeconds,
       orderCacheValue,
       _pendingOrderTtlSeconds,
+      _nowMs,
     ) {
       const current = Number(store.get(availableKey) ?? "0");
 

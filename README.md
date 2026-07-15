@@ -310,7 +310,7 @@ Das System ist fuer Lastspitzen im Ticket-Sale konzipiert und auf einen realisti
 Metriken und Dashboards:
 
 - API Throughput und Latenz (p50/p95/p99)
-- Error Rate (inkl. `409 Sold Out`)
+- Error Rate (inkl. `409 Sold Out` und `425 Too Early` vor Sale-Unlock)
 - Queue-Verhalten (Backpressure/Throughput)
 - Redis-Counter-Verhalten unter Parallelitaet
 

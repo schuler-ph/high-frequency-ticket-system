@@ -38,18 +38,18 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 
 ## Load-Test Szenario (k6)
 
-Das k6-Skript simuliert einen realistischen Ticket-Sale-Lifecycle:
+Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.mjs`, siehe ADR-024/025) simuliert einen realistischen Ticket-Sale-Lifecycle mit echtem Sale-Unlock und reaktiver Sold-Out-Erkennung statt fester Phasen-Timer:
 
-| Phase             | Dauer | Requests/s | Beschreibung                                  |
-| ----------------- | ----- | ---------- | --------------------------------------------- |
-| 1. Warm-Up        | 2 min | 1.000      | Nutzer laden die Seite, checken Verfügbarkeit |
-| 2. Pre-Sale Hype  | 2 min | 10.000     | Countdown läuft, Nutzer refreshen             |
-| 3. Sale Opening   | 3 min | 50.000     | Verkaufsstart – maximaler Traffic             |
-| 4. Sustained Load | 5 min | 50.000     | Tickets werden verkauft, Counter sinkt        |
-| 5. Sold Out       | 2 min | 20.000     | Tickets ausverkauft, 409-Responses steigen    |
-| 6. Cool Down      | 1 min | 1.000      | Traffic normalisiert sich                     |
+| Phase             | Dauer              | Requests/s  | Beschreibung                                                           |
+| ----------------- | ------------------ | ----------- | ---------------------------------------------------------------------- |
+| 1. Warm-Up        | 45 s               | 1.000       | Nutzer laden die Seite; Verkauf ist gesperrt, Kaufversuche liefern 425 |
+| 2. Ramp-Up        | 45 s               | 1.000→5.000 | Traffic steigt; Sale-Unlock faellt typischerweise in dieses Fenster    |
+| 3. Sustained Sale | variabel (reaktiv) | 5.000       | Verkauf laeuft, bis `available` auf 0 faellt (per Polling erkannt)     |
+| 4. Cool Down      | 1 min              | 1.000       | Traffic normalisiert sich nach bestaetigtem Sold-Out                   |
 
-**Ziel:** Zeigen, wie das System unter Last skaliert, wann Autoscaling greift, und wie sich die Metriken bei Sold-Out verändern (Error-Rate steigt, Latenz bleibt stabil).
+**Ziel:** Zeigen, wie das System unter Last skaliert und wie sich die Metriken bei Sale-Unlock (425 → 202) und Sold-Out (202 → 409) verändern (Error-Rate steigt, Latenz bleibt stabil).
+
+**Cloud-Lasttest (Phase 5, noch offen):** Fuer den Cloud-Lasttest gegen GKE ist ein hoeheres Ziel-Lastprofil vorgesehen (bis 50.000 RPS Sale-Opening/Sustained, 20.000 RPS Sold-Out), analog zur urspruenglichen lokalen Lastkurve — lokal ist das mangels vergleichbarer Infrastruktur nicht realistisch erreichbar.
 
 ## Observability & Monitoring
 

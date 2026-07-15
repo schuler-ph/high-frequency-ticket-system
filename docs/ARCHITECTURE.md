@@ -77,11 +77,13 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
 1. Nutzer klickt "Ticket kaufen" im Frontend
 2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
 3. API reserviert atomar in **einem** Redis-Roundtrip via Lua-Script (registriert per ioredis `defineCommand`, ausgefuehrt als `EVALSHA`; Quelle: `apps/api/src/lib/redis-scripts.ts`):
-   - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ohne jeden Schreibzugriff ab
+   - Check `tickets:event:{eventId}:opensAt` — ist der Verkaufsstart-Zeitpunkt noch nicht erreicht, bricht das Script ohne jeden Schreibzugriff ab (Sale-Unlock-Gate, siehe ADR-024)
+   - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ebenfalls ohne Schreibzugriff ab
    - `DECR available`
    - Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL
    - Pending-Status `orders:{orderId}` mit eigener Pending-TTL
 4. ✅ Reserviert → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
+   ❌ Zu frueh bei Schritt 3 → HTTP 425 Too Early, es wurden keine Keys geschrieben.
    ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
    ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `DEL reservation`, `INCR available` nur wenn die Reservation tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
@@ -101,6 +103,7 @@ Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `tickets:event:{eventId}:total`                 | Kapazitäts-Snapshot                                                                             | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                        |
 | `tickets:event:{eventId}:available`             | Aktuelle Verfügbarkeit                                                                          | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                   |
+| `tickets:event:{eventId}:opensAt`               | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                       | unbegrenzt                        | Seed-Skript (`scripts/local/reset-seed.mjs`)                               | API (Lua-Check bei Reservation, ADR-024)                                         |
 | `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker                                                                   | 120 s                             | API (`POST /buy`)                                                          | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
 | `tickets:event:{eventId}:processed:{orderId}`   | Redelivery-Shortcut (spart Sleep + DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004) | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                    |
 | `orders:{orderId}`                              | Order-Cache-Eintrag (`pending` → `completed`/`failed`)                                          | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                 |
@@ -224,24 +227,29 @@ Der Worker laeuft als `replicas: 1`. Kubernetes garantiert exklusiven Reconcile-
 
 ## Load-Test Szenario (k6 Lastkurve)
 
+Der lokale Lasttest (`pnpm spike`) bildet einen echten Ticket-Sale nach: Der Verkauf ist bis zu einem fixen Unlock-Zeitpunkt gesperrt (Sale-Unlock-Gate, ADR-024), und der Uebergang von Sale-Opening zu Sold-Out wird **reaktiv** anhand der tatsaechlichen Verfuegbarkeit erkannt statt anhand einer festen Zeitspanne (ADR-025) — die urspruengliche Version dieses Tests sold sich mitten im Peak aus, ohne dass die Lastkurve darauf reagierte.
+
 ```
   RPS
-50k ┤                  ┌─────────────────────┐
-    │                  │    Sale Opening     │
-    │                  │    + Sustained      │
-    │                  │                     │
-20k ┤                  │                     └──────┐
-    │                  │                            │ Sold Out
-10k ┤         ┌────────┘                            │
-    │         │ Pre-Sale                            │
- 1k ┤─────────┘ Hype                                └───-───┐
-    │ Warm-Up                                        Cool   │
-  0 ┼─────────┬────────┬──────────────────────┬──────┬──────┬──
-    0        2min     4min                   12min  14min  15min
+5k ┤                  ┌─────────────────────────·······┐
+   │                  │   Sale Opening +               │
+   │                  │   Sustained (bis Sold-Out)      │
+   │                  │                                 │
+1k ┤─────────┬────────┘                                 └──────┐
+   │ Warm-Up │ Ramp-Up                                   Cool   │
+   │(gesperrt)                                           Down   │
+ 0 ┼─────────┬────────┬───────────────·· (reaktiv) ··────┬──────┬──
+   0        45s      1m30s      Sold-Out (variabel)      +1min
 ```
 
-**1M Tickets** werden über ca. 8 Minuten Peak-Last verkauft.
-Das Szenario zeigt: Autoscaling-Verhalten, Sold-Out-Transition (HTTP 202 → 409), Queue-Backpressure und Cache-Performance.
+**Ablauf (orchestriert durch `scripts/local/run-spike.mjs`, siehe ADR-025):**
+
+1. `pnpm seed` mit `SALE_OPENS_IN_SECONDS=60` (Default) — Redis/PostgreSQL/Pub/Sub werden zurueckgesetzt, `opensAt` wird auf `jetzt + 60s` gesetzt.
+2. **Phase A** (`load-tests/spike-phase-a.js`): Warm-Up 1.000 RPS flat/45s (Sale ist noch gesperrt, Kaufversuche liefern HTTP 425) → Ramp-Up 1.000→5.000 RPS/45s (Unlock faellt typischerweise in dieses Fenster) → Sustain 5.000 RPS bis Sold-Out.
+3. Die Orchestrierung pollt `GET /api/tickets/:eventId/availability` alle 3s; sobald `available` bei drei aufeinanderfolgenden Polls `0` ist, wird Phase A per `SIGINT` (graceful k6 stop) beendet.
+4. **Phase B** (`load-tests/spike-phase-b.js`): Cool-Down 1.000 RPS flat/1min.
+
+**1M Tickets**, Sold-Out-Zeitpunkt ist variabel (haengt von der tatsaechlichen Reservierungsrate ab, nicht von einem Timer). Das Szenario zeigt: Sale-Unlock-Transition (HTTP 425 → 202), Sold-Out-Transition (HTTP 202 → 409), Queue-Backpressure und Cache-Performance.
 
 ## Monitoring & Observability
 

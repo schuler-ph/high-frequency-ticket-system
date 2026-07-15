@@ -5,7 +5,7 @@ import {
   pendingOrderCacheEntrySchema,
   type BuyTicketEvent,
 } from "@repo/types/tickets";
-import { ConflictError } from "@repo/types/errors";
+import { ConflictError, TooEarlyError } from "@repo/types/errors";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import { queueBuyTicketPurchase } from "../../src/routes/api/tickets/buy.ts";
 import {
@@ -20,10 +20,12 @@ type ReserveCall = {
   availableKey: string;
   reservationKey: string;
   orderCacheKey: string;
+  opensAtKey: string;
   orderId: string;
   reservationTtlSeconds: number;
   orderCacheValue: string;
   pendingOrderTtlSeconds: number;
+  nowMs: number;
 };
 
 type ReleaseCall = {
@@ -48,19 +50,23 @@ function createScriptsMock(
       availableKey,
       reservationKey,
       orderCacheKey,
+      opensAtKey,
       orderId,
       reservationTtlSeconds,
       orderCacheValue,
       pendingOrderTtlSeconds,
+      nowMs,
     ) {
       reserveCalls.push({
         availableKey,
         reservationKey,
         orderCacheKey,
+        opensAtKey,
         orderId,
         reservationTtlSeconds,
         orderCacheValue,
         pendingOrderTtlSeconds,
+        nowMs,
       });
       return 999_999;
     },
@@ -99,21 +105,33 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and pub
   assert.equal(response.message, "Ticket purchase queued");
   assert.equal(response.orderId, ORDER_ID);
   assert.equal(redis.reserveCalls.length, 1);
-  assert.deepEqual(redis.reserveCalls[0], {
-    availableKey: ticketRedisKeys(EVENT_ID).available,
-    reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
-    orderCacheKey: orderRedisKeys.entry(ORDER_ID),
-    orderId: ORDER_ID,
-    reservationTtlSeconds: 120,
-    orderCacheValue: JSON.stringify(
-      pendingOrderCacheEntrySchema.parse({
-        orderId: ORDER_ID,
-        eventId: EVENT_ID,
-        status: "pending",
-      }),
-    ),
-    pendingOrderTtlSeconds: 900,
-  });
+  const reserveCall = redis.reserveCalls[0];
+  assert.ok(reserveCall);
+  assert.deepEqual(
+    { ...reserveCall, nowMs: undefined },
+    {
+      availableKey: ticketRedisKeys(EVENT_ID).available,
+      reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
+      orderCacheKey: orderRedisKeys.entry(ORDER_ID),
+      opensAtKey: ticketRedisKeys(EVENT_ID).opensAt,
+      orderId: ORDER_ID,
+      reservationTtlSeconds: 120,
+      orderCacheValue: JSON.stringify(
+        pendingOrderCacheEntrySchema.parse({
+          orderId: ORDER_ID,
+          eventId: EVENT_ID,
+          status: "pending",
+        }),
+      ),
+      pendingOrderTtlSeconds: 900,
+      nowMs: undefined,
+    },
+  );
+  assert.ok(
+    typeof reserveCall.nowMs === "number" && reserveCall.nowMs > 0,
+    `expected nowMs > 0, got ${String(reserveCall.nowMs)}`,
+  );
+  assert.equal(reserveCall.nowMs, publishedPayload?.queuedAt);
   assert.equal(redis.releaseCalls.length, 0);
   assert.ok(publishedPayload);
   assert.equal(publishedPayload.orderId, ORDER_ID);
@@ -149,6 +167,36 @@ void test("queueBuyTicketPurchase throws ConflictError when sold out and publish
     (error: unknown) => {
       assert.ok(error instanceof ConflictError);
       assert.equal(error.message, "Tickets sold out");
+      return true;
+    },
+  );
+
+  assert.equal(redis.releaseCalls.length, 0);
+});
+
+void test("queueBuyTicketPurchase throws TooEarlyError when the sale is not yet open and publishes nothing", async () => {
+  const redis = createScriptsMock({
+    reserveTicket: async () => -2,
+  });
+
+  await assert.rejects(
+    () =>
+      queueBuyTicketPurchase({
+        eventId: EVENT_ID,
+        body: {
+          firstName: "Ada",
+          lastName: "Lovelace",
+        },
+        redis,
+        pubsubPublisher: {
+          async publishBuyTicket() {
+            throw new Error("should not be called");
+          },
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof TooEarlyError);
+      assert.equal(error.message, "Tickets are not yet on sale");
       return true;
     },
   );
@@ -254,7 +302,7 @@ void test("registerTicketRedisScripts registers both scripts once via defineComm
 
   assert.ok(scripts);
   assert.deepEqual(definedCommands, [
-    { name: "reserveTicket", numberOfKeys: 3 },
+    { name: "reserveTicket", numberOfKeys: 4 },
     { name: "releaseTicketReservation", numberOfKeys: 3 },
   ]);
 });

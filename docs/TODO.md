@@ -134,7 +134,17 @@
 - [x] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
 - [x] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
 - [x] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
-- [ ] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks.
+- [x] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks (`docs/LOAD-TEST-REPORT-2026-07-14.md`; Baseline A: 11,7k Peak-RPS, 68,24 % dropped iterations, 420.951 accepted = completed nach Drain, ~406 s mittlere E2E-Latenz).
+- [ ] Trenne den Lastgenerator vom System-under-Test bzw. nutze einen verteilten Runner; dimensioniere fuer das 50k-RPS-Ziel mindestens ~20k aktive VUs und fordere 0 dropped iterations fuer einen gueltigen Kapazitaetsnachweis.
+- [ ] Ergaenze k6-Metriken nach Endpoint, HTTP-Status und Transportfehlerklasse, damit die 0,28 % Requests ohne App-Response diagnostizierbar sind.
+- [x] Sale-Unlock-Gate: `tickets:event:{eventId}:opensAt`-Redis-Key im atomaren Reserve-Script, `TooEarlyError` (HTTP 425), `SALE_OPENS_IN_SECONDS` im Seed-Skript (ADR-024) — Reaktion auf Baseline A, in der der Verkauf ab `t=0` offen war statt einen echten Sale-Start abzubilden.
+- [ ] Sale-Unlock-Gate: das atomare Reserve-Lua-Script gegen echtes Redis testen (fehlender `opensAt`-Key, `opensAt=0`, `nowMs` vor/nach dem Schwellwert) — der bestehende Unit-Test mockt nur den `-2`-Rueckgabewert, die Script-Branches selbst laufen nirgends (ADR-024-Follow-up).
+- [ ] Buy-Route: `409` (Sold-Out) und `425` (Too Early) zusaetzlich im OpenAPI-Response-Schema deklarieren (aktuell nur `202`; die Fehler kommen bislang nur ueber den globalen Error-Handler) — niedrige Prioritaet (ADR-024-Follow-up).
+- [x] Restrukturiere den lokalen Lasttest auf reaktive Sold-Out-Erkennung statt fixer Phasen-Timer: `spike-phase-a.js` (Warm-Up/Ramp-Up/Sustain) + `spike-phase-b.js` (Cool-Down), orchestriert durch `scripts/local/run-spike.mjs` (pollt Availability, stoppt Phase A per SIGINT bei bestaetigtem Sold-Out) (ADR-025) — behebt, dass Baseline A mitten im Peak statt am beabsichtigten Sold-Out-Uebergang endete.
+- [x] Dokumentiere die automatisierbare Evidence-/Report-Pipeline inkl. verwendeter Prometheus-, PostgreSQL- und Redis-Abfragen, Validitaetsregeln, Artefaktvertrag und schrittweisem Implementierungsplan (`docs/LOAD-TEST-REPORT-AUTOMATION.md`).
+- [ ] Implementiere das MVP aus `docs/LOAD-TEST-REPORT-AUTOMATION.md`: Run-Manifest, k6-JSON-Summaries, Before/After-Counter, Drain-Monitor, Histogram-Saturation, DB-/Redis-Snapshots, Invarianten und deterministischer Markdown-Report.
+- [ ] Fuehre den restrukturierten Lasttest (`pnpm spike`) als neue Baseline aus und vergleiche gegen `docs/LOAD-TEST-REPORT-2026-07-14.md` (insbesondere Worker-Drain-Rate ~481/s als Engpass fuer den Sold-Out-Zeitpunkt).
+- [ ] **Reihenfolge-Abhaengigkeit vor obigem Baseline-Lauf:** Zuerst #5 (Reservation-Ledger, siehe Phase 4.6) landen — oder als Zwischenschritt `REDIS_RESERVATION_TTL_SECONDS` deutlich ueber die erwartete Queue-Latenz (~406s bei Baseline A) anheben. Sonst laufen bei ~2.000 Accepts/s vs. ~500/s Worker-Drain die 120s-Reservations mitten im Sale ab, Reconcile bucht `available` zurueck, und der reaktive Sold-Out-Stop triggert evtl. gar nicht (bzw. es wird ueberverkauft) — der Lauf wuerde dann den Oversell-Bug demonstrieren statt eine saubere Baseline B zu liefern. Ebenso die P1-Dashboard-Fixes (Zero-Serien, E2E-Buckets) vorziehen, damit der Lauf nicht erneut blind fuer sein wichtigstes Symptom ist.
 
 ## Phase 4.5: Monitoring & Observability
 
@@ -150,7 +160,10 @@
 - [x] Erstelle Grafana-Dashboard: Pub/Sub Queue Depth & Worker Processing Rate — Worker-Proxy-Panels implementiert; vollständige Queue-Tiefe erfordert Stackdriver-Exporter (GCP) oder pubsub_exporter.
 - [x] Erstelle Grafana-Dashboard: Worker Reliability (Redeliveries, Idempotenz-Hits, Processing-Lock-Konflikte, Kompensationen).
 - [x] Erstelle Grafana-Dashboard: Reservation & Consistency (aktive Reservations, Publish-Rollbacks, Redis-DB-Drift).
-- [ ] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views.
+- [x] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views (`pnpm spike` nutzt `experimental-prometheus-rw`).
+- [ ] Korrigiere Dashboard-PromQL fuer fehlende Zero-Serien (`or vector(0)`), damit Pending/Queue/Error/Failure/Reliability bei null Fehlern nicht als `No data` verschwinden.
+- [ ] Erweitere `order_e2e_latency_seconds` ueber den 30-s-Bucket hinaus und benenne die rollende Completion-Rate als Throughput-Verhaeltnis; entferne die irrefuehrende Legendensumme der kumulativen Counts.
+- [ ] Fuege `redis_exporter` sowie CPU/Event-Loop-, PostgreSQL-Pool-Wait-, Query-Latency- und Lock-Wait-Metriken fuer belastbare Bottleneck-Zuordnung hinzu.
 - [ ] Erzeuge Screenshots der Dashboards unter extremer Last für die README.
 
 ## Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`)
@@ -167,9 +180,10 @@ Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3
 
 Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 
-- [ ] Lokalen Lasttest als Baseline ausfuehren (Phase-4-Punkt) und Vorher-Zahlen fuer #5/#7 dokumentieren.
-- [ ] #5: Reservierungen zusaetzlich in Sorted Set (Score = Expiry): `ZCOUNT` statt Keyspace-SCAN im Reconcile; abgelaufene Reservierungen deterministisch zurueckbuchen (ADR-022/023-Update).
+- [x] Lokalen Lasttest als Baseline ausfuehren und Vorher-Zahlen fuer #5/#7 dokumentieren (`docs/LOAD-TEST-REPORT-2026-07-14.md`).
+- [ ] #5 (durch Baseline A praezisiert): Accepted-but-not-finalized Reservations als ZSet/Ledger statt Keyspace-SCAN fuehren; auf Worker-Finalisierung/Kompensation entfernen. Ablauf nur als stale Kandidat fuer Reaper/DLQ behandeln, **nicht** blind zurueckbuchen — die Baseline zeigte bei 120-s-TTL und ~406-s-E2E temporaer -314k Drift und damit ein Oversell-Risiko (ADR-022/023-Update).
 - [ ] #7: `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Aggregation im Reconcile); Order direkt als `completed` einfuegen (ADR-011-Update, Migration + `db:push`, Guardrail-Script `check-buy-ticket-contract.mjs`).
+- [ ] #7 vor Umsetzung isoliert benchmarken: Payment-Mock parameterisieren/deaktivieren, Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen; Baseline A erreichte bereits den erwarteten 500/s-Flow-Control-Deckel und beweist den Hot-Row-Limiter daher noch nicht separat.
 - [ ] #9: Topic/Subscription-Provisioning (Emulator-Bootstrapping) nach `scripts/local/` verschieben; `*Like`-Typen und Zweiphasen-Start entfernen.
 
 ## Phase 5: Cloud Deployment (GCP)
@@ -178,6 +192,7 @@ Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 - [ ] Erstelle Dockerfiles für API, Worker und Web.
 - [ ] Schreibe Kubernetes Deployment/Service/Ingress Manifeste.
 - [ ] Führe Cloud-Lasttest aus und sammle Metriken für die README.
+- [ ] **Sale-Unlock-Zeitquelle bei `API replicas > 1` (ADR-024):** Der `opensAt`-Gate-Check vergleicht aktuell gegen `nowMs`, das die API aus `Date.now()` uebergibt — nicht gegen `redis.call("TIME")` im Lua-Script. Das haelt das Script unabhaengig von Redis' Lua-Replikationsverhalten und erlaubt, denselben Zeitstempel als `queuedAt` im Pub/Sub-Payload wiederzuverwenden (ein `Date.now()` pro Request statt zwei). Trade-off: Der Verkaufsstart oeffnet nur so praezise, wie die Uhren der API-Pods synchron sind; bei Uhr-Drift faellt der Unlock pro Pod um die Drift-Spanne unterschiedlich. Lokal (ein Prozess) irrelevant, in GKE deckt NTP-Sync die geforderte Sekunden-Genauigkeit. **Extension:** Falls sub-sekunden-exakter, prozessuebergreifend identischer Unlock gefordert wird, auf `redis.call("TIME")` (eine autoritative Uhr) umstellen — dann entfaellt die `queuedAt`-Wiederverwendung und es faellt ein zweiter Zeitstempel-Roundtrip an; ADR-024 entsprechend aktualisieren.
 
 ### Phase 5: Reconcile-Loop HA-Eskalation (bei `replicas > 1`)
 
