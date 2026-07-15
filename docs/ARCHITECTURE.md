@@ -80,33 +80,33 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
    - Check `tickets:event:{eventId}:opensAt` — ist der Verkaufsstart-Zeitpunkt noch nicht erreicht, bricht das Script ohne jeden Schreibzugriff ab (Sale-Unlock-Gate, siehe ADR-024)
    - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ebenfalls ohne Schreibzugriff ab
    - `DECR available`
-   - Reservation-Key `tickets:event:{eventId}:reservation:{orderId}` mit TTL
+   - Ledger-Eintrag `ZADD tickets:event:{eventId}:reservations {nowMs} {orderId}` (Score = Erstellungszeit, **ohne TTL** — der Eintrag ist ein Inventar-Anspruch bis zur Finalisierung/Kompensation, ADR-026)
    - Pending-Status `orders:{orderId}` mit eigener Pending-TTL
 4. ✅ Reserviert → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
    ❌ Zu frueh bei Schritt 3 → HTTP 425 Too Early, es wurden keine Keys geschrieben.
    ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
-   ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `DEL reservation`, `INCR available` nur wenn die Reservation tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
+   ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `ZREM reservations {orderId}`, `INCR available` nur wenn der Ledger-Eintrag tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
 5. Worker konsumiert BuyTicketEvent aus Pub/Sub
 6. Worker simuliert Payment-Processing (Sleep 1s)
 7. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
    - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein 1-s-Payment-Sleep, kein zweiter DB-Roundtrip).
    - Parallele Doppel-Zustellungen derselben `orderId` laufen harmlos in den `ON CONFLICT`-Pfad der DB-Transaktion — ein separater Processing-Lock existiert nicht mehr.
-   - Nach erfolgreichem oder terminal fehlgeschlagenem Processing ueberschreibt der Worker denselben Redis-Order-Key mit dem finalen Status inkl. Ticket-Referenz bzw. `failure_reason` und einer laengeren Final-Status-TTL fuer den spaeteren API-Read.
-   - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (Reservation `DEL` + `available` `INCR`), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
+   - Bei Erfolg finalisiert der Worker atomar: Redis-Order-Key mit finalem Status inkl. Ticket-Referenz + laengerer Final-TTL, `processed`-Marker **und** `ZREM reservations {orderId}` — der Anspruch geht in `sold_count` ueber und darf nicht doppelt zaehlen. `available` bleibt beim Erfolg dekrementiert (das Ticket ist verkauft).
+   - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (`ZREM reservations {orderId}` + `INCR available`, nur wenn der Ledger-Eintrag noch existierte — idempotent), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
 8. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
 
 ## Redis-Key-Lifecycle
 
 Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 
-| Key-Muster                                      | Zweck                                                                                           | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                           |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `tickets:event:{eventId}:total`                 | Kapazitäts-Snapshot                                                                             | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                        |
-| `tickets:event:{eventId}:available`             | Aktuelle Verfügbarkeit                                                                          | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                   |
-| `tickets:event:{eventId}:opensAt`               | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                       | unbegrenzt                        | Seed-Skript (`scripts/local/reset-seed.mjs`)                               | API (Lua-Check bei Reservation, ADR-024)                                         |
-| `tickets:event:{eventId}:reservation:{orderId}` | Temporärer Reservation-Marker                                                                   | 120 s                             | API (`POST /buy`)                                                          | Worker (DEL bei Kompensation), Reconcile-Loop (SCAN → zählt aktive Reservations) |
-| `tickets:event:{eventId}:processed:{orderId}`   | Redelivery-Shortcut (spart Sleep + DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004) | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                    |
-| `orders:{orderId}`                              | Order-Cache-Eintrag (`pending` → `completed`/`failed`)                                          | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                 |
+| Key-Muster                                    | Zweck                                                                                                                                            | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                              | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                                          |
+| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                                           | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                                     |
+| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                                        | unbegrenzt                        | Seed-Skript (`scripts/local/reset-seed.mjs`)                               | API (Lua-Check bei Reservation, ADR-024)                                                           |
+| `tickets:event:{eventId}:reservations` (ZSet) | Ledger akzeptierter, noch nicht finalisierter Reservierungen (Score = Erstellungszeit, Member = `orderId`) — aktiver Inventar-Anspruch (ADR-026) | **unbegrenzt** (kein TTL)         | API (`ZADD` bei `POST /buy`)                                               | Worker (`ZREM` bei Finalisierung/Kompensation), Reconcile-Loop (`ZCARD` = aktiv, `ZCOUNT` = stale) |
+| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut (spart Sleep + DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004)                                                  | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                                      |
+| `orders:{orderId}`                            | Order-Cache-Eintrag (`pending` → `completed`/`failed`)                                                                                           | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                                   |
 
 Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
 
@@ -128,11 +128,16 @@ Diese Methode erfordert keinen gemeinsamen State zwischen API und Worker — der
 Nach jedem Reconcile-Lauf schreibt der Worker den aktuellen Konsistenzstand als Prometheus-Gauge:
 
 - **Metrik:** `redis_db_drift_tickets` (Gauge, Label: `event_id`)
-- **Berechnung:** `redis_available − (total_capacity − sold_count − active_reservations)`
+- **Berechnung:** `redis_available − (total_capacity − sold_count − active_reservations)`, wobei `active_reservations = ZCARD tickets:event:{eventId}:reservations`
 - **Wert 0** = perfekte Konsistenz zwischen Redis und PostgreSQL
-- **Positiver Wert** = Redis zählt mehr verfügbare Tickets als PostgreSQL → häufig nach TTL-Ablauf von Reservations ohne Kompensation
-- **Negativer Wert** = Redis zählt weniger → seltener, z. B. nach Worker-Restart vor Reconcile
+- **Positiver Wert** = Redis zählt mehr verfügbare Tickets als PostgreSQL → seltener, z. B. verlorenes Decrement zwischen Messung und Korrektur
+- **Negativer Wert** = Redis zählt weniger → z. B. nach Worker-Restart vor Reconcile
 - Sourcedateien: `apps/worker/src/lib/reconcile-ticket-availability.ts` (Messung), `apps/worker/src/lib/metrics.ts` (Gauge), `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung)
+
+**Warum der Ledger die Baseline-A-Drift (-314k) beseitigt (ADR-026):** In Baseline A liefen die per-`orderId`-Reservation-Keys nach 120 s TTL ab, waehrend die Order noch ~406 s in der Queue lag. Der damalige `SCAN`-basierte Zaehler sah die abgelaufene Reservierung nicht mehr, `available` blieb aber dekrementiert → grosse negative Drift → Reconcile buchte Inventar zurueck, das noch beansprucht war → Oversell-Risiko. Der ZSet-Ledger hat **keine TTL**: Jeder akzeptierte, noch nicht finalisierte Kauf bleibt via `ZCARD` ein aktiver Anspruch, unabhaengig von der Warteschlangen-Latenz. Ablauf/Alter ist nur ein Stale-Signal (`ZCOUNT` gegen einen Schwellwert `RESERVATION_STALE_SECONDS`, Default 900 s), das der Reaper (Phase 6) auswerten kann — es loest **nie** eine automatische Rueckbuchung aus.
+
+- **Metrik:** `reservation_ledger_active` (Gauge, Label: `event_id`) — aktive Ansprueche (`ZCARD`)
+- **Metrik:** `reservation_ledger_stale` (Gauge, Label: `event_id`) — Ansprueche aelter als `RESERVATION_STALE_SECONDS` (Reaper-Kandidaten, nie automatisch zurueckgebucht)
 
 Der Reconcile-Loop liefert diese Messung ohnehin als Nebenprodukt seiner Arbeit, ohne zusätzliche DB-Scans. Die Korrektur selbst erfolgt als **Delta** (`INCRBY` um die gemessene Drift) statt als absolutes Überschreiben — Reservierungen, die zwischen Messung und Korrektur passieren, gehen dadurch nicht verloren.
 
@@ -190,7 +195,7 @@ Beispiel im Worker-Flow:
 
 ## Reconcile-Loop: Design & Betriebsmodell
 
-Der Worker fuehrt nach dem einmaligen Startup-Reconcile einen periodischen Reconcile-Loop aus, der Redis-Counter kontinuierlich gegen PostgreSQL korrigiert (vgl. Kubernetes Controller Pattern: desired state vs. current state). Dies kompensiert Drift durch TTL-Ablauf von Reservierungen, Race Conditions und Worker-Restarts.
+Der Worker fuehrt nach dem einmaligen Startup-Reconcile einen periodischen Reconcile-Loop aus, der Redis-Counter kontinuierlich gegen PostgreSQL korrigiert (vgl. Kubernetes Controller Pattern: desired state vs. current state). Dies kompensiert Drift durch Race Conditions und Worker-Restarts. Aktive Reservierungen zaehlt der Loop seit ADR-026 als `ZCARD tickets:event:{eventId}:reservations` (O(1)) statt ueber einen Keyspace-`SCAN` — der Ledger-Eintrag hat keine TTL, sodass lange Warteschlangen-Latenz keine noch offene Reservierung "ablaufen" laesst und kein Inventar faelschlich zurueckgebucht wird.
 
 ### Mechanismus: Self-scheduling setTimeout
 
@@ -202,7 +207,7 @@ Boot → runStartupReconcile() → scheduleNextReconcile(intervalMs)
                          scheduleNextReconcile(intervalMs) → ...
 ```
 
-`setInterval` wird bewusst nicht verwendet: Falls ein Reconcile-Lauf (DB-Read + Redis-Scan + Writes) laenger dauert als das konfigurierte Intervall, wuerden sich Laeufe ueberlappen und Redis/DB unter Last unnoetig belasten.
+`setInterval` wird bewusst nicht verwendet: Falls ein Reconcile-Lauf (DB-Read + Ledger-`ZCARD`/`ZCOUNT` + Writes) laenger dauert als das konfigurierte Intervall, wuerden sich Laeufe ueberlappen und Redis/DB unter Last unnoetig belasten.
 
 ### Betriebsmodi
 

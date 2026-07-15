@@ -88,7 +88,8 @@ function createRouteTestFastify() {
       del: async () => 0,
       incrby: async () => 0,
       defineCommand: () => undefined,
-      scan: async () => ["0", []] as [string, string[]],
+      zcard: async () => 0,
+      zcount: async () => 0,
       mset: async () => "OK",
       // registerWorkerRedisScripts castet den Client — die per defineCommand
       // erzeugten Command-Methoden muss der Fake selbst mitbringen.

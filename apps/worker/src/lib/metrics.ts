@@ -44,6 +44,20 @@ export const redisDbDriftTickets = new Gauge({
   registers: [workerRegistry],
 });
 
+export const reservationLedgerActive = new Gauge({
+  name: "reservation_ledger_active",
+  help: "Accepted-but-not-finalized reservations per event, counted from the ZSet ledger (active inventory claims)",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationLedgerStale = new Gauge({
+  name: "reservation_ledger_stale",
+  help: "Ledger reservations older than the stale threshold per event — reaper candidates, never auto-released",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
 export const orderE2eLatencySeconds = new Histogram({
   name: "order_e2e_latency_seconds",
   help: "End-to-end latency from POST /buy accepted to order completed or failed",

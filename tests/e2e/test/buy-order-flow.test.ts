@@ -46,16 +46,17 @@ function createInMemoryRedis(
   initialValues: Record<string, string> = {},
 ): InMemoryRedis {
   const store = new Map<string, string>(Object.entries(initialValues));
+  // ZSet-Ledger als Set von orderIds pro Ledger-Key (ADR-026).
+  const ledger = new Map<string, Set<string>>();
 
   return {
     defineCommand() {},
     async reserveTicket(
       availableKey,
-      reservationKey,
+      reservationsLedgerKey,
       orderCacheKey,
       _opensAtKey,
       orderId,
-      _reservationTtlSeconds,
       orderCacheValue,
       _pendingOrderTtlSeconds,
       _nowMs,
@@ -68,16 +69,21 @@ function createInMemoryRedis(
 
       const remaining = current - 1;
       store.set(availableKey, String(remaining));
-      store.set(reservationKey, orderId);
+      const entries = ledger.get(reservationsLedgerKey) ?? new Set<string>();
+      entries.add(orderId);
+      ledger.set(reservationsLedgerKey, entries);
       store.set(orderCacheKey, orderCacheValue);
       return remaining;
     },
     async releaseTicketReservation(
-      reservationKey,
+      reservationsLedgerKey,
       availableKey,
       orderCacheKey,
+      orderId,
     ) {
-      const released = store.delete(reservationKey) ? 1 : 0;
+      const released = ledger.get(reservationsLedgerKey)?.delete(orderId)
+        ? 1
+        : 0;
 
       if (released === 1) {
         store.set(

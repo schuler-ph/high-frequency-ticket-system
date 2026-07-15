@@ -20,6 +20,8 @@ import {
   ordersFailedTotal,
   orderE2eLatencySeconds,
   redisDbDriftTickets,
+  reservationLedgerActive,
+  reservationLedgerStale,
   workerCompensationsTotal,
   workerIdempotencyHitsTotal,
   workerRedeliveriesTotal,
@@ -29,7 +31,7 @@ import type {} from "../plugins/pubsub.ts";
 
 type TicketRedisClient = Pick<
   RedisClient,
-  "get" | "scan" | "mset" | "incrby" | "defineCommand"
+  "get" | "mset" | "incrby" | "zcard" | "zcount" | "defineCommand"
 >;
 
 type PubSubListenerRouteDeps = {
@@ -126,17 +128,22 @@ const runStartupReconcile = async (
     PubSubListenerRouteDeps,
     "listEventInventorySnapshots" | "reconcileTicketAvailability"
   > & {
-    redis: Pick<RedisClient, "get" | "scan" | "mset" | "incrby">;
+    redis: Pick<RedisClient, "get" | "mset" | "incrby" | "zcard" | "zcount">;
   },
 ): Promise<void> => {
   await deps.reconcileTicketAvailability({
     getEventInventorySnapshots: deps.listEventInventorySnapshots,
     redis: deps.redis,
+    staleReservationThresholdMs: env.RESERVATION_STALE_SECONDS * 1000,
     onEventReconciled: (eventId, redisAvailable, computedAvailable) =>
       redisDbDriftTickets.set(
         { event_id: eventId },
         redisAvailable - computedAvailable,
       ),
+    onReservationLedgerMeasured: (eventId, active, stale) => {
+      reservationLedgerActive.set({ event_id: eventId }, active);
+      reservationLedgerStale.set({ event_id: eventId }, stale);
+    },
   });
 };
 
@@ -160,6 +167,7 @@ const createPubSubListenerRoutes = (
           await scripts.finalizeOrderProcessing(
             orderRedisKeys.entry(payload.orderId),
             keys.processed(payload.orderId),
+            keys.reservations,
             JSON.stringify(entry),
             env.REDIS_FINAL_ORDER_TTL_SECONDS,
             payload.orderId,
@@ -169,8 +177,9 @@ const createPubSubListenerRoutes = (
         compensateReservation: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);
           const releaseResult = await scripts.compensateReservation(
-            keys.reservation(payload.orderId),
+            keys.reservations,
             keys.available,
+            payload.orderId,
           );
 
           return releaseResult === 1 ? "released" : "already-released";

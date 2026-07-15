@@ -6,33 +6,34 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der Stelle in `docs/TODO.md`, in der die Umsetzung erledigt wurde oder geplant ist.
 
-| ADR                                                        | Status           | TODO-Abbildung                                                                                                                 |
-| ---------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                        |
-| ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                               |
-| ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                        |
-| ADR-004 Asynchrone Writes über Pub/Sub                     | Fertig           | Phase 3 Buy-Flow + Phase 3.5 ACK/NACK + Idempotenz + Kompensation vollständig erledigt                                         |
-| ADR-005 Redis als Read-Cache                               | Fertig           | Phase 3.5 event-spezifische Keys, Reservation-Flow, Atomic Lua, Reconcile vollständig erledigt                                 |
-| ADR-006 Prometheus + Grafana                               | Teilweise fertig | prom-client + /metrics-Endpunkte (API + Worker) erledigt; Grafana-Dashboards noch offen (Phase 4.5)                            |
-| ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                  |
-| ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                              |
-| ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                      |
-| ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                     |
-| ADR-011 Capacity Model vs. Pre-generated Tickets           | Fertig           | Phase 2/3/3.5 vollständig umgesetzt: capacity-basiert, on-the-fly INSERT, sold_count via SQL-Function                          |
-| ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                        |
-| ADR-013 Payment Flow Mocking                               | Fertig           | Worker sleep(1000ms) aktiv umgesetzt (Phase 3 + 3.5)                                                                           |
-| ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                           |
-| ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                               |
-| ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                      |
-| ADR-017 Order-Status via Polling                           | Fertig           | Phase 3.5 Orders↔Tickets vollständig verknüpft; GET /api/orders/:orderId mit Redis-Read-Model fertig                           |
-| ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                         |
-| ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                |
-| ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                    |
-| ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                    |
-| ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Fertig           | Phase 3.5: zyklischer Reconcile mit self-scheduling setTimeout, Betriebsmodi via Env-Vars, sauber via Fastify onClose stoppbar |
-| ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge                    |
-| ADR-024 Sale-Unlock-Gate (425 Too Early)                   | Fertig           | Phase 4: `opensAt`-Redis-Key im atomaren Reserve-Script, TooEarlyError, Seed-Skript-Unterstuetzung                             |
-| ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                |
+| ADR                                                        | Status           | TODO-Abbildung                                                                                                                                                                            |
+| ---------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                                                                                   |
+| ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                                                                                          |
+| ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                                                                                   |
+| ADR-004 Asynchrone Writes über Pub/Sub                     | Fertig           | Phase 3 Buy-Flow + Phase 3.5 ACK/NACK + Idempotenz + Kompensation vollständig erledigt                                                                                                    |
+| ADR-005 Redis als Read-Cache                               | Fertig           | Phase 3.5 event-spezifische Keys, Reservation-Flow, Atomic Lua, Reconcile vollständig erledigt                                                                                            |
+| ADR-006 Prometheus + Grafana                               | Teilweise fertig | prom-client + /metrics-Endpunkte (API + Worker) erledigt; Grafana-Dashboards noch offen (Phase 4.5)                                                                                       |
+| ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                                                                             |
+| ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                                                                                         |
+| ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                                                                                 |
+| ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                                                                                |
+| ADR-011 Capacity Model vs. Pre-generated Tickets           | Fertig           | Phase 2/3/3.5 vollständig umgesetzt: capacity-basiert, on-the-fly INSERT, sold_count via SQL-Function                                                                                     |
+| ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                                                                                   |
+| ADR-013 Payment Flow Mocking                               | Fertig           | Worker sleep(1000ms) aktiv umgesetzt (Phase 3 + 3.5)                                                                                                                                      |
+| ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                                                                                      |
+| ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                                                                                          |
+| ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                                                                                 |
+| ADR-017 Order-Status via Polling                           | Fertig           | Phase 3.5 Orders↔Tickets vollständig verknüpft; GET /api/orders/:orderId mit Redis-Read-Model fertig                                                                                      |
+| ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                                                                                    |
+| ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                                                                           |
+| ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                                                                               |
+| ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                                                                               |
+| ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Fertig           | Phase 3.5: zyklischer Reconcile mit self-scheduling setTimeout, Betriebsmodi via Env-Vars, sauber via Fastify onClose stoppbar; zaehlt Reservierungen seit ADR-026 via `ZCARD` statt SCAN |
+| ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge; `active_reservations` = `ZCARD` seit ADR-026                                 |
+| ADR-024 Sale-Unlock-Gate (425 Too Early)                   | Fertig           | Phase 4: `opensAt`-Redis-Key im atomaren Reserve-Script, TooEarlyError, Seed-Skript-Unterstuetzung                                                                                        |
+| ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                                                                           |
+| ADR-026 Reservation-Ledger (ZSet) statt Keyspace-SCAN      | Fertig           | Phase 4.6 (#5): akzeptierte Reservierungen im TTL-losen ZSet-Ledger, Reconcile via `ZCARD`/`ZCOUNT`, Ablauf = Stale-Kandidat statt Rueckbuchung (behebt Baseline-A-Oversell)              |
 
 ### Status-Definitionen
 
@@ -575,3 +576,37 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
   - `package.json` (`spike`-Skript)
   - `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `load-tests/README.md`
+
+---
+
+## ADR-026: Reservation-Ledger (ZSet) statt Keyspace-SCAN — Ablauf ≠ Rueckbuchung
+
+- **Datum:** 2026-07-15
+- **Kontext:** Baseline A (`docs/reports/LOAD-TEST-REPORT-2026-07-14.md`) legte zwei Probleme im Reservation-Accounting offen:
+  1. **Korrektheit (Oversell-Risiko):** Reservierungen lagen als per-`orderId`-Redis-Keys mit 120-s-TTL vor. Bei ~2.000 Accepts/s gegen ~500/s Worker-Drain wuchs die Queue-Latenz auf im Mittel ~406 s. Die 120-s-Keys liefen also ab, waehrend die zugehoerige Order noch unverarbeitet in Pub/Sub lag. Der Reconcile zaehlte die abgelaufene Reservierung nicht mehr (`available` blieb aber dekrementiert) → Drift fiel auf **-314k** → Reconcile buchte `available` positiv zurueck und machte damit noch beanspruchtes Inventar erneut verkaufbar. Waehrend eines laufenden Sales fuehrt das zu Ueberverkauf.
+  2. **Skalierung:** `countActiveReservations` zaehlte per `SCAN MATCH tickets:event:{id}:reservation:*`. `SCAN` iteriert immer den gesamten Keyspace (nach 1 Mio. Verkaeufen ~2 Mio. Keys aus `orders:*` + `processed:*`) und filtert erst danach — pro Reconcile-Lauf zehntausende Roundtrips fuer eine Zahl, die >99 % der Keys nie betrifft.
+- **Entscheidung:** Akzeptierte, noch nicht finalisierte Reservierungen werden in einem **Sorted Set pro Event** gefuehrt: `tickets:event:{eventId}:reservations`, Score = Erstellungszeit (Unix-ms, identisch mit `queuedAt`), Member = `orderId`.
+  1. **Kein TTL.** Der Ledger-Eintrag ist ein Inventar-Anspruch, der ausschliesslich durch **Worker-Finalisierung (Erfolg)** oder **Kompensation (terminaler Fehler)** verschwindet — beide per `ZREM` im jeweiligen atomaren Script. Die frueheren per-`orderId`-Reservation-Keys mit TTL entfallen ersatzlos.
+  2. **Zaehlung = `ZCARD`** (O(1)): Jeder Eintrag zaehlt als aktiver Anspruch, unabhaengig vom Alter. Warteschlangen-Latenz kann keine offene Reservierung mehr "ablaufen" lassen; die Drift bleibt bei ~0.
+  3. **Ablauf ≠ Rueckbuchung.** Alter wird nur als **Stale-Signal** ausgewertet: `ZCOUNT reservations 0 (now − RESERVATION_STALE_SECONDS·1000)` liefert Reaper-Kandidaten als Gauge `reservation_ledger_stale`. Der Reconcile bucht auf Basis dieses Signals **nie** automatisch Inventar zurueck — die sichere Rueckgewinnung abgebrochener Ansprueche (Reaper + DLQ) ist ein eigenes Arbeitspaket in Phase 6.
+  4. **Erfolgspfad entfernt den Anspruch aktiv:** `finalizeOrderProcessing` macht zusaetzlich zu Order-Cache + `processed`-Marker ein `ZREM`. Der Anspruch geht in `sold_count` ueber und darf nicht doppelt (als aktive Reservierung UND als Verkauf) zaehlen. `available` wird beim Erfolg **nicht** inkrementiert (das Ticket ist verkauft) — nur die Kompensation bucht `available` zurueck.
+- **Begruendung:**
+  - Der Kern der Baseline-A-Drift war nicht die SCAN-Dauer, sondern die **TTL-getriebene Freigabe** eines noch beanspruchten Inventars. Ein reines Umstellen von `SCAN`+`ZCOUNT <now> +inf` auf Score=Ablaufzeit haette den Bug reproduziert (abgelaufene Eintraege fielen aus der Zaehlung). Score=Erstellungszeit + `ZCARD` trennt "aktiver Anspruch" (Kardinalitaet) sauber von "verdaechtig alt" (Score-Range) — nur so ist Ablauf ein Signal statt einer stillen Freigabe.
+  - `ZCARD` ist O(1), `ZCOUNT` O(log n) — beide unabhaengig von der Gesamtgroesse des Keyspace. Die 20.000-Roundtrip-Landmine des SCAN entfaellt.
+  - Idempotenz bleibt gewahrt: `ZREM` liefert 1 nur beim ersten Entfernen; Rollback- und Kompensations-Script inkrementieren `available` genau dann. Gegen echtes `hts-redis` verifiziert.
+- **Trade-off / bewusst offen:** Ohne Reaper (Phase 6) akkumulieren Ansprueche von Orders, die **nie** finalisiert werden (verlorene Nachricht, Poison Message), dauerhaft im Ledger und mindern `available` als Phantom-Claims (Undersell statt Oversell). Fuer die Baseline-B-Messung ist das akzeptabel (alle Orders drainen); die `reservation_ledger_stale`-Gauge macht den Effekt sichtbar, und der Reaper schliesst die Luecke spaeter. Die bewusste Wahl ist: **lieber voruebergehend undersell (sicher) als oversell (Vertragsbruch gegenueber dem Kunden).**
+- **Alternativen (verworfen):**
+  - **Stopgap `REDIS_RESERVATION_TTL_SECONDS` 120→900 s:** ~10 Minuten Aufwand, aber maskiert den Bug nur fuer Laeufe kuerzer als die TTL und laesst die SCAN-Landmine bestehen. Keine strukturelle Loesung.
+  - **Score = Ablaufzeit + `ZCOUNT now +inf`:** effizient, reproduziert aber exakt das Oversell-Verhalten (Ablauf entfernt aus der Zaehlung).
+  - **Reaper sofort mit-bauen:** groesserer Scope; die Korrektheit haengt nicht am Reaper, sondern am Wegfall der automatischen Rueckbuchung. Reaper bleibt Phase 6.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts` (`reservations`-ZSet, `reservation(orderId)` entfernt)
+  - `packages/types/src/redis-client.ts` (`zcard`/`zcount`, `scan` entfernt)
+  - `packages/env/src/index.ts` (`RESERVATION_STALE_SECONDS`, `REDIS_RESERVATION_TTL_SECONDS` entfernt)
+  - `apps/api/src/lib/redis-scripts.ts` (Reserve: `ZADD`; Release: `ZREM`)
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/worker/src/lib/redis-scripts.ts` (Finalize: `ZREM`; Compensate: `ZREM`)
+  - `apps/worker/src/lib/reconcile-ticket-availability.ts` (`ZCARD`/`ZCOUNT` statt SCAN, Stale-Messung)
+  - `apps/worker/src/lib/metrics.ts` (`reservation_ledger_active`, `reservation_ledger_stale`)
+  - `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung)
+  - `docs/ARCHITECTURE.md`, `docs/TODO.md`

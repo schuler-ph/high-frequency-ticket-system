@@ -6,21 +6,30 @@ export type { EventInventorySnapshot } from "@repo/db";
 
 export type ReconcileRedisClient = Pick<
   RedisClient,
-  "get" | "scan" | "mset" | "incrby"
+  "get" | "mset" | "incrby" | "zcard" | "zcount"
 >;
 
 export type ReconcileTicketAvailabilityDeps = {
   getEventInventorySnapshots: () => Promise<EventInventorySnapshot[]>;
   redis: ReconcileRedisClient;
-  scanCount?: number;
+  // Reservierungen, deren Erstellungszeit (ZSet-Score) aelter als dieser
+  // Schwellwert ist, gelten als Stale-Kandidaten fuer den Reaper (Phase 6).
+  // Sie werden nur gezaehlt/gemeldet, NIE automatisch zurueckgebucht.
+  staleReservationThresholdMs?: number;
+  now?: () => number;
   onEventReconciled?: (
     eventId: string,
     redisAvailable: number,
     computedAvailable: number,
   ) => void;
+  onReservationLedgerMeasured?: (
+    eventId: string,
+    activeReservations: number,
+    staleReservations: number,
+  ) => void;
 };
 
-const DEFAULT_SCAN_COUNT = 100;
+const DEFAULT_STALE_RESERVATION_THRESHOLD_MS = 900_000;
 
 export const calculateAvailableTickets = (
   totalCapacity: number,
@@ -28,35 +37,38 @@ export const calculateAvailableTickets = (
   activeReservations: number,
 ): number => Math.max(totalCapacity - soldCount - activeReservations, 0);
 
+/**
+ * Zaehlt aktive (akzeptiert, noch nicht finalisierte) Reservierungen als
+ * ZSet-Kardinalitaet — O(1) statt eines Keyspace-`SCAN` (ADR-026). Jeder
+ * Ledger-Eintrag ist ein Inventar-Anspruch, unabhaengig vom Alter; Ablauf
+ * fuehrt nie zu automatischer Rueckbuchung von `available`.
+ */
 export async function countActiveReservations(
   redis: ReconcileRedisClient,
   eventId: string,
-  scanCount = DEFAULT_SCAN_COUNT,
 ): Promise<number> {
-  const keys = ticketRedisKeys(eventId);
-  const pattern = `${keys.reservation("")}*`;
-  let cursor = "0";
-  let activeReservations = 0;
+  return redis.zcard(ticketRedisKeys(eventId).reservations);
+}
 
-  do {
-    const [nextCursor, reservationKeys] = await redis.scan(
-      cursor,
-      "MATCH",
-      pattern,
-      "COUNT",
-      scanCount,
-    );
-
-    activeReservations += reservationKeys.length;
-    cursor = nextCursor;
-  } while (cursor !== "0");
-
-  return activeReservations;
+/**
+ * Zaehlt Ledger-Eintraege, deren Score (Erstellungszeit) aelter als
+ * `olderThanMs` ist — Stale-Kandidaten fuer den Reaper. Reine Observability,
+ * loest keine Kompensation aus.
+ */
+export async function countStaleReservations(
+  redis: ReconcileRedisClient,
+  eventId: string,
+  olderThanMs: number,
+): Promise<number> {
+  return redis.zcount(ticketRedisKeys(eventId).reservations, 0, olderThanMs);
 }
 
 export async function reconcileTicketAvailability(
   deps: ReconcileTicketAvailabilityDeps,
 ): Promise<void> {
+  const now = deps.now ?? Date.now;
+  const staleThresholdMs =
+    deps.staleReservationThresholdMs ?? DEFAULT_STALE_RESERVATION_THRESHOLD_MS;
   const eventSnapshots = await deps.getEventInventorySnapshots();
 
   for (const snapshot of eventSnapshots) {
@@ -64,7 +76,16 @@ export async function reconcileTicketAvailability(
     const activeReservations = await countActiveReservations(
       deps.redis,
       snapshot.eventId,
-      deps.scanCount,
+    );
+    const staleReservations = await countStaleReservations(
+      deps.redis,
+      snapshot.eventId,
+      now() - staleThresholdMs,
+    );
+    deps.onReservationLedgerMeasured?.(
+      snapshot.eventId,
+      activeReservations,
+      staleReservations,
     );
     const computed = calculateAvailableTickets(
       snapshot.totalCapacity,

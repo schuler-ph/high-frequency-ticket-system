@@ -29,11 +29,12 @@ export const env = createEnv({
     // Bewusst unter dem Fastify/avvio-Default (10 s) gehalten.
     REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
     PUBSUB_STARTUP_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
-    REDIS_RESERVATION_TTL_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(120),
+    // Alter (Sekunden), ab dem ein noch offener Ledger-Eintrag als
+    // Stale-Kandidat fuer den Reaper (Phase 6) gilt. Reine Observability:
+    // Reservierungen laufen NICHT mehr per TTL ab (ADR-026), sie bleiben ein
+    // Inventar-Anspruch bis Finalisierung/Kompensation. Grosszuegig ueber der
+    // erwarteten Queue-Latenz (Baseline A: ~406 s) angesetzt.
+    RESERVATION_STALE_SECONDS: z.coerce.number().int().positive().default(900),
     REDIS_PENDING_ORDER_TTL_SECONDS: z.coerce
       .number()
       .int()

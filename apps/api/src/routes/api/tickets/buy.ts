@@ -36,7 +36,6 @@ type QueueBuyTicketPurchaseInput = {
   body: BuyTicketBody;
   redis: TicketRedisScripts;
   pubsubPublisher: TicketPublisher;
-  reservationTtlSeconds?: number;
   pendingOrderTtlSeconds?: number;
   createOrderId?: () => string;
   onReservationCreated?: () => void;
@@ -48,7 +47,6 @@ export async function queueBuyTicketPurchase({
   body,
   redis,
   pubsubPublisher,
-  reservationTtlSeconds = env.REDIS_RESERVATION_TTL_SECONDS,
   pendingOrderTtlSeconds = env.REDIS_PENDING_ORDER_TTL_SECONDS,
   createOrderId = randomUUID,
   onReservationCreated,
@@ -56,22 +54,22 @@ export async function queueBuyTicketPurchase({
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
   const keys = ticketRedisKeys(eventId);
   const orderId = createOrderId();
-  const reservationKey = keys.reservation(orderId);
   const orderCacheKey = orderRedisKeys.entry(orderId);
   const orderCacheValue = JSON.stringify({
     orderId,
     eventId,
     status: "pending",
   } satisfies PendingOrderCacheEntry);
+  // Zeitstempel wird dreifach genutzt: Ledger-Score (ZADD), Sale-Unlock-Check
+  // (opensAt) und `queuedAt` im Pub/Sub-Payload — ein Date.now() pro Request.
   const now = Date.now();
 
   const availableAfterReserve = await redis.reserveTicket(
     keys.available,
-    reservationKey,
+    keys.reservations,
     orderCacheKey,
     keys.opensAt,
     orderId,
-    reservationTtlSeconds,
     orderCacheValue,
     pendingOrderTtlSeconds,
     now,
@@ -97,9 +95,10 @@ export async function queueBuyTicketPurchase({
   } catch (error) {
     try {
       await redis.releaseTicketReservation(
-        reservationKey,
+        keys.reservations,
         keys.available,
         orderCacheKey,
+        orderId,
       );
     } catch (releaseError) {
       onPublishRollback?.();

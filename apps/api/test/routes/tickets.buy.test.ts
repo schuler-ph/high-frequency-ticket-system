@@ -18,20 +18,20 @@ const ORDER_ID = "8d0f0f65-6a97-48a3-ad0b-65f65b0d9c23";
 
 type ReserveCall = {
   availableKey: string;
-  reservationKey: string;
+  reservationsLedgerKey: string;
   orderCacheKey: string;
   opensAtKey: string;
   orderId: string;
-  reservationTtlSeconds: number;
   orderCacheValue: string;
   pendingOrderTtlSeconds: number;
   nowMs: number;
 };
 
 type ReleaseCall = {
-  reservationKey: string;
+  reservationsLedgerKey: string;
   availableKey: string;
   orderCacheKey: string;
+  orderId: string;
 };
 
 function createScriptsMock(
@@ -48,22 +48,20 @@ function createScriptsMock(
     releaseCalls,
     async reserveTicket(
       availableKey,
-      reservationKey,
+      reservationsLedgerKey,
       orderCacheKey,
       opensAtKey,
       orderId,
-      reservationTtlSeconds,
       orderCacheValue,
       pendingOrderTtlSeconds,
       nowMs,
     ) {
       reserveCalls.push({
         availableKey,
-        reservationKey,
+        reservationsLedgerKey,
         orderCacheKey,
         opensAtKey,
         orderId,
-        reservationTtlSeconds,
         orderCacheValue,
         pendingOrderTtlSeconds,
         nowMs,
@@ -71,11 +69,17 @@ function createScriptsMock(
       return 999_999;
     },
     async releaseTicketReservation(
-      reservationKey,
+      reservationsLedgerKey,
       availableKey,
       orderCacheKey,
+      orderId,
     ) {
-      releaseCalls.push({ reservationKey, availableKey, orderCacheKey });
+      releaseCalls.push({
+        reservationsLedgerKey,
+        availableKey,
+        orderCacheKey,
+        orderId,
+      });
       return 1;
     },
     ...overrides,
@@ -111,11 +115,10 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and pub
     { ...reserveCall, nowMs: undefined },
     {
       availableKey: ticketRedisKeys(EVENT_ID).available,
-      reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
+      reservationsLedgerKey: ticketRedisKeys(EVENT_ID).reservations,
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
       opensAtKey: ticketRedisKeys(EVENT_ID).opensAt,
       orderId: ORDER_ID,
-      reservationTtlSeconds: 120,
       orderCacheValue: JSON.stringify(
         pendingOrderCacheEntrySchema.parse({
           orderId: ORDER_ID,
@@ -241,9 +244,10 @@ void test("queueBuyTicketPurchase releases the reservation atomically on publish
 
   assert.deepEqual(redis.releaseCalls, [
     {
-      reservationKey: ticketRedisKeys(EVENT_ID).reservation(ORDER_ID),
+      reservationsLedgerKey: ticketRedisKeys(EVENT_ID).reservations,
       availableKey: ticketRedisKeys(EVENT_ID).available,
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
+      orderId: ORDER_ID,
     },
   ]);
   assert.equal(rollbackMetricFired, 1);

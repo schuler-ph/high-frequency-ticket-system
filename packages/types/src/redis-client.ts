@@ -26,12 +26,15 @@ export type RedisClient = {
     name: string,
     definition: { lua: string; numberOfKeys?: number },
   ): void;
-  scan(
-    cursor: string,
-    matchToken: "MATCH",
-    pattern: string,
-    countToken: "COUNT",
-    count: number,
-  ): Promise<[string, string[]]>;
+  // Sorted-Set-Operationen fuer den Reservation-Ledger (ADR-026): `zcard`
+  // zaehlt aktive Reservierungen in O(1), `zcount` findet Stale-Kandidaten
+  // nach Alter (Score = Erstellungszeit). Beide ersetzen den fruehreren
+  // Keyspace-`SCAN` im Reconcile-Loop.
+  zcard(key: string): Promise<number>;
+  zcount(
+    key: string,
+    min: number | string,
+    max: number | string,
+  ): Promise<number>;
   mset(values: Record<string, string>): Promise<unknown>;
 };
