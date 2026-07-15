@@ -48,6 +48,9 @@ export const orderE2eLatencySeconds = new Histogram({
   name: "order_e2e_latency_seconds",
   help: "End-to-end latency from POST /buy accepted to order completed or failed",
   labelNames: ["event_id", "status"] as const,
-  buckets: [0.5, 1, 1.5, 2, 2.5, 3, 5, 10, 30],
+  // Baseline A's mean E2E latency was ~406s, which fell entirely into the +Inf
+  // overflow bucket at the old 30s cap and clipped p95/p99 flat. Buckets extend
+  // to 600s so queue-pressure latency past 30s is actually resolvable.
+  buckets: [0.5, 1, 1.5, 2, 2.5, 3, 5, 10, 30, 60, 120, 180, 300, 450, 600],
   registers: [workerRegistry],
 });

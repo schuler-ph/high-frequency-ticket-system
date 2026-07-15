@@ -149,7 +149,7 @@
       },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
       "id": 5,
-      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": { "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
           "expr": "sum(increase(worker_redeliveries_total{job=\"worker\"}[$__range]))",

@@ -521,6 +521,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/lib/handle-buy-ticket-message.ts`
   - `apps/worker/src/lib/reconcile-ticket-availability.ts`
   - `apps/worker/src/lib/metrics.ts`
+- **Nachtrag (2026-07-15, nach Baseline A):** Die Histogram-Buckets endeten bei 30 s. Baseline A hatte ~406 s mittlere E2E-Latenz, wodurch praktisch alle Messungen in den `+Inf`-Overflow-Bucket fielen und p95/p99 flach bei 30 s klippten. Buckets auf `[…, 30, 60, 120, 180, 300, 450, 600]` erweitert, damit Queue-Druck jenseits von 30 s aufloesbar ist. Zusaetzlich das Grafana-Panel „Completion Rate (5m)“ in „Worker/API Throughput Ratio (5m)“ umbenannt: Der Wert ist kein Completion-Wahrscheinlichkeit, sondern das Verhaeltnis rollierender Completion-/Accept-Fenster und darf im Drain legitim > 100 % liegen (Baseline A zeigte 960 %) — daher `max: 1` entfernt und die Schwellen auf „< 1 = faellt zurueck / ≥ 1 = draint Backlog“ gesetzt. Legenden-`sum` auf den kumulativen Panels (Order Lifecycle, Worker Reliability) entfernt, da Grafana jeden geplotteten `increase($__range)`-Punkt aufsummierte und damit unsinnige Werte (11,7 Mio.) statt des Range-Increase (`last`) anzeigte.
 
 ---
 
