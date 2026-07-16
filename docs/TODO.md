@@ -186,6 +186,29 @@ Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 - [ ] #7 vor Umsetzung isoliert benchmarken: Payment-Mock parameterisieren/deaktivieren, Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen; Baseline A erreichte bereits den erwarteten 500/s-Flow-Control-Deckel und beweist den Hot-Row-Limiter daher noch nicht separat.
 - [ ] #9: Topic/Subscription-Provisioning (Emulator-Bootstrapping) nach `scripts/local/` verschieben; `*Like`-Typen und Zweiphasen-Start entfernen.
 
+## Phase 4.7: Checkout & Payment-Simulation (Web + API)
+
+Ziel: Der Kauf laeuft nicht mehr als ein einziger `POST /buy`-Klick, sondern als realistischer Checkout — Reservierung beim "Kaufen", ein Payment-Modal mit simuliertem 3DS, und danach ein Live-Order-Status auf derselben Seite. Leitentscheidung (siehe neuen ADR-027): **`POST /buy` reserviert nur, die neue synchrone Pay-Route published** — das Ticket ist waehrend der Zahlung gehalten, der Worker sieht die Order erst nach bestaetigter Zahlung.
+
+### Backend: Reserve/Pay-Split (`apps/api` + `packages/types`)
+
+- [ ] **Buy entkoppeln:** `POST /api/tickets/:eventId/buy` reserviert nur noch (Lua: `DECR available` + Ledger-`ZADD` + `pending`-Order) und liefert `orderId` + `202`, **ohne** Pub/Sub-Publish. Der bisherige Publish-Rollback-Pfad entfaellt an dieser Stelle (kein Publish mehr im Buy). Bestehende Buy-Route-Tests entsprechend anpassen.
+- [ ] **Payment-DTO in `packages/types`:** Zod-Schema fuer den (simulierten) Payment-Request (`cardHolder`, `cardNumber`, `expiry`, `cvc`) + Response (`confirmed`, `orderId`). Keine echten Kartendaten — reine Simulation; im Schema klar als Fake/Dummy kennzeichnen und keine Persistenz der Zahlungsdaten.
+- [ ] **Synchrone Pay-Route:** `POST /api/orders/:orderId/pay` — validiert das Payment-DTO, simuliert die 3DS-Challenge (kurzer Sleep/Erfolgs-Stub), **published** dann `BuyTicketEvent` an Pub/Sub und antwortet synchron (`200`, sobald der Publish bestaetigt ist). Wichtig: Async-Writes-Regel bleibt gewahrt — die Route schreibt niemals in PostgreSQL, sie published nur; die Persistenz traegt weiterhin der Worker. `queuedAt` wird beim Publish (Pay-Zeitpunkt) gesetzt, damit die E2E-Latenz die Zahlungszeit nicht mitmisst.
+- [ ] **Publish-Rollback im Pay-Pfad:** Schlaegt der Publish in der Pay-Route fehl, Reservation via bestehendem Gegen-Script freigeben (`ZREM` + `INCR available` + Pending-`DEL`) und Fehler zurueckliefern (analog zum alten Buy-Rollback).
+- [ ] **Checkout-Abbruch/Timeout behandeln:** Bricht der Nutzer das Modal ab oder scheitert 3DS, bleibt die Ledger-Reservierung sonst als Phantom-Anspruch stehen (ZSet ohne TTL, ADR-026). Explizite Release-Route (`POST /api/orders/:orderId/cancel`, ruft `releaseTicketReservation`) fuer Modal-Close/Timeout ergaenzen; das Aufraeumen wirklich verwaister Reservierungen bleibt beim Reaper (Phase 6). Metrik fuer abgebrochene Checkouts ergaenzen.
+- [ ] **Tests:** Pay-Route (Happy Path publish + `200`, Publish-Fehler → Rollback), Cancel-Route (Release + idempotent), sowie Anpassung des End-to-End-Flow-Tests auf `buy` (reserve) → `pay` (publish) → Worker → `GET /api/orders/:orderId`.
+- [ ] **ADR-027 + Doku-Lockstep:** Neuen ADR-027 (Reserve→Pay→Publish-Split, Interaktion mit Async-Writes-Regel und Reservation-Ledger) anlegen; `ARCHITECTURE.md` Happy-Path-Schritte 3–5, das Flow-Diagramm und den Redis-Key-Lifecycle (Ledger-Lebensdauer bei abgebrochenem Checkout) aktualisieren.
+
+### Frontend: Checkout-Flow (`apps/web`)
+
+- [ ] **Auto-Fill Namen:** Vor-/Nachname-Inputs beim Betreten der `open`-Phase mit zufaelligen Namen vorbefuellen (kleiner clientseitiger Name-Generator, keine externe Dependency); weiterhin editierbar.
+- [ ] **Payment-Modal:** Nach "Ticket kaufen" zuerst `POST /buy` (Reservierung), dann Tailwind-Modal oeffnen mit vorbefuellten Fake-Zahlungsdaten (Karteninhaber, Kartennummer, Ablaufdatum, CVC). Kein CSS ausserhalb von Tailwind.
+- [ ] **Fake-3DS-Challenge:** Nach "Bezahlen" einen simulierten 3DS-Schritt anzeigen (z. B. Spinner/OTP-Prompt), der `POST /api/orders/:orderId/pay` aufruft; Erfolg/Fehler sauber im Modal behandeln.
+- [ ] **Modal-Abbruch:** Beim Schliessen/Abbrechen des Modals `POST /api/orders/:orderId/cancel` aufrufen, damit die Reservierung freigegeben wird.
+- [ ] **Neue `tracking`-Phase:** Nach erfolgreicher Zahlung auf eine neue Inline-Phase der Single-Page umschalten (bestehendes `Phase`-Modell `loading|upcoming|open|soldout` um `tracking` erweitern), die den Order-Status anzeigt.
+- [ ] **Live-Order-Status:** In der `tracking`-Phase `GET /api/orders/:orderId` pollen (Backoff/Jitter aus Phase 6 optional beruecksichtigen) und `pending → completed|failed` inkl. Ticket-Referenz live darstellen; Fehl-/Failed-Status verstaendlich anzeigen.
+
 ## Phase 5: Cloud Deployment (GCP)
 
 - [ ] Erstelle Terraform-Skripte für VPC, Cloud SQL, Memorystore und GKE.
