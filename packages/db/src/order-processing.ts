@@ -38,6 +38,20 @@ export async function listEventInventorySnapshots(): Promise<
   return result;
 }
 
+/**
+ * Anzahl der Backends, die aktuell auf einen PostgreSQL-Lock warten. Direkter
+ * Indikator fuer Hot-Row-Kontention (z. B. der `sold_count`-UPDATE in
+ * `buy_ticket`). Read-only Sample aus `pg_stat_activity`; die Query selbst
+ * wartet nicht auf einen Lock und verfaelscht die Zaehlung daher nicht.
+ */
+export async function countWaitingLockBackends(): Promise<number> {
+  const result = await db.execute<{ waiting: number }>(
+    sql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'`,
+  );
+
+  return result.rows[0]?.waiting ?? 0;
+}
+
 export async function markOrderFailed(
   orderId: string,
   failureReason: string,

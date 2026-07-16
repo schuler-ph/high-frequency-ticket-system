@@ -32,6 +32,17 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: hts-redis-exporter
+    ports:
+      - "10009:9121"
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
   pubsub:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
     platform: linux/amd64

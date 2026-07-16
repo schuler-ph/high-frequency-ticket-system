@@ -122,12 +122,12 @@
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=~\"5..\"}[1m])) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
+          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
           "legendFormat": "5xx Error Rate",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=\"409\"}[1m])) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
+          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=\"409\"}[1m])) or vector(0)) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
           "legendFormat": "409 Sold Out Rate",
           "refId": "B"
         }

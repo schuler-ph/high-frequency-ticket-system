@@ -22,6 +22,7 @@ import {
   redisDbDriftTickets,
   reservationLedgerActive,
   reservationLedgerStale,
+  timeDbQuery,
   workerCompensationsTotal,
   workerIdempotencyHitsTotal,
   workerRedeliveriesTotal,
@@ -42,9 +43,14 @@ type PubSubListenerRouteDeps = {
 };
 
 const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
-  executeBuyTicket,
-  listEventInventorySnapshots,
-  markOrderFailed,
+  executeBuyTicket: (payload) =>
+    timeDbQuery("buy_ticket", () => executeBuyTicket(payload)),
+  listEventInventorySnapshots: () =>
+    timeDbQuery("list_event_inventory", () => listEventInventorySnapshots()),
+  markOrderFailed: (orderId, failureReason) =>
+    timeDbQuery("mark_order_failed", () =>
+      markOrderFailed(orderId, failureReason),
+    ),
   reconcileTicketAvailability,
 };
 

@@ -6,34 +6,35 @@ Jede Architekturentscheidung wird hier als ADR dokumentiert. Das erlaubt es, den
 
 Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der Stelle in `docs/TODO.md`, in der die Umsetzung erledigt wurde oder geplant ist.
 
-| ADR                                                        | Status           | TODO-Abbildung                                                                                                                                                                            |
-| ---------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                                                                                   |
-| ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                                                                                          |
-| ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                                                                                   |
-| ADR-004 Asynchrone Writes über Pub/Sub                     | Fertig           | Phase 3 Buy-Flow + Phase 3.5 ACK/NACK + Idempotenz + Kompensation vollständig erledigt                                                                                                    |
-| ADR-005 Redis als Read-Cache                               | Fertig           | Phase 3.5 event-spezifische Keys, Reservation-Flow, Atomic Lua, Reconcile vollständig erledigt                                                                                            |
-| ADR-006 Prometheus + Grafana                               | Teilweise fertig | prom-client + /metrics-Endpunkte (API + Worker) erledigt; Grafana-Dashboards noch offen (Phase 4.5)                                                                                       |
-| ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                                                                             |
-| ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                                                                                         |
-| ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                                                                                 |
-| ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                                                                                |
-| ADR-011 Capacity Model vs. Pre-generated Tickets           | Fertig           | Phase 2/3/3.5 vollständig umgesetzt: capacity-basiert, on-the-fly INSERT, sold_count via SQL-Function                                                                                     |
-| ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                                                                                   |
-| ADR-013 Payment Flow Mocking                               | Fertig           | Worker sleep(1000ms) aktiv umgesetzt (Phase 3 + 3.5)                                                                                                                                      |
-| ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                                                                                      |
-| ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                                                                                          |
-| ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                                                                                 |
-| ADR-017 Order-Status via Polling                           | Fertig           | Phase 3.5 Orders↔Tickets vollständig verknüpft; GET /api/orders/:orderId mit Redis-Read-Model fertig                                                                                      |
-| ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                                                                                    |
-| ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                                                                           |
-| ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                                                                               |
-| ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                                                                               |
+| ADR                                                        | Status           | TODO-Abbildung                                                                                                                 |
+| ---------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ADR-001 Monorepo mit Turborepo                             | Fertig           | Phase 1 (Foundation & Tooling) erledigt                                                                                        |
+| ADR-002 Fastify statt Express                              | Fertig           | Phase 3 (Core Logic) API + Worker Setup erledigt                                                                               |
+| ADR-003 Drizzle ORM statt Prisma                           | Fertig           | Phase 2 (Data Layer) Drizzle Setup + Migration erledigt                                                                        |
+| ADR-004 Asynchrone Writes über Pub/Sub                     | Fertig           | Phase 3 Buy-Flow + Phase 3.5 ACK/NACK + Idempotenz + Kompensation vollständig erledigt                                         |
+| ADR-005 Redis als Read-Cache                               | Fertig           | Phase 3.5 event-spezifische Keys, Reservation-Flow, Atomic Lua, Reconcile vollständig erledigt                                 |
+| ADR-006 Prometheus + Grafana                               | Teilweise fertig | prom-client + /metrics-Endpunkte (API + Worker) erledigt; Grafana-Dashboards noch offen (Phase 4.5)                            |
+| ADR-007 GitHub Actions für CI/CD                           | Fertig           | Phase 1 (`.github/workflows/ci.yml`) erledigt                                                                                  |
+| ADR-008 Zod für Validation & DTOs                          | Fertig           | Phase 2 DTOs + Phase 3 Route-Schemas erledigt; DTO-Vertrag für Tests dokumentiert                                              |
+| ADR-009 Husky für Git Hooks                                | Fertig           | Bereits umgesetzt (außerhalb der Phasenliste, als Standard-Tooling aktiv)                                                      |
+| ADR-010 Terraform für IaC                                  | Geplant          | Phase 5 (Cloud Deployment)                                                                                                     |
+| ADR-011 Capacity Model vs. Pre-generated Tickets           | Fertig           | Phase 2/3/3.5 vollständig umgesetzt: capacity-basiert, on-the-fly INSERT, sold_count via SQL-Function                          |
+| ADR-012 Guest Checkout                                     | Fertig           | Phase 3 Buy-Request ohne Auth umgesetzt                                                                                        |
+| ADR-013 Payment Flow Mocking                               | Fertig           | Worker sleep(1000ms) aktiv umgesetzt (Phase 3 + 3.5)                                                                           |
+| ADR-014 Cloud Provider GCP                                 | Geplant          | Phase 5 (GCP Terraform + Deployment)                                                                                           |
+| ADR-015 Custom Error Classes & Secure Error Handling       | Fertig           | Phase 3 Error Handler und typed errors umgesetzt                                                                               |
+| ADR-016 GCP-ready Structured Logging mit Pino              | Fertig           | API/Worker Logger-Konfiguration umgesetzt                                                                                      |
+| ADR-017 Order-Status via Polling                           | Fertig           | Phase 3.5 Orders↔Tickets vollständig verknüpft; GET /api/orders/:orderId mit Redis-Read-Model fertig                           |
+| ADR-018 Ticket-Kauf via SQL-Function im Worker             | Fertig           | Phase 3 Worker nutzt `buy_ticket(...)`                                                                                         |
+| ADR-019 TypeScript CLI via tsgo                            | Teilweise fertig | Phase 1 Tooling: `tsc` in Build/Test/Typecheck weitgehend migriert; Ausnahmen Web-Checktypes + Dev-Watch folgen                |
+| ADR-020 Deterministische Tests & Debug-Guardrails          | Fertig           | Phase 1 Tooling: feste Test-Entrypoints, Debug-Skripte, Runbook und CI-Guardrails umgesetzt                                    |
+| ADR-021 Direkte Backend-Tests via node:test + native TS    | Fertig           | Phase 1 Tooling: API/Worker/DB Tests laufen paketlokal ohne Shared Runner, Vitest oder tsx im Test-Hot-Path                    |
 | ADR-022 Periodischer Reconcile-Loop (Singleton-Deployment) | Fertig           | Phase 3.5: zyklischer Reconcile mit self-scheduling setTimeout, Betriebsmodi via Env-Vars, sauber via Fastify onClose stoppbar; zaehlt Reservierungen seit ADR-026 via `ZCARD` statt SCAN |
-| ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge; `active_reservations` = `ZCARD` seit ADR-026                                 |
-| ADR-024 Sale-Unlock-Gate (425 Too Early)                   | Fertig           | Phase 4: `opensAt`-Redis-Key im atomaren Reserve-Script, TooEarlyError, Seed-Skript-Unterstuetzung                                                                                        |
-| ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                                                                           |
-| ADR-026 Reservation-Ledger (ZSet) statt Keyspace-SCAN      | Fertig           | Phase 4.6 (#5): akzeptierte Reservierungen im TTL-losen ZSet-Ledger, Reconcile via `ZCARD`/`ZCOUNT`, Ablauf = Stale-Kandidat statt Rueckbuchung (behebt Baseline-A-Oversell)              |
+| ADR-023 E2E-Observability (queuedAt + Drift-Metrik)        | Fertig           | Phase 3.5: queuedAt-Timestamp im Payload, order_e2e_latency_seconds Histogram, redis_db_drift_tickets Gauge; `active_reservations` = `ZCARD` seit ADR-026                                     |
+| ADR-024 Sale-Unlock-Gate (425 Too Early)                   | Fertig           | Phase 4: `opensAt`-Redis-Key im atomaren Reserve-Script, TooEarlyError, Seed-Skript-Unterstuetzung                             |
+| ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                |
+| ADR-026 Redis-Exporter + DB-/Runtime-Bottleneck-Metriken   | Fertig           | Phase 4.5: `redis_exporter`-Container, Worker-DB-Pool-/Query-/Lock-Metriken, Dashboard „DB & Runtime“                          |
+| ADR-027 Reservation-Ledger (ZSet) statt Keyspace-SCAN      | Fertig           | Phase 4.6 (#5): akzeptierte Reservierungen im TTL-losen ZSet-Ledger, Reconcile via `ZCARD`/`ZCOUNT`, Ablauf = Stale-Kandidat statt Rueckbuchung (behebt Baseline-A-Oversell)              |
 
 ### Status-Definitionen
 
@@ -522,6 +523,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/lib/handle-buy-ticket-message.ts`
   - `apps/worker/src/lib/reconcile-ticket-availability.ts`
   - `apps/worker/src/lib/metrics.ts`
+- **Nachtrag (2026-07-15, nach Baseline A):** Die Histogram-Buckets endeten bei 30 s. Baseline A hatte ~406 s mittlere E2E-Latenz, wodurch praktisch alle Messungen in den `+Inf`-Overflow-Bucket fielen und p95/p99 flach bei 30 s klippten. Buckets auf `[…, 30, 60, 120, 180, 300, 450, 600]` erweitert, damit Queue-Druck jenseits von 30 s aufloesbar ist. Zusaetzlich das Grafana-Panel „Completion Rate (5m)“ in „Worker/API Throughput Ratio (5m)“ umbenannt: Der Wert ist kein Completion-Wahrscheinlichkeit, sondern das Verhaeltnis rollierender Completion-/Accept-Fenster und darf im Drain legitim > 100 % liegen (Baseline A zeigte 960 %) — daher `max: 1` entfernt und die Schwellen auf „< 1 = faellt zurueck / ≥ 1 = draint Backlog“ gesetzt. Legenden-`sum` auf den kumulativen Panels (Order Lifecycle, Worker Reliability) entfernt, da Grafana jeden geplotteten `increase($__range)`-Punkt aufsummierte und damit unsinnige Werte (11,7 Mio.) statt des Range-Increase (`last`) anzeigte.
 
 ---
 
@@ -579,7 +581,36 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 ---
 
-## ADR-026: Reservation-Ledger (ZSet) statt Keyspace-SCAN — Ablauf ≠ Rueckbuchung
+## ADR-026: Redis-Exporter + PostgreSQL-/Runtime-Bottleneck-Metriken
+
+- **Status:** Fertig
+- **Datum:** 2026-07-15
+- **Kontext:** Baseline A (`docs/reports/LOAD-TEST-REPORT-2026-07-14.md`) traf den Pub/Sub-Flow-Control-Deckel, bevor die Datenbank als Limiter nachweisbar war. Die Redis-Dashboards standen auf `No data`, weil kein `redis_exporter` deployt war, und es fehlten Signale zur belastbaren Engpass-Zuordnung (Pool-Saettigung, Query-Latenz, Lock-Kontention). Prozess-CPU und Event-Loop-Lag lagen bereits durch `prom-client`-Default-Metriken vor, waren aber in keinem Dashboard sichtbar.
+- **Entscheidung:**
+  1. `oliver006/redis_exporter` als Docker-Compose-Service (`hts-redis-exporter`, Host-Port `10009`, Container-Port `9121`) mit eigenem Prometheus-Scrape-Job (`job: redis`, container-intern per Service-Name). Aktiviert die bestehenden Redis-Performance-Panels.
+  2. Worker-DB-Metriken via `prom-client`: `db_pool_connections{state}` (Gauge, auf jedem Scrape via `collect()` aus `pool.totalCount/idleCount/waitingCount` — `waiting` ist das Pool-Wait-Backpressure-Signal), `db_query_duration_seconds{query}` (Histogram) und `db_locks_waiting` (Gauge, per Intervall aus `pg_stat_activity` gesampelt).
+  3. Query-Latenz wird am Kompositions-Wurzelpunkt (`defaultPubSubListenerRouteDeps`) via `timeDbQuery(name, fn)` gemessen, nicht durch Monkey-Patching von `pool.query`. `@repo/db` bleibt frei von Metrik-Kopplung; nur der Pool und ein `countWaitingLockBackends()`-Helper werden exportiert.
+  4. Neues Dashboard „DB & Runtime“ (`monitoring/grafana/provisioning/dashboards/db-runtime.json`): Pool-Connections/-Wait, Query-Latenz (p50/p95/p99 + p95 je Query), Query-Durchsatz, Lock-Waits, Event-Loop-Lag (p99/mean) und Prozess-CPU fuer API und Worker.
+- **Begruendung:**
+  - Der `collect()`-Callback am Pool-Gauge kostet keine DB-Query — er liest nur In-Memory-Zaehler des Pools und ist damit scrape-guenstig. Lock-Waits kosten eine Query gegen `pg_stat_activity` und werden deshalb per Intervall (5 s, entspricht `scrape_interval`) statt pro Scrape gesampelt.
+  - Timing am DI-Seam statt `pool.query`-Wrapper vermeidet fragile Overload-/Callback-Typprobleme und haelt die geteilte DB-Schicht rein; die drei relevanten Worker-Queries (`buy_ticket`, `list_event_inventory`, `mark_order_failed`) sind namentlich getrennt messbar.
+  - `redis_exporter` ist der Standardweg fuer Redis-INFO-Metriken und liefert exakt die Serien-Namen, auf die die bestehenden Panels bereits verweisen.
+- **Alternativen:**
+  - `postgres_exporter` statt In-Worker-Metriken: liefert reichhaltige Server-Metriken, aber die pro-Query- und Pool-Wait-Sicht des Anwendungsprozesses (die fuer die #7-Analyse zaehlt) deckt er nicht ab; zusaetzlicher Container-Overhead.
+  - `pool.query` global monkey-patchen: erfasst jede Query automatisch, aber mit hohem Typrisiko (node-postgres-Overloads inkl. Callback-Form) und Kopplung von `@repo/db` an die Worker-Registry.
+  - CPU-/Event-Loop-Metriken neu instrumentieren: unnoetig, da `collectDefaultMetrics` sie bereits exponiert — es fehlte nur die Visualisierung.
+- **Umsetzung:**
+  - `docker-compose.yml` (`redis_exporter`-Service), `monitoring/prometheus.yml` (`job: redis`)
+  - `packages/db/src/index.ts` (`pool`-Export), `packages/db/src/order-processing.ts` (`countWaitingLockBackends`)
+  - `apps/worker/src/lib/metrics.ts` (`db_pool_connections`, `db_query_duration_seconds`, `db_locks_waiting`, `timeDbQuery`)
+  - `apps/worker/src/plugins/db-metrics.ts` (Lock-Wait-Sampler mit onReady/onClose-Lifecycle)
+  - `apps/worker/src/routes/pubsub-listener.ts` (Query-Timing an den DB-Deps)
+  - `monitoring/grafana/provisioning/dashboards/db-runtime.json`
+  - `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`
+
+---
+
+## ADR-027: Reservation-Ledger (ZSet) statt Keyspace-SCAN — Ablauf ≠ Rueckbuchung
 
 - **Datum:** 2026-07-15
 - **Kontext:** Baseline A (`docs/reports/LOAD-TEST-REPORT-2026-07-14.md`) legte zwei Probleme im Reservation-Accounting offen:
