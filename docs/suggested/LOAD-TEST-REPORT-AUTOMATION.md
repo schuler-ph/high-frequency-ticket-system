@@ -37,7 +37,7 @@ The missing layer is an evidence collector and deterministic analyzer around thi
 
 ## What was done manually for Baseline A
 
-The report in `docs/LOAD-TEST-REPORT-2026-07-14.md` was not produced from screenshots alone. Screenshots were used to identify suspicious panels, then every important claim was cross-checked against raw sources.
+The report in `docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md` was not produced from screenshots alone. Screenshots were used to identify suspicious panels, then every important claim was cross-checked against raw sources.
 
 ### 1. Read the executable configuration
 

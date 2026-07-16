@@ -1,5 +1,80 @@
 # Local Spike Load-Test Report — 2026-07-14
 
+## Dashboard evidence
+
+The following unedited Grafana screenshots are the visual evidence captured during and after Baseline A. They support the metrics and interpretation below, but the written values and persisted raw data remain authoritative. The overview is collapsed by default to keep the report readable.
+
+<details>
+<summary>Show 11 Grafana dashboard screenshots and their interpretation</summary>
+
+### 1. API latency by route
+
+Shows p50 and p95 latency for `/availability`, `/buy`, and `/metrics` during the spike. It is intended to compare the fast Redis read path with the slower admission path; the elevated `/buy` p95 shows API-side saturation under local whole-host contention.
+
+![Grafana dashboard capture 1](images/img1.png)
+
+### 2. API performance overview
+
+Combines total/route RPS with route latency and application errors. It is intended to show the approximately 11.7k RPS local peak and the different latency profiles; `No data` for errors means the zero-valued status series was absent, not that the panel independently proves no errors occurred.
+
+![Grafana dashboard capture 2](images/img2.png)
+
+### 3. End-to-end completion latency
+
+Shows time from `POST /buy` acceptance until worker completion. It is intended to reveal queue delay, but every quantile reaches the largest finite histogram bucket at 30 seconds; the flat 30-second values are clipping, not measured 30-second end-to-end latency.
+
+![Grafana dashboard capture 3](images/img3.png)
+
+### 4. Worker throughput and per-event p95
+
+Shows the worker's completed-order rate beside the per-event p95 completion latency. It is intended to compare consumer capacity with producer admission; the roughly 500 orders/s plateau matches the configured 500-message flow-control ceiling.
+
+![Grafana dashboard capture 4](images/img4.png)
+
+### 5. Order lifecycle throughput
+
+Compares accepted orders with completed orders and is intended to make the producer/consumer gap visible. The missing pending/failure panels and the 960% ratio are query artifacts from absent zero-value series and mismatched rolling windows, not a 960% completion probability.
+
+![Grafana dashboard capture 5](images/img5.png)
+
+### 6. Cumulative accepted versus completed orders
+
+Shows accepted orders rapidly reaching about 425k while worker completions continue to climb afterward, visualizing the backlog. The plotted `Last` values are useful; the legend's `Total` values sum overlapping rolling increases and must not be treated as order counts.
+
+![Grafana dashboard capture 6](images/img6.png)
+
+### 7. Queue proxy, publish rate, and E2E pressure
+
+Shows API admission rate and E2E latency as indirect queue-pressure signals. It is intended to surface a producer/consumer mismatch, but the missing consumer and queue-depth series expose the zero-fill bug; this is not an authoritative Pub/Sub queue-depth measurement.
+
+![Grafana dashboard capture 7](images/img7.png)
+
+### 8. Redis performance coverage
+
+Shows the expected Redis hit/miss, memory, key-count, and client panels. All are empty because `redis_exporter` was not present for this capture, documenting an observability gap rather than a healthy Redis result.
+
+![Grafana dashboard capture 8](images/img8.png)
+
+### 9. Reservation flow and Redis/DB drift
+
+Shows reservation creation, rollback/compensation panels, and the consistency formula `redis_available - (capacity - sold_count - active_reservations)`. It is intended to detect inventory-accounting errors; the approximately -314k drift is the key correctness finding of this baseline.
+
+![Grafana dashboard capture 9](images/img9.png)
+
+### 10. Absolute drift severity
+
+Shows the same consistency problem as a single severity gauge next to reservations by event. It is intended for rapid operational triage: a 314k absolute drift signals that many accepted but unfinished orders were absent from the reservation accounting at that moment.
+
+![Grafana dashboard capture 10](images/img10.png)
+
+### 11. Worker reliability events
+
+Shows redeliveries, idempotency short-circuits, locks, and compensations. It is intended to expose failure-path activity; `No data` represents absent zero-event series, so the final Prometheus/PostgreSQL/Redis reconciliation below is needed to establish the eventual zero-event outcome.
+
+![Grafana dashboard capture 11](images/img11.png)
+
+</details>
+
 ## Executive summary
 
 The run demonstrated **good eventual correctness for accepted orders**, but it did **not demonstrate 50,000 RPS capacity**.
@@ -333,56 +408,3 @@ Use this run as **Baseline A: post measures #1/#2/#3/#4/#6/#8/#10, before refine
 | Final drift                 |                  0 |
 | Final Redis memory          |         226.05 MiB |
 | Final Redis keys            |            841,904 |
-
-## Dashboard evidence
-
-The following unedited Grafana screenshots are the visual evidence captured during and after Baseline A. They support the metrics and interpretation above, but the written values and persisted raw data remain authoritative. Keeping them collapsed makes the report easy to scan while retaining the original dashboard context.
-
-<details>
-<summary>Show 11 Grafana dashboard screenshots</summary>
-
-### Capture 1
-
-![Grafana dashboard capture 1](images/img1.png)
-
-### Capture 2
-
-![Grafana dashboard capture 2](images/img2.png)
-
-### Capture 3
-
-![Grafana dashboard capture 3](images/img3.png)
-
-### Capture 4
-
-![Grafana dashboard capture 4](images/img4.png)
-
-### Capture 5
-
-![Grafana dashboard capture 5](images/img5.png)
-
-### Capture 6
-
-![Grafana dashboard capture 6](images/img6.png)
-
-### Capture 7
-
-![Grafana dashboard capture 7](images/img7.png)
-
-### Capture 8
-
-![Grafana dashboard capture 8](images/img8.png)
-
-### Capture 9
-
-![Grafana dashboard capture 9](images/img9.png)
-
-### Capture 10
-
-![Grafana dashboard capture 10](images/img10.png)
-
-### Capture 11
-
-![Grafana dashboard capture 11](images/img11.png)
-
-</details>

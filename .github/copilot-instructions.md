@@ -11,7 +11,7 @@ Wir bauen ein asynchrones High-Concurrency Ticket-System für das Frequency Fest
 Bevor du Code generierst oder Architektur-Fragen beantwortest, MUSST du deinen internen Kontext mit diesen Dateien abgleichen:
 
 1. `docs/REQUIREMENTS.md` — Tech-Stack, Event-Theme, Architektur-Regeln, Load-Test-Szenario, Monitoring-Stack. Halte diese Datei aktuell und füge neue Technologien hinzu, wenn du welche einführst.
-2. `docs/TODO.md` — Aktueller Fortschritt (Phasen 0–5). Hake erledigte Tasks ab, füge neue hinzu. Alle Teammitglieder und KI-Agenten nutzen diese Datei als Single Source of Truth.
+2. `docs/TODO.md` — Aktueller Fortschritt (Phasen 0–5). Hake erledigte Tasks ab und füge neue Arbeit **nur vorwärts** hinzu (siehe Strikte Regeln → "TODO.md ist append-forward"). Alle Teammitglieder und KI-Agenten nutzen diese Datei als Single Source of Truth.
 3. `docs/DECISIONS.md` — Architecture Decision Records (ADRs). Dokumentiere jede nicht-triviale Technologie-Entscheidung mit Kontext, Begründung und Alternativen.
 4. `docs/ARCHITECTURE.md` — System-Diagramm, Datenflüsse, Workspace-Struktur. Aktualisiere bei strukturellen Änderungen.
 
@@ -26,6 +26,7 @@ Bevor du Code generierst oder Architektur-Fragen beantwortest, MUSST du deinen i
 - **Async Writes.** Die API schreibt NIEMALS direkt in die Datenbank. Alle Writes gehen über Pub/Sub → Worker.
 - **Redis für Reads.** Die API liest Verfügbarkeiten ausschließlich aus Redis, nie direkt aus PostgreSQL.
 - **Dev Prerequisites.** Vor `pnpm run dev` sicherstellen, dass die lokalen Infrastruktur-Container laufen: `hts-postgres`, `hts-redis`, `hts-pubsub`. Vor dem Start mit `docker compose ps` oder `docker inspect -f '{{.State.Running}}' hts-postgres hts-redis hts-pubsub` prüfen; falls nicht alle laufen, zuerst `docker compose up -d` ausführen.
+- **TODO.md ist append-forward (unveränderliche Historie).** Abgehakte (`[x]`) Todos sind eingefroren: ihr Text wird nicht nachträglich umgeschrieben und sie werden nicht wieder geöffnet. Eine Phase, deren Todos alle abgehakt sind, gilt als abgeschlossen und darf **keine** neuen offenen Todos mehr erhalten. Nachträglich entdeckte Arbeit — auch wenn sie thematisch zu einer bereits fertigen Phase gehört — kommt ausschließlich in eine neue Phase oder einen dedizierten Backlog-/Folge-Abschnitt am Ende der Datei, niemals rückwirkend in eine geschlossene Phase. Nur so bleibt das Phasen-Abschluss-Signal verlässlich und der Fortschritt linear lesbar. (Korrektur eines echten Fehlers in einem `[x]`-Todo ist erlaubt, aber als neues Todo mit Verweis auf das alte, nicht durch Überschreiben.)
 
 ## Code-Stil
 

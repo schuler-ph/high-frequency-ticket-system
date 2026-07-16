@@ -330,6 +330,7 @@ Referenzdokumente:
 
 - `docs/REQUIREMENTS.md`
 - `docs/ARCHITECTURE.md`
+- [Erste lokale Lasttest-Baseline (2026-07-14)](docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md) — dokumentiert den Messaufbau, die Ergebnisse und die zugehoerigen Dashboard-Screenshots. Der Lauf ist kein 50k-RPS-Kapazitaetsnachweis.
 
 ## CI/CD
 

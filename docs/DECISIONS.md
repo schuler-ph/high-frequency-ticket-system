@@ -585,7 +585,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 - **Status:** Fertig
 - **Datum:** 2026-07-15
-- **Kontext:** Baseline A (`docs/reports/LOAD-TEST-REPORT-2026-07-14.md`) traf den Pub/Sub-Flow-Control-Deckel, bevor die Datenbank als Limiter nachweisbar war. Die Redis-Dashboards standen auf `No data`, weil kein `redis_exporter` deployt war, und es fehlten Signale zur belastbaren Engpass-Zuordnung (Pool-Saettigung, Query-Latenz, Lock-Kontention). Prozess-CPU und Event-Loop-Lag lagen bereits durch `prom-client`-Default-Metriken vor, waren aber in keinem Dashboard sichtbar.
+- **Kontext:** Baseline A (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`) traf den Pub/Sub-Flow-Control-Deckel, bevor die Datenbank als Limiter nachweisbar war. Die Redis-Dashboards standen auf `No data`, weil kein `redis_exporter` deployt war, und es fehlten Signale zur belastbaren Engpass-Zuordnung (Pool-Saettigung, Query-Latenz, Lock-Kontention). Prozess-CPU und Event-Loop-Lag lagen bereits durch `prom-client`-Default-Metriken vor, waren aber in keinem Dashboard sichtbar.
 - **Entscheidung:**
   1. `oliver006/redis_exporter` als Docker-Compose-Service (`hts-redis-exporter`, Host-Port `10009`, Container-Port `9121`) mit eigenem Prometheus-Scrape-Job (`job: redis`, container-intern per Service-Name). Aktiviert die bestehenden Redis-Performance-Panels.
   2. Worker-DB-Metriken via `prom-client`: `db_pool_connections{state}` (Gauge, auf jedem Scrape via `collect()` aus `pool.totalCount/idleCount/waitingCount` — `waiting` ist das Pool-Wait-Backpressure-Signal), `db_query_duration_seconds{query}` (Histogram) und `db_locks_waiting` (Gauge, per Intervall aus `pg_stat_activity` gesampelt).
@@ -613,7 +613,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 ## ADR-027: Reservation-Ledger (ZSet) statt Keyspace-SCAN — Ablauf ≠ Rueckbuchung
 
 - **Datum:** 2026-07-15
-- **Kontext:** Baseline A (`docs/reports/LOAD-TEST-REPORT-2026-07-14.md`) legte zwei Probleme im Reservation-Accounting offen:
+- **Kontext:** Baseline A (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`) legte zwei Probleme im Reservation-Accounting offen:
   1. **Korrektheit (Oversell-Risiko):** Reservierungen lagen als per-`orderId`-Redis-Keys mit 120-s-TTL vor. Bei ~2.000 Accepts/s gegen ~500/s Worker-Drain wuchs die Queue-Latenz auf im Mittel ~406 s. Die 120-s-Keys liefen also ab, waehrend die zugehoerige Order noch unverarbeitet in Pub/Sub lag. Der Reconcile zaehlte die abgelaufene Reservierung nicht mehr (`available` blieb aber dekrementiert) → Drift fiel auf **-314k** → Reconcile buchte `available` positiv zurueck und machte damit noch beanspruchtes Inventar erneut verkaufbar. Waehrend eines laufenden Sales fuehrt das zu Ueberverkauf.
   2. **Skalierung:** `countActiveReservations` zaehlte per `SCAN MATCH tickets:event:{id}:reservation:*`. `SCAN` iteriert immer den gesamten Keyspace (nach 1 Mio. Verkaeufen ~2 Mio. Keys aus `orders:*` + `processed:*`) und filtert erst danach — pro Reconcile-Lauf zehntausende Roundtrips fuer eine Zahl, die >99 % der Keys nie betrifft.
 - **Entscheidung:** Akzeptierte, noch nicht finalisierte Reservierungen werden in einem **Sorted Set pro Event** gefuehrt: `tickets:event:{eventId}:reservations`, Score = Erstellungszeit (Unix-ms, identisch mit `queuedAt`), Member = `orderId`.

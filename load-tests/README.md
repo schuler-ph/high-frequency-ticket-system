@@ -4,6 +4,10 @@ k6-Lasttests für das High-Frequency Ticket System.
 
 Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung fuer kuenftige Baselines ist in `docs/LOAD-TEST-REPORT-AUTOMATION.md` beschrieben. Der Leitfaden trennt Rohdaten, deterministische Analyse und Report-Rendering, damit Dashboard-Auswertungen nicht erneut manuell oder durch einen KI-Agenten rekonstruiert werden muessen.
 
+## Erste Baseline
+
+Der erste lokale Spike-Lauf ist als [Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md) dokumentiert. Der Report enthaelt Messkonfiguration, Befund, Grenzen der Aussagekraft und einen einklappbaren Anhang mit den Grafana-Screenshots. Er belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
+
 ## Voraussetzungen
 
 ```bash
