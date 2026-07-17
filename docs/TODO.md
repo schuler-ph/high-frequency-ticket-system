@@ -210,7 +210,7 @@ Ziel: Der Kauf laeuft nicht mehr als ein einziger `POST /buy`-Klick, sondern als
 ### Frontend: Checkout-Flow (`apps/web`)
 
 - [x] **Auto-Fill Namen:** Vor-/Nachname-Inputs beim Betreten der `open`-Phase mit zufaelligen Namen vorbefuellen (kleiner clientseitiger Name-Generator, keine externe Dependency); weiterhin editierbar. — `apps/web/lib/names.ts` (Generator ohne Dependency), `ActiveSaleView` befuellt Vor-/Nachname lazy beim Mount und re-randomisiert nach erfolgreichem Kauf.
-- [ ] **Payment-Modal:** Nach "Ticket kaufen" zuerst `POST /buy` (Reservierung), dann Tailwind-Modal oeffnen mit vorbefuellten Fake-Zahlungsdaten (Karteninhaber, Kartennummer, Ablaufdatum, CVC). Kein CSS ausserhalb von Tailwind.
+- [x] **Payment-Modal:** Nach "Ticket kaufen" zuerst `POST /buy` (Reservierung), dann Tailwind-Modal oeffnen mit vorbefuellten Fake-Zahlungsdaten (Karteninhaber, Kartennummer, Ablaufdatum, CVC). Kein CSS ausserhalb von Tailwind. — `components/PaymentModal.tsx` (Tailwind-only), `lib/payment.ts` (Fake-Karten-Generator, 4242-Testnummer), `payOrder`/`cancelOrder` in `lib/api.ts`; `ActiveSaleView` oeffnet das Modal mit der `orderId` aus dem Reserve-Response.
 - [ ] **Fake-3DS-Challenge:** Nach "Bezahlen" einen simulierten 3DS-Schritt anzeigen (z. B. Spinner/OTP-Prompt), der `POST /api/orders/:orderId/pay` aufruft; Erfolg/Fehler sauber im Modal behandeln.
 - [ ] **Modal-Abbruch:** Beim Schliessen/Abbrechen des Modals `POST /api/orders/:orderId/cancel` aufrufen, damit die Reservierung freigegeben wird.
 - [ ] **Neue `tracking`-Phase:** Nach erfolgreicher Zahlung auf eine neue Inline-Phase der Single-Page umschalten (bestehendes `Phase`-Modell `loading|upcoming|open|soldout` um `tracking` erweitern), die den Order-Status anzeigt.

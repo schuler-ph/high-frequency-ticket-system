@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PaymentModal } from "../components/PaymentModal";
 import { Toast } from "../components/Toast";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
 import { buyTicket } from "../lib/api";
@@ -185,6 +186,8 @@ function ActiveSaleView({
   const [firstName, setFirstName] = useState(initialName.firstName);
   const [lastName, setLastName] = useState(initialName.lastName);
   const [toast, setToast] = useState<ToastState | null>(null);
+  // Gesetzt, sobald `POST /buy` reserviert hat → Payment-Modal ist offen.
+  const [checkoutOrderId, setCheckoutOrderId] = useState<string | null>(null);
 
   async function handleBuy(e: React.FormEvent) {
     e.preventDefault();
@@ -193,22 +196,30 @@ function ActiveSaleView({
       firstName,
       lastName,
     });
-    if (result.ok) {
-      const orderId = result.data.orderId;
-      setToast({
-        type: "success",
-        message: orderId
-          ? `In Warteschlange — Order ${orderId.slice(0, 8)}…`
-          : "In Warteschlange",
-      });
+    if (result.ok && result.data.orderId) {
+      // Reserviert — Checkout geht im Payment-Modal weiter.
+      setCheckoutOrderId(result.data.orderId);
       setFormState("idle");
-      const next = randomName();
-      setFirstName(next.firstName);
-      setLastName(next.lastName);
+    } else if (result.ok) {
+      // Sollte nach dem Reserve/Pay-Split nie ohne orderId zurueckkommen.
+      setToast({ type: "error", message: "Keine Reservierung erhalten" });
+      setFormState("idle");
     } else {
       setToast({ type: "error", message: result.message });
       setFormState("idle");
     }
+  }
+
+  function resetCheckout() {
+    setCheckoutOrderId(null);
+    const next = randomName();
+    setFirstName(next.firstName);
+    setLastName(next.lastName);
+  }
+
+  function handlePaid() {
+    setToast({ type: "success", message: "Zahlung bestätigt" });
+    resetCheckout();
   }
 
   const displayCount = loading ? "—" : formatCount(available);
@@ -220,6 +231,16 @@ function ActiveSaleView({
           type={toast.type}
           message={toast.message}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {checkoutOrderId && (
+        <PaymentModal
+          apiUrl={env.apiUrl}
+          orderId={checkoutOrderId}
+          cardHolder={`${firstName} ${lastName}`.trim()}
+          onPaid={handlePaid}
+          onClose={resetCheckout}
         />
       )}
 
