@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PaymentModal } from "../components/PaymentModal";
+import { Spinner } from "../components/Spinner";
 import { Toast } from "../components/Toast";
 import { useOrderStatus } from "../hooks/useOrderStatus";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
@@ -347,7 +348,7 @@ function ActiveSaleView({
             className="flex items-center justify-between gap-10 px-8 py-5 bg-zinc-700 text-zinc-400 font-black uppercase tracking-wide text-xl min-w-72 cursor-not-allowed"
           >
             Einen Moment…
-            <span className="text-2xl animate-spin">⟳</span>
+            <Spinner className="h-6 w-6" />
           </button>
         ) : (
           <button
@@ -453,7 +454,7 @@ function TrackingView({
               <span className="block text-[#FFE600]">bestätigt</span>
             </h1>
             <div className="flex items-center gap-4">
-              <span className="text-3xl animate-spin text-[#FFE600]">⟳</span>
+              <Spinner className="h-8 w-8 text-[#FFE600]" />
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
                   Status

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { PaymentRequest } from "@repo/types/tickets";
 import { payOrder } from "../lib/api";
 import { fakePayment } from "../lib/payment";
+import { Spinner } from "./Spinner";
 
 interface PaymentModalProps {
   apiUrl: string;
@@ -116,7 +117,7 @@ export function PaymentModal({
 
         {busy ? (
           <div className="flex flex-col items-center gap-4 px-6 py-14">
-            <span className="text-4xl animate-spin text-[#FFE600]">⟳</span>
+            <Spinner className="h-10 w-10 text-[#FFE600]" />
             <span className="font-mono text-sm uppercase tracking-widest text-zinc-400">
               Zahlung wird verarbeitet…
             </span>
