@@ -192,6 +192,71 @@
       ],
       "title": "Cumulative Order Counts (Dashboard Time Range)",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum(rate(reservations_created_total{job=\"api\"}[1m])) or vector(0)",
+          "legendFormat": "reserved (buy) / s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(payments_confirmed_total{job=\"api\"}[1m])) or vector(0)",
+          "legendFormat": "paid (pay) / s",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(checkouts_cancelled_total{job=\"api\"}[1m])) or vector(0)",
+          "legendFormat": "cancelled / s",
+          "refId": "C"
+        }
+      ],
+      "title": "Checkout Funnel (reserved / paid / cancelled per second)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "red", "value": 0.5 }
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 8,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "expr": "1 - ((sum(increase(payments_confirmed_total{job=\"api\"}[5m])) or vector(0)) / (sum(increase(reservations_created_total{job=\"api\"}[5m])) > 0))",
+          "legendFormat": "Abandon Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Checkout Abandon Rate (1 – paid/reserved, 5m)",
+      "type": "gauge"
     }
   ],
   "refresh": "10s",
@@ -216,5 +281,5 @@
   "timezone": "browser",
   "title": "Order Lifecycle",
   "uid": "hts-order-lifecycle",
-  "version": 1
+  "version": 2
 }

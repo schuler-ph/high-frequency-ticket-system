@@ -61,12 +61,15 @@ export const reservationLedgerStale = new Gauge({
 
 export const orderE2eLatencySeconds = new Histogram({
   name: "order_e2e_latency_seconds",
-  help: "End-to-end latency from POST /buy accepted to order completed or failed",
+  help: "End-to-end latency from payment published (POST /pay) to order completed or failed",
   labelNames: ["event_id", "status"] as const,
-  // Baseline A's mean E2E latency was ~406s, which fell entirely into the +Inf
-  // overflow bucket at the old 30s cap and clipped p95/p99 flat. Buckets extend
-  // to 600s so queue-pressure latency past 30s is actually resolvable.
-  buckets: [0.5, 1, 1.5, 2, 2.5, 3, 5, 10, 30, 60, 120, 180, 300, 450, 600],
+  // After the Reserve/Pay-Split (ADR-028) `queuedAt` is set when the pay route
+  // publishes, so this measures Publish→Persist only — no worker sleep, no
+  // user think-time. That collapses from Baseline A's ~406s into the low-ms
+  // range, so the buckets are back to a millisecond-resolution ladder; the
+  // 600s tail tuned for the sleep-bound flow would leave everything in the
+  // first bucket and clip p50/p95/p99 flat.
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
   registers: [workerRegistry],
 });
 
