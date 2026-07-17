@@ -8,7 +8,7 @@ import { buyTicket, cancelOrder } from "../lib/api";
 import { env } from "../lib/env";
 import { randomName } from "../lib/names";
 
-type Phase = "loading" | "upcoming" | "open" | "soldout";
+type Phase = "loading" | "upcoming" | "open" | "soldout" | "tracking";
 
 interface CountdownParts {
   days: number;
@@ -49,8 +49,12 @@ const content =
 export default function TicketPage() {
   const { available, total, opensAt, loading, error } = useTicketAvailability();
   const now = useNow();
+  // Gesetzt, sobald eine Zahlung bestaetigt wurde → Single-Page schaltet auf
+  // die Order-Tracking-Phase um (unabhaengig von der Verfuegbarkeit).
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
 
   const phase: Phase = (() => {
+    if (trackingOrderId !== null) return "tracking";
     if (loading) return "loading";
     if (opensAt !== null && now < opensAt) return "upcoming";
     if (available !== null && available <= 0) return "soldout";
@@ -76,7 +80,22 @@ export default function TicketPage() {
     return <SoldOutView total={total} />;
   }
 
-  return <ActiveSaleView available={available} loading={loading} />;
+  if (phase === "tracking") {
+    return (
+      <TrackingView
+        orderId={trackingOrderId!}
+        onReset={() => setTrackingOrderId(null)}
+      />
+    );
+  }
+
+  return (
+    <ActiveSaleView
+      available={available}
+      loading={loading}
+      onPaid={setTrackingOrderId}
+    />
+  );
 }
 
 function CountdownUnit({ value, label }: { value: number; label: string }) {
@@ -175,9 +194,11 @@ interface ToastState {
 function ActiveSaleView({
   available,
   loading,
+  onPaid,
 }: {
   available: number | null;
   loading: boolean;
+  onPaid: (orderId: string) => void;
 }) {
   const [formState, setFormState] = useState<FormState>("idle");
   // Autofill mit einem zufaelligen (fiktiven) Namen beim Betreten der
@@ -217,9 +238,11 @@ function ActiveSaleView({
     setLastName(next.lastName);
   }
 
-  function handlePaid() {
-    setToast({ type: "success", message: "Zahlung bestätigt" });
+  function handlePaid(orderId: string) {
+    // Checkout-Modal schliessen, Namen fuer einen etwaigen naechsten Kauf neu
+    // wuerfeln und die Seite in die Tracking-Phase heben.
     resetCheckout();
+    onPaid(orderId);
   }
 
   // Modal-Abbruch/Timeout: Reservierung freigeben, damit sie nicht als
@@ -348,6 +371,70 @@ function ActiveSaleView({
             Verkauf läuft
           </span>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function TrackingView({
+  orderId,
+  onReset,
+}: {
+  orderId: string;
+  onReset: () => void;
+}) {
+  return (
+    <main className={shell}>
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#FFE600]" />
+
+      <div className={content}>
+        <div className="flex items-center gap-3">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#FFE600] animate-pulse" />
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-zinc-400">
+            Bestellung {orderId.slice(0, 8)}…
+          </span>
+        </div>
+
+        <h1
+          className="font-black uppercase leading-none tracking-tighter"
+          style={{ fontSize: "clamp(2.5rem, 8vw, 6rem)" }}
+        >
+          <span className="block text-white">Zahlung</span>
+          <span className="block text-[#FFE600]">bestätigt</span>
+        </h1>
+
+        <div className="flex items-center gap-4">
+          <span className="text-3xl animate-spin text-[#FFE600]">⟳</span>
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+              Status
+            </span>
+            <span className="font-mono font-black text-2xl text-white">
+              Wird verarbeitet…
+            </span>
+          </div>
+        </div>
+
+        <p className="font-mono text-sm text-zinc-500 max-w-md leading-relaxed">
+          Deine Bestellung ist in der Warteschlange und wird gerade
+          finalisiert.
+        </p>
+
+        <button
+          onClick={onReset}
+          className="border border-zinc-700 px-6 py-3 font-mono text-sm uppercase tracking-wide text-zinc-400 transition-colors hover:border-zinc-500"
+        >
+          ← Neues Ticket
+        </button>
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 border-t border-zinc-800 px-8 py-4 flex justify-between items-center">
+        <span className="font-mono text-xs text-zinc-700 uppercase tracking-widest">
+          Frequency Festival 20XX
+        </span>
+        <span className="font-mono text-xs text-zinc-600 uppercase tracking-widest">
+          Order-Tracking
+        </span>
       </div>
     </main>
   );
