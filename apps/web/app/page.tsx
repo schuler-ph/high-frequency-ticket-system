@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { PaymentModal } from "../components/PaymentModal";
+import { SiteHeader } from "../components/SiteHeader";
 import { Spinner } from "../components/Spinner";
-import { StatusChip } from "../components/StatusChip";
+import { StatusChip, type ChipTone } from "../components/StatusChip";
 import { Toast } from "../components/Toast";
 import { useOrderStatus } from "../hooks/useOrderStatus";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
@@ -14,17 +15,16 @@ import { randomName } from "../lib/names";
 type Phase = "loading" | "upcoming" | "open" | "soldout" | "tracking";
 
 const PRICE = "€ 199,00";
+const VENUE = "Green Park St. Pölten";
+const DATES = { from: "20.08.2026", to: "22.08.2026" };
 
-const pageShell =
-  "min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6";
-const card =
-  "w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-200/60 ring-1 ring-slate-200";
+const panel = "rounded-md bg-white shadow-sm ring-1 ring-slate-200";
 const primaryBtn =
-  "flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-md bg-[#f5a623] px-6 py-2.5 font-semibold text-white transition-colors hover:bg-[#e0951c] active:bg-[#cf8916] disabled:cursor-not-allowed disabled:bg-slate-300";
 const secondaryBtn =
-  "rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
+  "inline-flex items-center justify-center rounded-md border border-slate-300 px-5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none";
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-[#14395e] focus:ring-2 focus:ring-[#14395e]/20 focus:outline-none";
 
 interface CountdownParts {
   days: number;
@@ -57,59 +57,92 @@ function formatCount(value: number | null): string {
   return value === null ? "—" : value.toLocaleString("de-AT");
 }
 
-/** Gemeinsames Dashboard-Chrome: heller Card-Container + Header mit Chip. */
-function Dashboard({ chip, children }: { chip: ReactNode; children: ReactNode }) {
+function Stars({ value = 4 }: { value?: number }) {
+  const stars = "★★★★★";
   return (
-    <main className={pageShell}>
-      <div className={card}>
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
-          <div className="flex flex-col">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600">
-              Frequency Festival 20XX
-            </span>
-            <span className="mt-0.5 text-sm text-slate-400">
-              St. Pölten, Österreich
-            </span>
-          </div>
-          {chip}
-        </header>
-        <div className="px-6 py-7 sm:px-8">{children}</div>
-      </div>
-    </main>
+    <span aria-label={`${value} von 5 Sternen`}>
+      <span className="text-[#f5a623]">{stars.slice(0, value)}</span>
+      <span className="text-white/30">{stars.slice(value)}</span>
+    </span>
   );
 }
 
-function AvailabilityMeter({
-  available,
-  total,
-  loading,
-}: {
-  available: number | null;
-  total: number | null;
-  loading: boolean;
-}) {
-  const pct =
-    total && total > 0 && available !== null
-      ? Math.max(0, Math.min(100, (available / total) * 100))
-      : null;
-
+function Breadcrumb() {
   return (
-    <div className="rounded-xl bg-slate-50 p-5 ring-1 ring-slate-100">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Verfügbare Tickets
-        </span>
-        <span className="text-xs text-slate-400">von {formatCount(total)}</span>
+    <div className="border-b border-slate-200 bg-white">
+      <div className="mx-auto max-w-5xl px-4 py-2 text-sm text-slate-500">
+        <span className="text-[#1a4e80]">Start</span>
+        <span className="mx-1.5 text-slate-300">›</span>
+        <span className="text-[#1a4e80]">Festivals</span>
+        <span className="mx-1.5 text-slate-300">›</span>
+        <span className="text-slate-700">Frequency Festival 20XX</span>
       </div>
-      <div className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
-        {loading ? "—" : formatCount(available)}
+    </div>
+  );
+}
+
+function HeroBanner() {
+  return (
+    <div className={`${panel} overflow-hidden`}>
+      <div className="flex items-center gap-5 bg-gradient-to-r from-[#2b0a4a] via-[#6d1f8c] to-[#f5a623] px-5 py-7 sm:px-8">
+        <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-md bg-black/30 ring-1 ring-white/25 sm:flex">
+          <span className="text-4xl font-black text-[#f5a623]">F</span>
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Frequency Festival 20XX
+          </h1>
+          <div className="mt-2 flex items-center gap-2 text-sm text-white/90">
+            <Stars value={4} />
+            <span>4,1 Sterne · St. Pölten, Österreich</span>
+          </div>
+        </div>
       </div>
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full rounded-full bg-blue-600 transition-[width] duration-500"
-          style={{ width: pct === null ? "0%" : `${pct}%` }}
-        />
+    </div>
+  );
+}
+
+/** Gemeinsames Marktplatz-Chrome: Navy-Header, Breadcrumb, Hero + Inhalt. */
+function PageChrome({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-[#ebedf0]">
+      <SiteHeader />
+      <Breadcrumb />
+      <main className="mx-auto max-w-5xl px-4 py-5">
+        <HeroBanner />
+        {children}
+      </main>
+    </div>
+  );
+}
+
+function SectionPanel({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`mt-4 ${panel}`}>
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+        <h2 className="text-xl font-bold text-[#1a4e80]">{title}</h2>
+        {action}
       </div>
+      <div className="px-5 py-5 sm:px-6">{children}</div>
+    </section>
+  );
+}
+
+/** Datum-Spalte im Angebots-Row-Stil (von–bis). */
+function DateColumn() {
+  return (
+    <div className="shrink-0 text-center text-sm sm:w-24">
+      <div className="font-semibold text-[#14395e]">{DATES.from}</div>
+      <div className="text-xs text-slate-400">bis</div>
+      <div className="font-semibold text-[#14395e]">{DATES.to}</div>
     </div>
   );
 }
@@ -131,14 +164,14 @@ export default function TicketPage() {
 
   if (phase === "loading") {
     return (
-      <main className={pageShell}>
-        <div
-          className={`${card} flex flex-col items-center gap-4 px-8 py-16 text-center`}
-        >
-          <Spinner className="h-8 w-8 text-blue-600" />
-          <span className="text-sm text-slate-400">{error ?? "Lädt…"}</span>
-        </div>
-      </main>
+      <PageChrome>
+        <SectionPanel title="Tickets">
+          <div className="flex items-center gap-3 py-6 text-slate-500">
+            <Spinner className="h-5 w-5 text-[#14395e]" />
+            <span className="text-sm">{error ?? "Angebote werden geladen…"}</span>
+          </div>
+        </SectionPanel>
+      </PageChrome>
     );
   }
 
@@ -147,7 +180,7 @@ export default function TicketPage() {
   }
 
   if (phase === "soldout") {
-    return <SoldOutView available={available} total={total} />;
+    return <SoldOutView total={total} />;
   }
 
   if (phase === "tracking") {
@@ -169,17 +202,20 @@ export default function TicketPage() {
   );
 }
 
-function CountdownUnit({ value, label }: { value: number; label: string }) {
+/** Kopfzeile eines Angebots-Rows: Datum + Titel/Ort + Venue. */
+function OfferHeadline() {
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-900 sm:h-20 sm:w-20">
-        <span className="font-bold text-2xl tabular-nums text-white sm:text-3xl">
-          {String(value).padStart(2, "0")}
-        </span>
+    <div className="flex items-start gap-4">
+      <DateColumn />
+      <div className="min-w-0">
+        <div className="text-xs text-slate-500">
+          Frequency 20XX · 3-Tages-Festivalpass
+        </div>
+        <div className="text-2xl font-bold tracking-tight text-[#14395e]">
+          ST. PÖLTEN
+        </div>
+        <div className="text-sm text-slate-500">{VENUE} · 12:00 Uhr</div>
       </div>
-      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-        {label}
-      </span>
     </div>
   );
 }
@@ -198,41 +234,37 @@ function UpcomingView({
     dateStyle: "medium",
     timeStyle: "short",
   });
+  const countdown =
+    days > 0
+      ? `${days}d ${hours}h ${minutes}m`
+      : `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
   return (
-    <Dashboard chip={<StatusChip tone="blue">Demnächst</StatusChip>}>
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            General Admission Pass
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            3-Tage-Festivalticket · {formatCount(total)} Pässe verfügbar
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-slate-50 p-5 ring-1 ring-slate-100">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Verkauf startet in
-          </span>
-          <div className="mt-3 flex gap-3 sm:gap-4">
-            <CountdownUnit value={days} label="Tage" />
-            <CountdownUnit value={hours} label="Std" />
-            <CountdownUnit value={minutes} label="Min" />
-            <CountdownUnit value={seconds} label="Sek" />
+    <PageChrome>
+      <SectionPanel
+        title="Tickets"
+        action={<StatusChip tone="blue">Demnächst</StatusChip>}
+      >
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <OfferHeadline />
+          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+            <div className="text-sm text-slate-500">
+              Verkaufsstart: {opensDate} Uhr
+            </div>
+            <div className="font-mono text-lg font-bold tabular-nums text-[#14395e]">
+              {countdown}
+            </div>
+            <button disabled className={primaryBtn}>
+              Kaufen
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-500">
-            Verkaufsstart: {opensDate} Uhr
-          </span>
-          <button disabled className={primaryBtn}>
-            Tickets kaufen
-          </button>
-        </div>
-      </div>
-    </Dashboard>
+        <p className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">
+          {formatCount(total)} General-Admission-Pässe · Verkauf noch nicht
+          gestartet
+        </p>
+      </SectionPanel>
+    </PageChrome>
   );
 }
 
@@ -252,8 +284,8 @@ function ActiveSaleView({
   loading: boolean;
   onPaid: (orderId: string) => void;
 }) {
-  // Autofill mit einem zufaelligen (fiktiven) Namen beim Betreten der
-  // `open`-Phase — die Felder bleiben editierbar.
+  // Autofill mit einem zufaelligen (fiktiven) Namen — die Felder bleiben
+  // editierbar.
   const initialName = useState(randomName)[0];
   const [firstName, setFirstName] = useState(initialName.firstName);
   const [lastName, setLastName] = useState(initialName.lastName);
@@ -261,6 +293,11 @@ function ActiveSaleView({
   const [toast, setToast] = useState<ToastState | null>(null);
   // Gesetzt, sobald `POST /buy` reserviert hat → Payment-Modal ist offen.
   const [checkoutOrderId, setCheckoutOrderId] = useState<string | null>(null);
+
+  const pct =
+    total && total > 0 && available !== null
+      ? Math.max(0, Math.min(100, (available / total) * 100))
+      : null;
 
   async function handleBuy(e: React.FormEvent) {
     e.preventDefault();
@@ -271,10 +308,8 @@ function ActiveSaleView({
     });
     setReserving(false);
     if (result.ok && result.data.orderId) {
-      // Reserviert — Checkout geht im Payment-Modal weiter.
       setCheckoutOrderId(result.data.orderId);
     } else if (result.ok) {
-      // Sollte nach dem Reserve/Pay-Split nie ohne orderId zurueckkommen.
       setToast({ type: "error", message: "Keine Reservierung erhalten" });
     } else {
       setToast({ type: "error", message: result.message });
@@ -289,15 +324,12 @@ function ActiveSaleView({
   }
 
   function handlePaid(orderId: string) {
-    // Checkout-Modal schliessen, Namen fuer einen etwaigen naechsten Kauf neu
-    // wuerfeln und die Seite in die Tracking-Phase heben.
     resetCheckout();
     onPaid(orderId);
   }
 
-  // Modal-Abbruch/Timeout: Reservierung freigeben, damit sie nicht als
-  // Phantom-Anspruch im Ledger stehen bleibt (idempotent, fire-and-forget —
-  // ADR-028). UI wird sofort zurueckgesetzt, das Release laeuft im Hintergrund.
+  // Modal-Abbruch/Timeout: Reservierung freigeben (idempotent, fire-and-forget
+  // — ADR-028). UI resettet sofort, das Release laeuft im Hintergrund.
   function handleCancelCheckout() {
     const orderId = checkoutOrderId;
     resetCheckout();
@@ -305,7 +337,7 @@ function ActiveSaleView({
   }
 
   return (
-    <>
+    <PageChrome>
       {toast && (
         <Toast
           type={toast.type}
@@ -324,100 +356,113 @@ function ActiveSaleView({
         />
       )}
 
-      <Dashboard
-        chip={
+      <SectionPanel
+        title="Tickets"
+        action={
           <StatusChip tone="green" pulse>
             Verkauf läuft
           </StatusChip>
         }
       >
-        <div className="flex flex-col gap-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              General Admission Pass
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">3-Tage-Festivalticket</p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <OfferHeadline />
+          <div className="shrink-0 text-left sm:text-right">
+            <div className="text-xs text-slate-500">Preis pro Pass</div>
+            <div className="text-2xl font-bold text-[#14395e]">{PRICE}</div>
           </div>
-
-          <AvailabilityMeter
-            available={available}
-            total={total}
-            loading={loading}
-          />
-
-          <div className="flex items-end justify-between">
-            <div>
-              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Preis pro Pass
-              </span>
-              <span className="text-2xl font-bold text-slate-900">{PRICE}</span>
-            </div>
-          </div>
-
-          <form onSubmit={(e) => void handleBuy(e)} className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                aria-label="Vorname"
-                placeholder="Vorname"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-                className={inputClass}
-              />
-              <input
-                type="text"
-                aria-label="Nachname"
-                placeholder="Nachname"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                required
-                className={inputClass}
-              />
-            </div>
-            <button type="submit" disabled={reserving} className={primaryBtn}>
-              {reserving ? (
-                <>
-                  <Spinner className="h-5 w-5" />
-                  Reserviere…
-                </>
-              ) : (
-                "Tickets kaufen"
-              )}
-            </button>
-          </form>
         </div>
-      </Dashboard>
-    </>
+
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Verfügbarkeit</span>
+            <span className="tabular-nums">
+              {loading ? "—" : formatCount(available)} von {formatCount(total)}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-500"
+              style={{ width: pct === null ? "0%" : `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => void handleBuy(e)}
+          className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-end"
+        >
+          <div className="flex flex-1 flex-col gap-1">
+            <label
+              htmlFor="firstName"
+              className="text-xs font-medium text-slate-500"
+            >
+              Vorname
+            </label>
+            <input
+              id="firstName"
+              type="text"
+              placeholder="Vorname"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              className={inputClass}
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <label
+              htmlFor="lastName"
+              className="text-xs font-medium text-slate-500"
+            >
+              Nachname
+            </label>
+            <input
+              id="lastName"
+              type="text"
+              placeholder="Nachname"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              className={inputClass}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={reserving}
+            className={`${primaryBtn} sm:w-40`}
+          >
+            {reserving ? (
+              <>
+                <Spinner className="h-5 w-5" />
+                Reserviere…
+              </>
+            ) : (
+              "Kaufen"
+            )}
+          </button>
+        </form>
+      </SectionPanel>
+    </PageChrome>
   );
 }
 
-function SoldOutView({
-  available,
-  total,
-}: {
-  available: number | null;
-  total: number | null;
-}) {
+function SoldOutView({ total }: { total: number | null }) {
   return (
-    <Dashboard chip={<StatusChip tone="red">Ausverkauft</StatusChip>}>
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            General Admission Pass
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Alle {formatCount(total)} Pässe wurden vergeben.
-          </p>
+    <PageChrome>
+      <SectionPanel
+        title="Tickets"
+        action={<StatusChip tone="red">Ausverkauft</StatusChip>}
+      >
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <OfferHeadline />
+          <button disabled className={primaryBtn}>
+            Ausverkauft
+          </button>
         </div>
-
-        <AvailabilityMeter available={available} total={total} loading={false} />
-
-        <button disabled className={primaryBtn}>
-          Ausverkauft
-        </button>
-      </div>
-    </Dashboard>
+        <p className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">
+          Alle {formatCount(total)} General-Admission-Pässe wurden vergeben.
+        </p>
+      </SectionPanel>
+    </PageChrome>
   );
 }
 
@@ -431,29 +476,29 @@ function TrackingView({
   const { status, error } = useOrderStatus(orderId);
   const state = status?.status ?? "pending";
 
-  const chip =
-    state === "completed" ? (
-      <StatusChip tone="green">Bestätigt</StatusChip>
-    ) : state === "failed" ? (
-      <StatusChip tone="red">Fehlgeschlagen</StatusChip>
-    ) : (
-      <StatusChip tone="amber" pulse>
-        Wird verarbeitet
-      </StatusChip>
-    );
+  const chipTone: ChipTone =
+    state === "completed" ? "green" : state === "failed" ? "red" : "amber";
+  const chipLabel =
+    state === "completed"
+      ? "Bestätigt"
+      : state === "failed"
+        ? "Fehlgeschlagen"
+        : "Wird verarbeitet";
 
   return (
-    <Dashboard chip={chip}>
-      <div className="flex flex-col gap-6">
+    <PageChrome>
+      <SectionPanel
+        title="Deine Bestellung"
+        action={
+          <StatusChip tone={chipTone} pulse={state === "pending"}>
+            {chipLabel}
+          </StatusChip>
+        }
+      >
         {state === "completed" ? (
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/20">
-              <svg
-                className="h-6 w-6"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/20">
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
                 <path
                   d="m5 13 4 4 10-10"
                   stroke="currentColor"
@@ -464,10 +509,10 @@ function TrackingView({
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h3 className="text-lg font-bold text-[#14395e]">
                 Ticket gesichert
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              </h3>
+              <p className="mt-0.5 text-sm text-slate-500">
                 Dein General-Admission-Pass ist bestätigt. Wir sehen uns in St.
                 Pölten.
               </p>
@@ -475,13 +520,8 @@ function TrackingView({
           </div>
         ) : state === "failed" ? (
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-600/20">
-              <svg
-                className="h-6 w-6"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-600/20">
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M6 6l12 12M18 6L6 18"
                   stroke="currentColor"
@@ -491,10 +531,10 @@ function TrackingView({
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h3 className="text-lg font-bold text-[#14395e]">
                 Kauf fehlgeschlagen
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              </h3>
+              <p className="mt-0.5 text-sm text-slate-500">
                 {status?.status === "failed"
                   ? status.failureReason
                   : "Die Bestellung konnte nicht abgeschlossen werden."}
@@ -503,12 +543,12 @@ function TrackingView({
           </div>
         ) : (
           <div className="flex items-start gap-4">
-            <Spinner className="mt-0.5 h-10 w-10 shrink-0 text-blue-600" />
+            <Spinner className="mt-0.5 h-9 w-9 shrink-0 text-[#14395e]" />
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h3 className="text-lg font-bold text-[#14395e]">
                 Zahlung bestätigt
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              </h3>
+              <p className="mt-0.5 text-sm text-slate-500">
                 Deine Bestellung ist in der Warteschlange und wird gerade
                 finalisiert.
               </p>
@@ -516,7 +556,7 @@ function TrackingView({
           </div>
         )}
 
-        <dl className="divide-y divide-slate-100 rounded-xl bg-slate-50 px-5 ring-1 ring-slate-100">
+        <dl className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
           <div className="flex items-center justify-between py-3">
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Bestellnummer
@@ -538,15 +578,15 @@ function TrackingView({
         </dl>
 
         {error && state === "pending" && (
-          <span className="text-xs text-amber-600">
+          <p className="mt-3 text-xs text-amber-600">
             Verbindung instabil — erneuter Versuch…
-          </span>
+          </p>
         )}
 
-        <button onClick={onReset} className={`${secondaryBtn} self-start`}>
+        <button onClick={onReset} className={`${secondaryBtn} mt-5`}>
           ← Neues Ticket
         </button>
-      </div>
-    </Dashboard>
+      </SectionPanel>
+    </PageChrome>
   );
 }

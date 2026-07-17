@@ -21,11 +21,11 @@ type Status = "form" | "challenge" | "processing";
 const labelClass =
   "text-xs font-semibold uppercase tracking-wide text-slate-400";
 const fieldClass =
-  "w-full rounded-lg border border-slate-300 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none";
+  "w-full rounded-md border border-slate-300 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-[#14395e] focus:ring-2 focus:ring-[#14395e]/20 focus:outline-none";
 const primaryBtn =
-  "flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800";
+  "flex flex-1 items-center justify-center gap-2 rounded-md bg-[#f5a623] px-6 py-3 font-semibold text-white transition-colors hover:bg-[#e0951c] active:bg-[#cf8916]";
 const secondaryBtn =
-  "rounded-lg border border-slate-300 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
+  "rounded-md border border-slate-300 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
 
 /**
  * SIMULATION-Checkout: Nach der Redis-Reservierung (`POST /buy`) bestaetigt
@@ -100,12 +100,14 @@ export function PaymentModal({
       }}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200"
+        className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <span className="text-base font-bold text-slate-900">Bezahlung</span>
+            <span className="text-base font-bold text-slate-900">
+              Bezahlung
+            </span>
             <StatusChip tone="slate">Simulation</StatusChip>
           </div>
           <button
@@ -128,7 +130,7 @@ export function PaymentModal({
 
         {busy ? (
           <div className="flex flex-col items-center gap-4 px-6 py-16">
-            <Spinner className="h-10 w-10 text-blue-600" />
+            <Spinner className="h-10 w-10 text-[#14395e]" />
             <span className="text-sm text-slate-500">
               Zahlung wird verarbeitet…
             </span>
@@ -138,7 +140,7 @@ export function PaymentModal({
             onSubmit={(e) => void handleConfirmOtp(e)}
             className="flex flex-col gap-4 px-6 py-6"
           >
-            <div className="flex items-center gap-3 rounded-lg bg-blue-50 px-4 py-3 ring-1 ring-blue-600/10">
+            <div className="flex items-center gap-3 rounded-md bg-[#14395e]/5 px-4 py-3 ring-1 ring-[#14395e]/10">
               <span className="text-xl">🔒</span>
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-slate-900">
@@ -152,7 +154,7 @@ export function PaymentModal({
 
             <p className="text-xs text-slate-500">
               Code zur Simulation:{" "}
-              <span className="font-mono font-semibold text-blue-600">
+              <span className="font-mono font-semibold text-[#14395e]">
                 {sentCode}
               </span>
             </p>
