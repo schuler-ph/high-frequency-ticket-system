@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PaymentModal } from "../components/PaymentModal";
 import { Toast } from "../components/Toast";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
-import { buyTicket } from "../lib/api";
+import { buyTicket, cancelOrder } from "../lib/api";
 import { env } from "../lib/env";
 import { randomName } from "../lib/names";
 
@@ -222,6 +222,15 @@ function ActiveSaleView({
     resetCheckout();
   }
 
+  // Modal-Abbruch/Timeout: Reservierung freigeben, damit sie nicht als
+  // Phantom-Anspruch im Ledger stehen bleibt (idempotent, fire-and-forget —
+  // ADR-028). UI wird sofort zurueckgesetzt, das Release laeuft im Hintergrund.
+  function handleCancelCheckout() {
+    const orderId = checkoutOrderId;
+    resetCheckout();
+    if (orderId) void cancelOrder(env.apiUrl, orderId);
+  }
+
   const displayCount = loading ? "—" : formatCount(available);
 
   return (
@@ -240,7 +249,7 @@ function ActiveSaleView({
           orderId={checkoutOrderId}
           cardHolder={`${firstName} ${lastName}`.trim()}
           onPaid={handlePaid}
-          onClose={resetCheckout}
+          onClose={handleCancelCheckout}
         />
       )}
 
