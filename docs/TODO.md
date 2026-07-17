@@ -1,5 +1,18 @@
 # Implementation Roadmap: High-Frequency Ticket System
 
+## Ausführungsreihenfolge (Roadmap)
+
+Die Phasen unten sind historisch gewachsen und **nicht** mehr strikt von oben nach unten abzuarbeiten. Diese Roadmap gibt die tatsaechliche Ausführungsreihenfolge nach Abhaengigkeit vor. Leitprinzip: erst den Payment-Split (Phase 4.7) fertigstellen, **dann** messen — ein Lasttest davor wuerde das alte, sleep-gebundene System vermessen.
+
+1. **Stage 1 — Payment-Split (Phase 4.7):** Reserve/Pay/Publish-Split, Worker-Sleep raus, Checkout-Frontend. Aktive Arbeit; aendert das Lastprofil aller nachgelagerten Messungen.
+2. **Stage 2 — DB-Hot-Row (Backlog #7):** `sold_count`-Hot-Row-UPDATE entfernen. Nach dem Sleep-Removal der naechste echte Limiter — vor jeder "echten" Baseline.
+3. **Stage 3 — Pre-Baseline-Cleanups (Backlog):** #9-Provisioning, Lua-vs-Redis-Test, OpenAPI-Schemas (inkl. `/pay`+`/cancel`), k6-Metriken. Guenstig, gebuendelt vor dem Kapazitaetslauf.
+4. **Stage 4 — Echter Kapazitaetsnachweis (Backlog):** Report-Automation-MVP, verteilter Runner, Baseline B, Dashboard-Screenshots. Erst jetzt misst der Lauf echte Infra-Kapazitaet.
+5. **Stage 5 — Cloud-Deployment (Phase 5):** Terraform, Dockerfiles, k8s, Sale-Unlock-Zeitquelle, Reconcile-HA.
+6. **Stage 6 — Resilience & Optional (Phase 6):** DLQ, Idempotency-Keys, Rate-Limiting, Reaper, Chaos, Runbooks, SLOs.
+
+Die konkreten offenen Tasks fuer Stage 2–4 liegen im **Backlog** direkt nach Phase 4.7 (aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 dorthin verschoben, damit diese Phasen als abgeschlossen lesbar bleiben — siehe append-forward-Regel in CLAUDE.md).
+
 ## Phase 0: Planung & Entscheidungen
 
 - [x] Backend Runtime: Node.js (v20+)
@@ -135,16 +148,10 @@
 - [x] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
 - [x] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
 - [x] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks (`docs/LOAD-TEST-REPORT-2026-07-14.md`; Baseline A: 11,7k Peak-RPS, 68,24 % dropped iterations, 420.951 accepted = completed nach Drain, ~406 s mittlere E2E-Latenz).
-- [ ] Trenne den Lastgenerator vom System-under-Test bzw. nutze einen verteilten Runner; dimensioniere fuer das 50k-RPS-Ziel mindestens ~20k aktive VUs und fordere 0 dropped iterations fuer einen gueltigen Kapazitaetsnachweis.
-- [ ] Ergaenze k6-Metriken nach Endpoint, HTTP-Status und Transportfehlerklasse, damit die 0,28 % Requests ohne App-Response diagnostizierbar sind.
+- [x] Erzeuge Screenshots der Dashboards unter extremer Last fuer die README.
 - [x] Sale-Unlock-Gate: `tickets:event:{eventId}:opensAt`-Redis-Key im atomaren Reserve-Script, `TooEarlyError` (HTTP 425), `SALE_OPENS_IN_SECONDS` im Seed-Skript (ADR-024) — Reaktion auf Baseline A, in der der Verkauf ab `t=0` offen war statt einen echten Sale-Start abzubilden.
-- [ ] Sale-Unlock-Gate: das atomare Reserve-Lua-Script gegen echtes Redis testen (fehlender `opensAt`-Key, `opensAt=0`, `nowMs` vor/nach dem Schwellwert) — der bestehende Unit-Test mockt nur den `-2`-Rueckgabewert, die Script-Branches selbst laufen nirgends (ADR-024-Follow-up).
-- [ ] Buy-Route: `409` (Sold-Out) und `425` (Too Early) zusaetzlich im OpenAPI-Response-Schema deklarieren (aktuell nur `202`; die Fehler kommen bislang nur ueber den globalen Error-Handler) — niedrige Prioritaet (ADR-024-Follow-up).
 - [x] Restrukturiere den lokalen Lasttest auf reaktive Sold-Out-Erkennung statt fixer Phasen-Timer: `spike-phase-a.js` (Warm-Up/Ramp-Up/Sustain) + `spike-phase-b.js` (Cool-Down), orchestriert durch `scripts/local/run-spike.mjs` (pollt Availability, stoppt Phase A per SIGINT bei bestaetigtem Sold-Out) (ADR-025) — behebt, dass Baseline A mitten im Peak statt am beabsichtigten Sold-Out-Uebergang endete.
 - [x] Dokumentiere die automatisierbare Evidence-/Report-Pipeline inkl. verwendeter Prometheus-, PostgreSQL- und Redis-Abfragen, Validitaetsregeln, Artefaktvertrag und schrittweisem Implementierungsplan (`docs/LOAD-TEST-REPORT-AUTOMATION.md`).
-- [ ] Implementiere das MVP aus `docs/LOAD-TEST-REPORT-AUTOMATION.md`: Run-Manifest, k6-JSON-Summaries, Before/After-Counter, Drain-Monitor, Histogram-Saturation, DB-/Redis-Snapshots, Invarianten und deterministischer Markdown-Report.
-- [ ] Fuehre den restrukturierten Lasttest (`pnpm spike`) als neue Baseline aus und vergleiche gegen `docs/LOAD-TEST-REPORT-2026-07-14.md` (insbesondere Worker-Drain-Rate ~481/s als Engpass fuer den Sold-Out-Zeitpunkt).
-- [ ] **Reihenfolge-Abhaengigkeit vor obigem Baseline-Lauf:** ~~Zuerst #5 (Reservation-Ledger) landen~~ ✅ #5 ist umgesetzt (ADR-026): der TTL-getriebene Oversell-Pfad existiert nicht mehr, Reconcile bucht bei langer Queue-Latenz kein Inventar mehr zurueck. Verbleibende Vorbedingung: die P1-Dashboard-Fixes (Zero-Serien, E2E-Buckets) vorziehen, damit der Lauf nicht erneut blind fuer sein wichtigstes Symptom ist. Optional beobachten: `reservation_ledger_stale` (Phantom-Claims ohne Reaper, Phase 6) und Drift sollten waehrend des Laufs ~0 bleiben.
 
 ## Phase 4.5: Monitoring & Observability
 
@@ -164,7 +171,6 @@
 - [x] Korrigiere Dashboard-PromQL fuer fehlende Zero-Serien (`or vector(0)`), damit Pending/Queue/Error/Failure/Reliability bei null Fehlern nicht als `No data` verschwinden. — Jeder potenziell fehlende Serien-Operand (failed/5xx/409/rollbacks/compensations/redeliveries/idempotency) in Order-Lifecycle-, Pub/Sub-Queue-, API-Performance-, Worker-Reliability- und Reservation-Consistency-Dashboards mit `or vector(0)` umschlossen; Subtraktions-/Divisions-Ausdruecke operandenweise zero-gefuellt, damit gesundes Null sichtbar bleibt statt zu kollabieren.
 - [x] Erweitere `order_e2e_latency_seconds` ueber den 30-s-Bucket hinaus und benenne die rollende Completion-Rate als Throughput-Verhaeltnis; entferne die irrefuehrende Legendensumme der kumulativen Counts. — Buckets auf `[…,30,60,120,180,300,450,600]` erweitert (Baseline A ~406 s klippte bei 30 s); Panel „Completion Rate (5m)“ → „Worker/API Throughput Ratio (5m)“ (kein `max:1`-Clip mehr, Schwellen < 1 / ≥ 1); Legenden-`sum` auf den kumulativen Order-Lifecycle-/Worker-Reliability-Panels durch `last` ersetzt (ADR-023-Nachtrag).
 - [x] Fuege `redis_exporter` sowie CPU/Event-Loop-, PostgreSQL-Pool-Wait-, Query-Latency- und Lock-Wait-Metriken fuer belastbare Bottleneck-Zuordnung hinzu. — `redis_exporter`-Container + Prometheus-Job; Worker exponiert `db_pool_connections` (inkl. Pool-Wait via `waiting`), `db_query_duration_seconds` (Timing am DI-Seam, nicht via `pool.query`-Patch) und `db_locks_waiting` (Sampler aus `pg_stat_activity`); CPU/Event-Loop kamen bereits aus `collectDefaultMetrics` und sind jetzt im neuen Dashboard „DB & Runtime“ sichtbar. Ende-zu-Ende gegen die laufende Infra verifiziert (ADR-026).
-- [ ] Erzeuge Screenshots der Dashboards unter extremer Last für die README.
 
 ## Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`)
 
@@ -182,9 +188,6 @@ Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 
 - [x] Lokalen Lasttest als Baseline ausfuehren und Vorher-Zahlen fuer #5/#7 dokumentieren (`docs/LOAD-TEST-REPORT-2026-07-14.md`).
 - [x] #5 (durch Baseline A praezisiert): Accepted-but-not-finalized Reservations als ZSet/Ledger (`tickets:event:{eventId}:reservations`, Score = Erstellungszeit, kein TTL) statt Keyspace-SCAN; Entfernung nur durch Worker-Finalisierung (`ZREM` im Finalize-Script) / Kompensation. Reconcile zaehlt via `ZCARD` (O(1)) statt SCAN; Ablauf ist nur ein Stale-Kandidat (`ZCOUNT` → `reservation_ledger_stale`-Gauge, Schwellwert `RESERVATION_STALE_SECONDS`) fuer den Reaper (Phase 6), **keine** automatische Rueckbuchung. Behebt das Baseline-A-Oversell-Risiko (temporaer -314k Drift bei 120-s-TTL vs. ~406-s-E2E). Neuer ADR-026, ADR-022/023-Status aktualisiert; Lua gegen `hts-redis` verifiziert. Regressionstest: Reconcile bucht bei alten/stale Reservierungen kein Inventar zurueck.
-- [ ] #7: `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Aggregation im Reconcile); Order direkt als `completed` einfuegen (ADR-011-Update, Migration + `db:push`, Guardrail-Script `check-buy-ticket-contract.mjs`).
-- [ ] #7 vor Umsetzung isoliert benchmarken: Payment-Mock parameterisieren/deaktivieren, Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen; Baseline A erreichte bereits den erwarteten 500/s-Flow-Control-Deckel und beweist den Hot-Row-Limiter daher noch nicht separat.
-- [ ] #9: Topic/Subscription-Provisioning (Emulator-Bootstrapping) nach `scripts/local/` verschieben; `*Like`-Typen und Zweiphasen-Start entfernen.
 
 ## Phase 4.7: Checkout & Payment-Simulation (Web + API)
 
@@ -212,6 +215,28 @@ Ziel: Der Kauf laeuft nicht mehr als ein einziger `POST /buy`-Klick, sondern als
 - [ ] **Modal-Abbruch:** Beim Schliessen/Abbrechen des Modals `POST /api/orders/:orderId/cancel` aufrufen, damit die Reservierung freigegeben wird.
 - [ ] **Neue `tracking`-Phase:** Nach erfolgreicher Zahlung auf eine neue Inline-Phase der Single-Page umschalten (bestehendes `Phase`-Modell `loading|upcoming|open|soldout` um `tracking` erweitern), die den Order-Status anzeigt.
 - [ ] **Live-Order-Status:** In der `tracking`-Phase `GET /api/orders/:orderId` pollen (Backoff/Jitter aus Phase 6 optional beruecksichtigen) und `pending → completed|failed` inkl. Ticket-Referenz live darstellen; Fehl-/Failed-Status verstaendlich anzeigen.
+
+## Backlog: Near-Term-Arbeit nach Phase 4.7 (Stage 2–4)
+
+Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (nachtraeglich entdeckte Folgearbeit, vgl. append-forward-Regel). Reihenfolge = Roadmap. Wo der Payment-Split (Phase 4.7) die Praemisse geaendert hat, sind die Tasks neu gefasst.
+
+### Stage 2 — DB-Hot-Row (naechster echter Limiter nach dem Sleep-Removal)
+
+- [ ] #7 isoliert benchmarken (vor Umsetzung): Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen. **Neu gefasst:** der frueher noetige Schritt "Payment-Mock deaktivieren" entfaellt — mit dem Worker-Sleep-Removal aus Phase 4.7 ist der 1-s-Mock weg, der `sold_count`-Hot-Row-UPDATE ist damit direkt als Limiter isolierbar (Baseline A traf nur den 500/s-Flow-Control-Deckel und bewies den Hot-Row-Limiter nicht separat).
+- [ ] #7: `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Aggregation im Reconcile); Order direkt als `completed` einfuegen (ADR-011-Update, Migration + `db:push`, Guardrail-Script `check-buy-ticket-contract.mjs`).
+
+### Stage 3 — Pre-Baseline-Cleanups (guenstig, vor dem Kapazitaetslauf buendeln)
+
+- [ ] #9: Topic/Subscription-Provisioning (Emulator-Bootstrapping) nach `scripts/local/` verschieben; `*Like`-Typen und Zweiphasen-Start entfernen.
+- [ ] Sale-Unlock-Gate: das atomare Reserve-Lua-Script gegen echtes Redis testen (fehlender `opensAt`-Key, `opensAt=0`, `nowMs` vor/nach dem Schwellwert) — der bestehende Unit-Test mockt nur den `-2`-Rueckgabewert (ADR-024-Follow-up).
+- [ ] Buy-Route: `409` (Sold-Out) und `425` (Too Early) im OpenAPI-Response-Schema deklarieren; **nach dem Buy/Pay-Split** zusammen mit den neuen `/pay`- und `/cancel`-Response-Schemas erledigen, damit die Schemas nur einmal angefasst werden (ADR-024-Follow-up).
+- [ ] Ergaenze k6-Metriken nach Endpoint, HTTP-Status und Transportfehlerklasse, damit die 0,28 % Requests ohne App-Response diagnostizierbar sind.
+
+### Stage 4 — Echter Kapazitaetsnachweis (System jetzt sleeplos + Hot-Row-optimiert)
+
+- [ ] Implementiere das MVP aus `docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md`: Run-Manifest, k6-JSON-Summaries, Before/After-Counter, Drain-Monitor, Histogram-Saturation, DB-/Redis-Snapshots, Invarianten und deterministischer Markdown-Report.
+- [ ] Trenne den Lastgenerator vom System-under-Test bzw. nutze einen verteilten Runner; dimensioniere fuer das 50k-RPS-Ziel mindestens ~20k aktive VUs und fordere 0 dropped iterations fuer einen gueltigen Kapazitaetsnachweis.
+- [ ] Fuehre den restrukturierten Lasttest (`pnpm spike`) als neue **Baseline B** aus und vergleiche gegen Baseline A (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`). **Neu gefasst:** die ~481/s-Worker-Drain-Framing aus Baseline A ist hinfaellig (der 1-s-Sleep ist weg); erwarteter Engpass ist jetzt Flow-Control bzw. der DB-Hot-Row (Stage 2). Vorbedingungen #5 (Ledger) und die P1-Dashboard-Fixes sind bereits erledigt.
 
 ## Phase 5: Cloud Deployment (GCP)
 
