@@ -18,7 +18,17 @@ export const reservationsCreatedTotal = new Counter({
 
 export const publishRollbacksTotal = new Counter({
   name: "publish_rollbacks_total",
-  help: "Reservations rolled back due to Pub/Sub publish failure",
+  help: "Reservations rolled back due to Pub/Sub publish failure (pay route)",
+  labelNames: ["event_id"] as const,
+  registers: [apiRegistry],
+});
+
+// Checkout-Funnel: bestaetigte Zahlungen (POST /orders/:orderId/pay). Zusammen
+// mit reservations_created (Buy) und checkouts_cancelled (Cancel) macht das die
+// Abandon-Rate des Checkouts per PromQL ableitbar (ADR-028).
+export const paymentsConfirmedTotal = new Counter({
+  name: "payments_confirmed_total",
+  help: "Simulated payments confirmed and BuyTicketEvent published (HTTP 200)",
   labelNames: ["event_id"] as const,
   registers: [apiRegistry],
 });
