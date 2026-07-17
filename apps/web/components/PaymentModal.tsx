@@ -14,7 +14,7 @@ interface PaymentModalProps {
   onClose: () => void;
 }
 
-type Status = "form" | "processing";
+type Status = "form" | "challenge" | "processing";
 
 const fieldClass =
   "px-4 py-3 bg-zinc-900 border border-zinc-700 text-white font-mono placeholder:text-zinc-600 focus:outline-none focus:border-[#FFE600]";
@@ -38,6 +38,13 @@ export function PaymentModal({
   );
   const [status, setStatus] = useState<Status>("form");
   const [error, setError] = useState<string | null>(null);
+  // Simulierter 3DS-Code, den die "Bank" angeblich per SMS schickt. Der
+  // OTP-Prompt wird damit vorbefuellt (reine UX-Simulation, serverseitig
+  // ungeprueft — die Pay-Route kennt keine OTP).
+  const sentCode = useState(() =>
+    String(Math.floor(100000 + Math.random() * 900000)),
+  )[0];
+  const [otp, setOtp] = useState("");
 
   const busy = status === "processing";
 
@@ -53,7 +60,17 @@ export function PaymentModal({
     setPayment((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function handlePay(e: React.FormEvent) {
+  // Schritt 1: Kartendaten bestaetigt → simulierte 3DS-Challenge anzeigen.
+  // Es wird noch nicht bezahlt; die Pay-Route feuert erst nach dem OTP.
+  function handleSubmitCard(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setOtp(sentCode);
+    setStatus("challenge");
+  }
+
+  // Schritt 2: OTP bestaetigt → jetzt POST /pay (published BuyTicketEvent).
+  async function handleConfirmOtp(e: React.FormEvent) {
     e.preventDefault();
     setStatus("processing");
     setError(null);
@@ -104,8 +121,69 @@ export function PaymentModal({
               Zahlung wird verarbeitet…
             </span>
           </div>
+        ) : status === "challenge" ? (
+          <form
+            onSubmit={(e) => void handleConfirmOtp(e)}
+            className="flex flex-col gap-4 px-6 py-6"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔒</span>
+              <span className="font-mono text-xs uppercase tracking-[0.25em] text-zinc-400">
+                3-D Secure — Ihre Bank
+              </span>
+            </div>
+            <p className="font-mono text-[11px] leading-relaxed text-zinc-500">
+              Wir haben einen Bestätigungscode an die hinterlegte Nummer{" "}
+              <span className="text-zinc-400">•••• 84</span> gesendet. Code zur
+              Simulation: <span className="text-[#FFE600]">{sentCode}</span>
+            </p>
+
+            {error && (
+              <div className="border border-red-500/40 bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <label className={labelClass} htmlFor="otp">
+                Bestätigungscode
+              </label>
+              <input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                className={`${fieldClass} tracking-[0.4em]`}
+              />
+            </div>
+
+            <div className="mt-2 flex gap-3">
+              <button
+                type="submit"
+                className="flex-1 bg-[#FFE600] px-8 py-4 text-lg font-black uppercase tracking-wide text-zinc-950 transition-all duration-100 hover:bg-yellow-300 active:translate-y-px"
+              >
+                Bestätigen →
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setStatus("form");
+                }}
+                className="border border-zinc-700 px-5 py-4 font-mono text-sm uppercase tracking-wide text-zinc-400 transition-colors hover:border-zinc-500"
+              >
+                Zurück
+              </button>
+            </div>
+          </form>
         ) : (
-          <form onSubmit={(e) => void handlePay(e)} className="flex flex-col gap-4 px-6 py-6">
+          <form
+            onSubmit={(e) => void handleSubmitCard(e)}
+            className="flex flex-col gap-4 px-6 py-6"
+          >
             <p className="font-mono text-[11px] leading-relaxed text-zinc-500">
               Testdaten — keine echte Zahlung. Bestellung{" "}
               <span className="text-zinc-400">{orderId.slice(0, 8)}…</span>
