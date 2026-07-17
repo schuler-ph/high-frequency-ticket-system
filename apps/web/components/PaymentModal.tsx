@@ -5,6 +5,7 @@ import type { PaymentRequest } from "@repo/types/tickets";
 import { payOrder } from "../lib/api";
 import { fakePayment } from "../lib/payment";
 import { Spinner } from "./Spinner";
+import { StatusChip } from "./StatusChip";
 
 interface PaymentModalProps {
   apiUrl: string;
@@ -17,10 +18,14 @@ interface PaymentModalProps {
 
 type Status = "form" | "challenge" | "processing";
 
-const fieldClass =
-  "px-4 py-3 bg-zinc-900 border border-zinc-700 text-white font-mono placeholder:text-zinc-600 focus:outline-none focus:border-[#FFE600]";
 const labelClass =
-  "font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500";
+  "text-xs font-semibold uppercase tracking-wide text-slate-400";
+const fieldClass =
+  "w-full rounded-lg border border-slate-300 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none";
+const primaryBtn =
+  "flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800";
+const secondaryBtn =
+  "rounded-lg border border-slate-300 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
 
 /**
  * SIMULATION-Checkout: Nach der Redis-Reservierung (`POST /buy`) bestaetigt
@@ -86,39 +91,45 @@ export function PaymentModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="Zahlung"
+      aria-label="Bezahlung"
       onClick={() => {
         if (!busy) onClose();
       }}
     >
       <div
-        className="w-full max-w-md border border-zinc-700 bg-zinc-950 shadow-2xl"
+        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-[3px] bg-[#FFE600]" />
-
-        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
-          <span className="font-mono text-xs uppercase tracking-[0.3em] text-zinc-400">
-            Zahlung — Simulation
-          </span>
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base font-bold text-slate-900">Bezahlung</span>
+            <StatusChip tone="slate">Simulation</StatusChip>
+          </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
             aria-label="Schließen"
-            className="font-black text-zinc-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            ✕
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </div>
 
         {busy ? (
-          <div className="flex flex-col items-center gap-4 px-6 py-14">
-            <Spinner className="h-10 w-10 text-[#FFE600]" />
-            <span className="font-mono text-sm uppercase tracking-widest text-zinc-400">
+          <div className="flex flex-col items-center gap-4 px-6 py-16">
+            <Spinner className="h-10 w-10 text-blue-600" />
+            <span className="text-sm text-slate-500">
               Zahlung wird verarbeitet…
             </span>
           </div>
@@ -127,25 +138,32 @@ export function PaymentModal({
             onSubmit={(e) => void handleConfirmOtp(e)}
             className="flex flex-col gap-4 px-6 py-6"
           >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🔒</span>
-              <span className="font-mono text-xs uppercase tracking-[0.25em] text-zinc-400">
-                3-D Secure — Ihre Bank
-              </span>
+            <div className="flex items-center gap-3 rounded-lg bg-blue-50 px-4 py-3 ring-1 ring-blue-600/10">
+              <span className="text-xl">🔒</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-slate-900">
+                  3-D Secure — Ihre Bank
+                </span>
+                <span className="text-xs text-slate-500">
+                  Code an •••• 84 gesendet
+                </span>
+              </div>
             </div>
-            <p className="font-mono text-[11px] leading-relaxed text-zinc-500">
-              Wir haben einen Bestätigungscode an die hinterlegte Nummer{" "}
-              <span className="text-zinc-400">•••• 84</span> gesendet. Code zur
-              Simulation: <span className="text-[#FFE600]">{sentCode}</span>
+
+            <p className="text-xs text-slate-500">
+              Code zur Simulation:{" "}
+              <span className="font-mono font-semibold text-blue-600">
+                {sentCode}
+              </span>
             </p>
 
             {error && (
-              <div className="border border-red-500/40 bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400">
+              <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 ring-1 ring-red-600/10">
                 {error}
               </div>
             )}
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <label className={labelClass} htmlFor="otp">
                 Bestätigungscode
               </label>
@@ -161,12 +179,9 @@ export function PaymentModal({
               />
             </div>
 
-            <div className="mt-2 flex gap-3">
-              <button
-                type="submit"
-                className="flex-1 bg-[#FFE600] px-8 py-4 text-lg font-black uppercase tracking-wide text-zinc-950 transition-all duration-100 hover:bg-yellow-300 active:translate-y-px"
-              >
-                Bestätigen →
+            <div className="mt-1 flex gap-3">
+              <button type="submit" className={primaryBtn}>
+                Bestätigen
               </button>
               <button
                 type="button"
@@ -174,7 +189,7 @@ export function PaymentModal({
                   setError(null);
                   setStatus("form");
                 }}
-                className="border border-zinc-700 px-5 py-4 font-mono text-sm uppercase tracking-wide text-zinc-400 transition-colors hover:border-zinc-500"
+                className={secondaryBtn}
               >
                 Zurück
               </button>
@@ -185,18 +200,20 @@ export function PaymentModal({
             onSubmit={(e) => void handleSubmitCard(e)}
             className="flex flex-col gap-4 px-6 py-6"
           >
-            <p className="font-mono text-[11px] leading-relaxed text-zinc-500">
+            <p className="text-xs text-slate-500">
               Testdaten — keine echte Zahlung. Bestellung{" "}
-              <span className="text-zinc-400">{orderId.slice(0, 8)}…</span>
+              <span className="font-mono text-slate-700">
+                {orderId.slice(0, 8)}…
+              </span>
             </p>
 
             {error && (
-              <div className="border border-red-500/40 bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400">
+              <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 ring-1 ring-red-600/10">
                 {error}
               </div>
             )}
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <label className={labelClass} htmlFor="cardHolder">
                 Karteninhaber
               </label>
@@ -210,7 +227,7 @@ export function PaymentModal({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <label className={labelClass} htmlFor="cardNumber">
                 Kartennummer
               </label>
@@ -226,7 +243,7 @@ export function PaymentModal({
             </div>
 
             <div className="flex gap-4">
-              <div className="flex flex-1 flex-col gap-1">
+              <div className="flex flex-1 flex-col gap-1.5">
                 <label className={labelClass} htmlFor="expiry">
                   Ablauf (MM/JJ)
                 </label>
@@ -240,7 +257,7 @@ export function PaymentModal({
                   className={fieldClass}
                 />
               </div>
-              <div className="flex w-24 flex-col gap-1">
+              <div className="flex w-24 flex-col gap-1.5">
                 <label className={labelClass} htmlFor="cvc">
                   CVC
                 </label>
@@ -256,18 +273,11 @@ export function PaymentModal({
               </div>
             </div>
 
-            <div className="mt-2 flex gap-3">
-              <button
-                type="submit"
-                className="flex-1 bg-[#FFE600] px-8 py-4 text-lg font-black uppercase tracking-wide text-zinc-950 transition-all duration-100 hover:bg-yellow-300 active:translate-y-px"
-              >
-                Bezahlen →
+            <div className="mt-1 flex gap-3">
+              <button type="submit" className={primaryBtn}>
+                {PRICE_LABEL} bezahlen
               </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="border border-zinc-700 px-5 py-4 font-mono text-sm uppercase tracking-wide text-zinc-400 transition-colors hover:border-zinc-500"
-              >
+              <button type="button" onClick={onClose} className={secondaryBtn}>
                 Abbrechen
               </button>
             </div>
@@ -277,3 +287,5 @@ export function PaymentModal({
     </div>
   );
 }
+
+const PRICE_LABEL = "€ 199,00";
