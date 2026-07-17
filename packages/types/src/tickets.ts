@@ -171,3 +171,16 @@ export const paymentResponseSchema = z.object({
 });
 
 export type PaymentResponse = z.infer<typeof paymentResponseSchema>;
+
+/**
+ * Antwort der Cancel-Route (`POST /orders/:orderId/cancel`). `cancelled` ist
+ * `true`, wenn tatsaechlich eine aktive Reservierung freigegeben wurde, und
+ * `false`, wenn nichts (mehr) zu stornieren war — die Route ist idempotent
+ * (ADR-028).
+ */
+export const cancelOrderResponseSchema = z.object({
+  cancelled: z.boolean(),
+  orderId: z.uuid(),
+});
+
+export type CancelOrderResponse = z.infer<typeof cancelOrderResponseSchema>;

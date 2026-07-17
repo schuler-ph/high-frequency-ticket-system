@@ -33,6 +33,16 @@ export const paymentsConfirmedTotal = new Counter({
   registers: [apiRegistry],
 });
 
+// Checkout-Funnel: abgebrochene Checkouts (POST /orders/:orderId/cancel), die
+// eine aktive Reservierung freigegeben haben. Abandon-Rate per PromQL aus
+// reservations_created - payments_confirmed ableitbar (ADR-028).
+export const checkoutsCancelledTotal = new Counter({
+  name: "checkouts_cancelled_total",
+  help: "Checkouts cancelled by the user, releasing an active reservation",
+  labelNames: ["event_id"] as const,
+  registers: [apiRegistry],
+});
+
 export const httpRequestDurationSeconds = new Histogram({
   name: "http_request_duration_seconds",
   help: "HTTP request duration in seconds",
