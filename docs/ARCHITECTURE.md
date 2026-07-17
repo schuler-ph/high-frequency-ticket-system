@@ -13,7 +13,9 @@ flowchart TD
     subgraph API [Fastify API Gateway apps-api]
         API_metrics["/metrics<br/>(Prometheus)"]
         API_avail["GET /availability<br/>→ Redis Read"]
-        API_buy["POST /tickets/buy<br/>→ Pub/Sub Publish + Redis Reserve"]
+        API_buy["POST /tickets/buy<br/>→ Redis Reserve (kein Publish)"]
+        API_pay["POST /orders/:orderId/pay<br/>→ Pub/Sub Publish"]
+        API_cancel["POST /orders/:orderId/cancel<br/>→ Redis Release"]
         API_orders["GET /orders/:orderId<br/>→ Redis Read"]
     end
 
@@ -36,12 +38,13 @@ flowchart TD
     end
 
     User --> Frontend
-    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP GET /api/tickets/:eventId/availability<br/>HTTP GET /api/orders/:orderId"| API
+    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP POST /api/orders/:orderId/pay<br/>HTTP POST /api/orders/:orderId/cancel<br/>HTTP GET /api/tickets/:eventId/availability<br/>HTTP GET /api/orders/:orderId"| API
 
     API_metrics --> Prometheus
     API_avail --> Redis
-    API_buy -->|"BuyTicketEvent {orderId, eventId,<br/>firstName, lastName, queuedAt}"| PubSub
-    API_buy -->|"reservation + pending order"| Redis
+    API_buy -->|"reservation + pending order (kein Publish)"| Redis
+    API_pay -->|"BuyTicketEvent {orderId, eventId,<br/>firstName, lastName, queuedAt}"| PubSub
+    API_cancel -->|"release reservation"| Redis
     API_orders --> Redis
 
     W_metrics --> Prometheus
@@ -75,6 +78,8 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
 
 ## Datenfluss: Ticket-Kauf (Happy Path)
 
+Seit dem Reserve/Pay-Split (ADR-028) ist der Kauf **zwei** synchrone API-Schritte: `buy` reserviert nur, `pay` published. Das Ticket ist waehrend der (frontend-simulierten) Zahlung ueber die Reservierung gehalten; der Worker sieht die Order erst nach bestaetigter Zahlung. Das Backend hat nirgends kuenstliche Latenz.
+
 1. Nutzer klickt "Ticket kaufen" im Frontend
 2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
 3. API reserviert atomar in **einem** Redis-Roundtrip via Lua-Script (registriert per ioredis `defineCommand`, ausgefuehrt als `EVALSHA`; Quelle: `apps/api/src/lib/redis-scripts.ts`):
@@ -82,32 +87,34 @@ Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana 
    - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ebenfalls ohne Schreibzugriff ab
    - `DECR available`
    - Ledger-Eintrag `ZADD tickets:event:{eventId}:reservations {nowMs} {orderId}` (Score = Erstellungszeit, **ohne TTL** — der Eintrag ist ein Inventar-Anspruch bis zur Finalisierung/Kompensation, ADR-026)
-   - Pending-Status `orders:{orderId}` mit eigener Pending-TTL
-4. ✅ Reserviert → API published BuyTicketEvent an Pub/Sub → HTTP 202 Accepted.
+   - Pending-Status `orders:{orderId}` inkl. Kaeuferdaten (`firstName`/`lastName`) mit eigener Pending-TTL — die Pay-Route rekonstruiert daraus den `BuyTicketEvent`
+4. ✅ Reserviert → HTTP 202 Accepted (`orderId`). **Es wird noch nichts an Pub/Sub published.**
    ❌ Zu frueh bei Schritt 3 → HTTP 425 Too Early, es wurden keine Keys geschrieben.
    ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
+5. Frontend oeffnet das Payment-Modal (simuliertes 3DS, reines UX — kein Server-Sleep) und sendet POST /api/orders/{orderId}/pay { ...fake payment }
+6. API (Pay-Route) validiert das (simulierte) Payment-DTO, liest den Reservierungs-Record, setzt `queuedAt = Date.now()` und **published** den `BuyTicketEvent` an Pub/Sub → HTTP 200, sobald der Publish bestaetigt ist (Async-Writes-Regel gewahrt: kein direkter DB-Write).
    ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `ZREM reservations {orderId}`, `INCR available` nur wenn der Ledger-Eintrag tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
-5. Worker konsumiert BuyTicketEvent aus Pub/Sub
-6. Worker simuliert Payment-Processing (Sleep 1s)
-7. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
-   - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein 1-s-Payment-Sleep, kein zweiter DB-Roundtrip).
+   ↩︎ Bricht der Nutzer das Modal ab / laeuft 3DS aus → POST /api/orders/{orderId}/cancel gibt die Reservierung mit demselben Gegen-Script frei (idempotent).
+7. Worker konsumiert BuyTicketEvent aus Pub/Sub (reiner Persist-Consumer, **kein** Payment-Sleep mehr — ADR-028)
+8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
+   - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Roundtrip).
    - Parallele Doppel-Zustellungen derselben `orderId` laufen harmlos in den `ON CONFLICT`-Pfad der DB-Transaktion — ein separater Processing-Lock existiert nicht mehr.
    - Bei Erfolg finalisiert der Worker atomar: Redis-Order-Key mit finalem Status inkl. Ticket-Referenz + laengerer Final-TTL, `processed`-Marker **und** `ZREM reservations {orderId}` — der Anspruch geht in `sold_count` ueber und darf nicht doppelt zaehlen. `available` bleibt beim Erfolg dekrementiert (das Ticket ist verkauft).
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (`ZREM reservations {orderId}` + `INCR available`, nur wenn der Ledger-Eintrag noch existierte — idempotent), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
-8. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
+9. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
 
 ## Redis-Key-Lifecycle
 
 Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 
-| Key-Muster                                    | Zweck                                                                                                                                            | TTL (Default)                     | Erstellt von                                                               | Gelesen / Gelöscht von                                                                             |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                              | unbegrenzt                        | Worker (Reconcile)                                                         | API (`GET /availability`)                                                                          |
-| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                                           | unbegrenzt                        | API (`POST /reset`, Lua-Init), Worker (Reconcile)                          | API (Lua-DECR bei Reservation), Worker (INCR bei Kompensation)                                     |
-| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                                        | unbegrenzt                        | Seed-Skript (`scripts/local/reset-seed.mjs`)                               | API (Lua-Check bei Reservation, ADR-024)                                                           |
-| `tickets:event:{eventId}:reservations` (ZSet) | Ledger akzeptierter, noch nicht finalisierter Reservierungen (Score = Erstellungszeit, Member = `orderId`) — aktiver Inventar-Anspruch (ADR-026) | **unbegrenzt** (kein TTL)         | API (`ZADD` bei `POST /buy`)                                               | Worker (`ZREM` bei Finalisierung/Kompensation), Reconcile-Loop (`ZCARD` = aktiv, `ZCOUNT` = stale) |
-| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut (spart Sleep + DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004)                                                  | 86 400 s                          | Worker                                                                     | Worker (Idempotenz-Check bei jeder Nachricht)                                                      |
-| `orders:{orderId}`                            | Order-Cache-Eintrag (`pending` → `completed`/`failed`)                                                                                           | 900 s (pending), 86 400 s (final) | API (pending-Status nach Reservation), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`)                                                                   |
+| Key-Muster                                    | Zweck                                                                                                                                                                                                                                                                     | TTL (Default)                                                                                   | Erstellt von                                                                     | Gelesen / Gelöscht von                                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                                                                                                                                                       | unbegrenzt                                                                                      | Worker (Reconcile)                                                               | API (`GET /availability`)                                                                                                                |
+| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                                                                                                                                                                    | unbegrenzt                                                                                      | API (`POST /reset`, Lua-Init), Worker (Reconcile)                                | API (Lua-DECR bei Reserve; `INCR` bei Pay-Rollback/Cancel-Release), Worker (INCR bei Kompensation)                                       |
+| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                                                                                                                                                                 | unbegrenzt                                                                                      | Seed-Skript (`scripts/local/reset-seed.mjs`)                                     | API (Lua-Check bei Reservation, ADR-024)                                                                                                 |
+| `tickets:event:{eventId}:reservations` (ZSet) | Ledger akzeptierter, noch nicht finalisierter Reservierungen (Score = Erstellungszeit, Member = `orderId`) — aktiver Inventar-Anspruch (ADR-026). Seit ADR-028 spannt der Eintrag den **gesamten Checkout** (Reserve bis Bezahlen/Abbrechen), nicht nur die Queue-Latenz. | **unbegrenzt** (kein TTL)                                                                       | API (`ZADD` bei `POST /buy`)                                                     | Worker (`ZREM` bei Finalisierung/Kompensation), API (`ZREM` bei Pay-Rollback/Cancel), Reconcile-Loop (`ZCARD` = aktiv, `ZCOUNT` = stale) |
+| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut (spart DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004)                                                                                                                                                                                   | 86 400 s                                                                                        | Worker                                                                           | Worker (Idempotenz-Check bei jeder Nachricht)                                                                                            |
+| `orders:{orderId}`                            | Reservierungs-/Order-Cache-Eintrag (`pending` inkl. Kaeuferdaten → `completed`/`failed`); die Pay-Route liest ihn, um den `BuyTicketEvent` zu rekonstruieren                                                                                                              | 900 s (pending), 86 400 s (final) — die Pending-TTL muss das Zahlungsfenster abdecken (ADR-028) | API (pending-Reservierung nach `POST /buy`), Worker (final-Status nach DB-Write) | API (`GET /api/orders/:orderId`, `POST /pay`, `POST /cancel`); gelöscht bei Pay-Rollback/Cancel-Release                                  |
 
 Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
 

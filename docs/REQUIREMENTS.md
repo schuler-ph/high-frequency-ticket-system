@@ -36,6 +36,19 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Git Hooks:** Husky (pre-commit: format, pre-push: lint + typecheck)
 - **Debugging Guardrails:** Deterministic test entrypoints + versioned `debug:*` scripts + short runbook + lokales `local:reset-seed` fuer reproduzierbaren PostgreSQL/Redis/PubSub-Startzustand
 
+## API Surface (`apps/api`)
+
+Der Kauf ist seit dem Reserve/Pay-Split (ADR-028) ein zweistufiger Checkout: `buy` reserviert nur, `pay` published. Die Payment-Latenz lebt im Frontend, nicht im Backend.
+
+| Methode & Route                          | Zweck                                                                                  | Antwort                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/tickets/:eventId/availability` | Aktuelle Verfügbarkeit aus Redis (kein DB-Zugriff)                                     | `200` (`available`, `total`, `opensAt`)                                       |
+| `POST /api/tickets/:eventId/buy`         | Reserviert atomar in Redis (Lua), **published nicht**                                  | `202` (`orderId`) · `409` Sold-Out · `425` Too Early                          |
+| `POST /api/orders/:orderId/pay`          | Validiert das (simulierte) Payment-DTO und **published** den `BuyTicketEvent` synchron | `200` (`confirmed`, `orderId`) · `404` keine Reservierung · `409` finalisiert |
+| `POST /api/orders/:orderId/cancel`       | Gibt eine noch nicht bezahlte Reservierung frei (Checkout-Abbruch/Timeout), idempotent | `200` (`cancelled`, `orderId`) · `409` finalisiert                            |
+| `GET /api/orders/:orderId`               | Finaler Order-Status ausschließlich aus Redis (`pending`/`completed`/`failed`)         | `200` (Order-Status) · `404` unbekannt                                        |
+| `GET /metrics`                           | Prometheus-Scraping-Endpunkt                                                           | `200`                                                                         |
+
 ## Load-Test Szenario (k6)
 
 Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.mjs`, siehe ADR-024/025) simuliert einen realistischen Ticket-Sale-Lifecycle mit echtem Sale-Unlock und reaktiver Sold-Out-Erkennung statt fester Phasen-Timer:

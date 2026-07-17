@@ -316,6 +316,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 - **Entscheidung:** Der Payment-Flow wird im Worker durch eine künstliche Latenz (z.B. nicht-blockierender Sleep von 500ms bis 1500ms via `setTimeout` aus `node:timers/promises`) simuliert.
 - **Begründung:** Diese simulierte Latenz demonstriert den Hauptvorteil unserer asynchronen Pub/Sub-Architektur perfekt: Selbst wenn die "externe Zahlungsabwicklung" extrem langsam wird und den Worker verlangsamt, kann die Fastify API im Frontend sofort das HTTP 202 (Accepted) Signal geben. Die Pub/Sub Queue fängt den Rückstau ab. Bei einer synchronen Architektur würden an dieser Stelle alle Requests in ein Timeout laufen. Da `setTimeout` via Promises den Event-Loop nicht blockiert (kein Busy Wait), kann der Worker effizient tausende asynchrone Zahlungen gleichzeitig "abwarten", ohne CPU-Ressourcen zu verschwenden.
 - **Alternativen:** Keine Verzögerung (unrealistisch für echtes Ticketing), Echter Payment-Provider Testmodus (deren Rate Limits würden den k6 Last-Test zerstören oder fälschen).
+- **Nachtrag (2026-07-17, Reserve/Pay-Split ADR-028):** Der Mock **wandert vom Worker ins Frontend**. Mit dem Reserve→Pay→Publish-Split ist der urspruengliche Zweck des Worker-Sleeps (zeigen, dass die Queue Payment-Rueckstau abfaengt) obsolet: die Zahlung findet nun **vor** dem Publish statt, der Worker ist ein reiner Persist-Consumer ohne kuenstliche Latenz. Die simulierte 3DS-Verzoegerung lebt daher als reines UX-Artefakt im Payment-Modal (Spinner/OTP), nicht mehr als `setTimeout` im Worker. Damit hat das Backend **nirgends** kuenstliche Latenz — genau die Voraussetzung dafuer, dass der naechste Lasttest echte Infra-Kapazitaet statt eines Mock-Sleeps misst (die Baseline-A-Falle). Das `handle-buy-ticket-message.ts`-`sleep` samt Dependency ist entfernt (siehe ADR-028).
 
 ---
 
@@ -642,3 +643,32 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/worker/src/lib/metrics.ts` (`reservation_ledger_active`, `reservation_ledger_stale`)
   - `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung)
   - `docs/ARCHITECTURE.md`, `docs/TODO.md`
+
+---
+
+## ADR-028: Reserve→Pay→Publish-Split (Payment-Latenz lebt im Frontend)
+
+- **Datum:** 2026-07-17
+- **Kontext:** Bisher war der Kauf ein einziger `POST /buy`-Klick: die API reservierte in Redis **und** published sofort den `BuyTicketEvent`; der Worker simulierte die Zahlung mit einem 1-s-`setTimeout` (ADR-013) und persistierte danach. Zwei Probleme: (1) Es gab keinen realistischen Checkout — kein Warenkorb-artiges "Ticket ist waehrend der Zahlung fuer mich gehalten", keine Payment-Interaktion. (2) Der Worker-Sleep war die dominante Latenzquelle: Baseline A mass ~406 s E2E-Latenz und einen ~500/s-Drain-Deckel, der praktisch nur den Mock-Sleep gegen die Flow-Control vermass — **nicht** die echte Infrastruktur-Kapazitaet. Jede Lasttest-Aussage vor Entfernung dieses Sleeps beschreibt das Mock-Verhalten, nicht das System.
+- **Entscheidung:** Der Kauf wird in zwei Schritte + eine Freigabe zerlegt. **`POST /buy` reserviert nur** (atomares Lua: Sale-Unlock-Check + `DECR available` + Ledger-`ZADD` + Pending-Order mit Kaeuferdaten) und liefert `orderId` + `202` — **ohne** Publish. Die neue **synchrone `POST /orders/:orderId/pay`** validiert das (simulierte) Payment-DTO und **published** als einzige Stelle den `BuyTicketEvent`; sie antwortet `200`, sobald der Publish bestaetigt ist. Eine **`POST /orders/:orderId/cancel`** gibt die Reservierung bei Checkout-Abbruch/Timeout frei. Der **Worker-Sleep entfaellt** — der Worker ist reiner Persist-Consumer. Die simulierte 3DS-Verzoegerung ist ein reines **Frontend-UX-Artefakt** (Spinner/OTP im Modal), kein Server-Sleep.
+- **Begruendung:**
+  - **Realistischer Checkout:** Das Ticket ist ueber die Buy-Reservierung waehrend der Zahlung gehalten; der Worker sieht die Order erst nach bestaetigter Zahlung. Das entspricht dem mentalen Modell eines echten Ticket-Sales.
+  - **Backend ohne kuenstliche Latenz:** Worker **und** `/pay` sind beide ~ms-schnell. Der Lasttest misst damit echte Infra-Kapazitaet (Flow-Control, DB-Hot-Row) statt eines Mock-Sleeps — genau die Baseline-A-Falle. `queuedAt` wird beim Publish (Pay-Zeitpunkt) gesetzt, sodass `order_e2e_latency_seconds` nur noch Publish→Persist misst (siehe ADR-023-Nachtrag).
+  - **Async-Writes-Regel gewahrt:** Die Pay-Route schreibt niemals in PostgreSQL, sie published nur; die Persistenz traegt weiterhin ausschliesslich der Worker (Architectural Rule 1).
+  - **Interaktion mit dem Reservation-Ledger (ADR-027):** Die Ledger-Lebensdauer spannt jetzt den **gesamten Checkout** (Reserve bis Bezahlen/Abbrechen), nicht nur die Queue-Latenz. Da der Ledger bewusst kein TTL hat, bleibt der Anspruch waehrend der Zahlung sicher bestehen. Ein abgebrochener Checkout ohne Cancel-Aufruf hinterlaesst einen Phantom-Anspruch — deshalb die explizite Cancel-Route; das Aufraeumen wirklich verwaister Ansprueche bleibt beim Reaper (Phase 6). Die Pending-Order-TTL (`REDIS_PENDING_ORDER_TTL_SECONDS`, 900 s) muss das Zahlungsfenster abdecken.
+  - **Payment-Daten:** Reine Simulation, klar als Fake gekennzeichnet (`paymentRequestSchema`), format-only validiert und **nie persistiert** (ADR-013-Nachtrag).
+- **Alternativen (verworfen):**
+  - **Sleep nur entfernen, Single-Click-Buy behalten:** loest die Lasttest-Verfaelschung, aber ohne realistischen Checkout und ohne "Ticket waehrend Zahlung gehalten"-Semantik.
+  - **Payment-Latenz als Server-Sleep in `/pay`:** wuerde die Baseline-A-Falle nur von Worker nach API verschieben. Kuenstliche Latenz gehoert ins Frontend; eine bewusste "N gehaltene Reservierungen"-Last waere ein explizites `sleep()` im k6-Skript, kein Backend-Verhalten.
+  - **`/pay` published asynchron (Fire-and-Forget):** die Route koennte nicht ehrlich `200` = "Zahlung akzeptiert" melden und der Publish-Rollback-Pfad ginge verloren.
+- **Umsetzung:**
+  - `packages/types/src/tickets.ts` (`paymentRequestSchema`/`paymentResponseSchema`, `pendingOrderReservationSchema`, `cancelOrderResponseSchema`)
+  - `apps/api/src/routes/api/tickets/buy.ts` (reserve-only, kein Publish/Rollback mehr)
+  - `apps/api/src/routes/api/orders/pay.ts` (Publish + Rollback + `payments_confirmed_total`)
+  - `apps/api/src/routes/api/orders/cancel.ts` (Release + `checkouts_cancelled_total`)
+  - `apps/api/src/lib/metrics.ts` (Funnel-Counter)
+  - `apps/worker/src/lib/handle-buy-ticket-message.ts` (`sleep` + Dependency entfernt)
+  - `apps/worker/src/lib/metrics.ts` (`order_e2e_latency_seconds`-Buckets ms-Bereich)
+  - `packages/env/src/index.ts` (Flow-Control-Kommentar), `monitoring/grafana/.../order-lifecycle.json` (Funnel)
+  - Tests: `apps/api/test/routes/orders.pay.test.ts`, `orders.cancel.test.ts`, `tickets.buy.test.ts`, `tests/e2e/*`
+  - Doku-Lockstep: ADR-013 (Mock Worker→Frontend), ADR-023 (queuedAt-Semantik), `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/TODO.md`
