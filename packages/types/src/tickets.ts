@@ -56,6 +56,23 @@ export type PendingOrderCacheEntry = z.infer<
   typeof pendingOrderCacheEntrySchema
 >;
 
+/**
+ * Was `POST /buy` als Reservierungs-Record unter `orders:{orderId}` schreibt:
+ * der oeffentliche Pending-Status PLUS die Personalisierungsdaten, die
+ * `POST /orders/:orderId/pay` beim Publish in den `BuyTicketEvent` uebernimmt
+ * (nach dem Reserve/Pay-Split kennt die Pay-Route den Kaeufer sonst nicht mehr,
+ * ADR-028). Die `GET /orders/:orderId`-Route parst denselben Key mit dem
+ * schmaleren `orderStatusResponseSchema` und streift die Namen wieder ab — der
+ * oeffentliche Status-Contract bleibt damit unveraendert.
+ */
+export const pendingOrderReservationSchema = pendingOrderCacheEntrySchema.extend(
+  buyTicketBodySchema.shape,
+);
+
+export type PendingOrderReservation = z.infer<
+  typeof pendingOrderReservationSchema
+>;
+
 export const completedOrderCacheEntrySchema = z.object({
   orderId: z.uuid(),
   eventId: z.uuid(),
@@ -122,3 +139,36 @@ export const ticketResetResponseSchema = z.object({
 });
 
 export type TicketResetResponse = z.infer<typeof ticketResetResponseSchema>;
+
+/**
+ * SIMULATION ONLY — Fake/Dummy-Zahlungsdaten fuer den Checkout-Mock.
+ *
+ * Diese Felder werden NIEMALS persistiert und verlassen den Prozess nicht: die
+ * Pay-Route validiert das Schema und published anschliessend nur den
+ * `BuyTicketEvent` (ohne Zahlungsdaten). Es findet keine echte Zahlungs-
+ * abwicklung statt (ADR-013/ADR-028). Die Validierung ist bewusst locker
+ * (reine Formatpruefung), damit der Frontend-Mock nicht an einer Luhn-Pruefung
+ * o. Ae. scheitert.
+ */
+export const paymentRequestSchema = z.object({
+  cardHolder: z
+    .string()
+    .min(1, "Card holder is required")
+    .max(255, "Card holder is too long"),
+  // 12–19 Ziffern, optionale Gruppierungs-Leerzeichen — reine Fake-Nummer.
+  cardNumber: z
+    .string()
+    .regex(/^[0-9 ]{12,23}$/, "Card number must be 12–19 digits"),
+  // MM/YY
+  expiry: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Expiry must be MM/YY"),
+  cvc: z.string().regex(/^\d{3,4}$/, "CVC must be 3–4 digits"),
+});
+
+export type PaymentRequest = z.infer<typeof paymentRequestSchema>;
+
+export const paymentResponseSchema = z.object({
+  confirmed: z.boolean(),
+  orderId: z.uuid(),
+});
+
+export type PaymentResponse = z.infer<typeof paymentResponseSchema>;
