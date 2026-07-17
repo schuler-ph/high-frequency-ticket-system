@@ -5,6 +5,7 @@ import { Toast } from "../components/Toast";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
 import { buyTicket } from "../lib/api";
 import { env } from "../lib/env";
+import { randomName } from "../lib/names";
 
 type Phase = "loading" | "upcoming" | "open" | "soldout";
 
@@ -178,8 +179,11 @@ function ActiveSaleView({
   loading: boolean;
 }) {
   const [formState, setFormState] = useState<FormState>("idle");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  // Autofill mit einem zufaelligen (fiktiven) Namen beim Betreten der
+  // `open`-Phase — die Felder bleiben editierbar.
+  const initialName = useState(randomName)[0];
+  const [firstName, setFirstName] = useState(initialName.firstName);
+  const [lastName, setLastName] = useState(initialName.lastName);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   async function handleBuy(e: React.FormEvent) {
@@ -198,8 +202,9 @@ function ActiveSaleView({
           : "In Warteschlange",
       });
       setFormState("idle");
-      setFirstName("");
-      setLastName("");
+      const next = randomName();
+      setFirstName(next.firstName);
+      setLastName(next.lastName);
     } else {
       setToast({ type: "error", message: result.message });
       setFormState("idle");
