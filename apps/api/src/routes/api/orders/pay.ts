@@ -92,9 +92,7 @@ export async function confirmPayment({
   } satisfies BuyTicketEvent;
 
   try {
-    await pubsubPublisher.publishBuyTicket(
-      buyTicketEventSchema.parse(payload),
-    );
+    await pubsubPublisher.publishBuyTicket(buyTicketEventSchema.parse(payload));
   } catch (error) {
     const keys = ticketRedisKeys(eventId);
     try {

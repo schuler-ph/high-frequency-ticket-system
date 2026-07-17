@@ -56,7 +56,6 @@ function createDeps(
     markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
     isOrderProcessed: async () => false,
     finalizeOrder: async () => undefined,
-    sleep: async () => undefined,
     ...overrides,
   };
 }

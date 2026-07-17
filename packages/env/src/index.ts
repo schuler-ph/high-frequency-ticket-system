@@ -15,7 +15,10 @@ export const env = createEnv({
     PUBSUB_TOPIC_BUY_TICKET: z.string().min(1),
     PUBSUB_SUBSCRIPTION_BUY_TICKET: z.string().min(1),
     // Max. gleichzeitig zugestellte Pub/Sub-Nachrichten pro Worker-Instanz.
-    // Mit dem 1-s-Payment-Mock entspricht das ~N Kaeufen/s pro Worker.
+    // Seit dem Reserve/Pay-Split (ADR-028) gibt es keinen 1-s-Payment-Mock
+    // mehr: der Worker persistiert direkt, daher deckelt dieser Wert die
+    // gleichzeitig laufenden Persist-Operationen (Backpressure gegen den
+    // DB-Pool), nicht mehr eine kuenstliche ~N-Kaeufe/s-Sleep-Rate.
     PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce
       .number()
       .int()

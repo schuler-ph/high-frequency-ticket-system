@@ -167,12 +167,12 @@ Abgesichert durch Tests in:
 
 Zwei explizite Env-Knobs bestimmen die effektive Backpressure des Workers (statt zweier impliziter Library-Defaults):
 
-| Env-Variable                       | Default | Wirkung                                                                                                                                    |
-| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` | 500     | Max. gleichzeitig zugestellte Nachrichten pro Worker-Instanz. Mit dem 1-s-Payment-Mock ≈ **~500 Käufe/s pro Worker** als Durchsatz-Deckel. |
-| `DATABASE_POOL_MAX`                | 20      | node-postgres Pool-Größe pro Prozess. Jeder Write hält die Connection nur ~5 ms → 20 Connections tragen ~4.000 Writes/s.                   |
+| Env-Variable                       | Default | Wirkung                                                                                                                                                                        |
+| ---------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` | 500     | Max. gleichzeitig zugestellte Nachrichten pro Worker-Instanz. Seit dem Reserve/Pay-Split (ADR-028, kein 1-s-Sleep mehr) deckelt der Wert die gleichzeitig laufenden Persist-Operationen, nicht eine kuenstliche Sleep-Rate — Backpressure gegen den DB-Pool. |
+| `DATABASE_POOL_MAX`                | 20      | node-postgres Pool-Größe pro Prozess. Jeder Write hält die Connection nur ~5 ms → 20 Connections tragen ~4.000 Writes/s.                                                     |
 
-Back-of-envelope fürs Lastziel (~2.100 abgeschlossene Käufe/s): 4–5 Worker-Instanzen mit den Defaults. Beide Werte gehören beim Skalieren gemeinsam angepasst.
+Back-of-envelope fürs Lastziel (~2.100 abgeschlossene Käufe/s): 4–5 Worker-Instanzen mit den Defaults. Beide Werte gehören beim Skalieren gemeinsam angepasst. Ohne den Payment-Sleep ist der Worker nun so schnell wie `buy_ticket` + Redis-Finalisierung; der reale Durchsatz-Limiter verschiebt sich damit auf den DB-Hot-Row-`UPDATE` (Backlog Stage 2).
 
 ## DTO-Vertrag für Code und Tests
 

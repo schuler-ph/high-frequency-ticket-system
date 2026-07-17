@@ -1,4 +1,3 @@
-import { setTimeout } from "node:timers/promises";
 import type { Message } from "@google-cloud/pubsub";
 import type { FastifyBaseLogger } from "fastify";
 import {
@@ -45,7 +44,6 @@ export type BuyTicketMessageHandlerDeps = {
     payload: BuyTicketPayload,
     entry: FinalOrderCacheEntry,
   ) => Promise<void>;
-  sleep?: (ms: number) => Promise<unknown>;
 };
 
 const getCauseCode = (error: unknown): string | undefined => {
@@ -112,8 +110,10 @@ export async function handleBuyTicketMessage(
   }
 
   try {
-    await (deps.sleep ?? setTimeout)(1000);
-
+    // Kein Payment-Sleep mehr: nach dem Reserve/Pay-Split (ADR-028) lebt die
+    // (simulierte) 3DS-Verzoegerung ausschliesslich im Frontend. Der Worker ist
+    // ein reiner Persist-Consumer — er sieht die Order erst nach bestaetigter
+    // Zahlung und persistiert sie so schnell wie moeglich.
     const ticketId = await deps.executeBuyTicket(parsed.data);
     await deps.finalizeOrder(parsed.data, {
       orderId,
