@@ -1,46 +1,25 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
 import Fastify from "fastify";
-import type { FastifyBaseLogger } from "fastify";
 import {
   serializerCompiler,
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import {
-  completedOrderCacheEntrySchema,
   orderStatusResponseSchema,
-  type BuyTicketEvent,
-  type OrderCacheEntry,
+  pendingOrderReservationSchema,
 } from "@repo/types/tickets";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import type { RedisClient } from "@repo/types/redis-client";
 import type { TicketRedisScripts } from "../../../apps/api/src/lib/redis-scripts.ts";
 import orderStatusRoute from "../../../apps/api/src/routes/api/orders/status.ts";
 import ticketBuyRoute from "../../../apps/api/src/routes/api/tickets/buy.ts";
-import { handleBuyTicketMessage } from "../../../apps/worker/src/lib/handle-buy-ticket-message.ts";
 
 type InMemoryRedis = Pick<
   RedisClient,
   "set" | "del" | "incr" | "get" | "defineCommand"
 > &
   TicketRedisScripts;
-
-type TestMessage = {
-  id: string;
-  data: Buffer;
-};
-
-const noopLogger: FastifyBaseLogger = {
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-  fatal: () => undefined,
-  debug: () => undefined,
-  trace: () => undefined,
-  silent: () => undefined,
-  child: () => noopLogger,
-  level: "info",
-} as unknown as FastifyBaseLogger;
 
 function createInMemoryRedis(
   initialValues: Record<string, string> = {},
@@ -115,17 +94,11 @@ function createInMemoryRedis(
   };
 }
 
-function createMessage(payload: BuyTicketEvent): TestMessage {
-  return {
-    id: "msg-1",
-    data: Buffer.from(JSON.stringify(payload)),
-  };
-}
-
-void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:orderId returns the final Redis-backed ticket state", async () => {
+// Nach dem Reserve/Pay-Split (ADR-028) reserviert `POST /buy` nur noch und
+// published NICHTS. Der volle Flow (buy → pay → Worker → completed) wird durch
+// die Pay-Route-Tests abgedeckt, sobald diese existiert.
+void test("POST /api/tickets/:eventId/buy reserves a ticket (no publish) and GET /api/orders/:orderId returns the pending order", async () => {
   const eventId = "7d4996fe-3f4b-46f6-be95-f7fd38f83f42";
-  const ticketId = "e42628f4-3e01-4098-9696-19f6bb055ac3";
-  const publishedEvents: BuyTicketEvent[] = [];
   const redis = createInMemoryRedis({
     [ticketRedisKeys(eventId).available]: "1",
   });
@@ -134,12 +107,6 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.decorate("redis", redis as unknown as typeof fastify.redis);
-  fastify.decorate("pubsubPublisher", {
-    async publishBuyTicket(payload: BuyTicketEvent) {
-      publishedEvents.push(payload);
-      return "msg-1";
-    },
-  });
 
   await fastify.register(ticketBuyRoute, { prefix: "/api/tickets" });
   await fastify.register(orderStatusRoute, { prefix: "/api/orders" });
@@ -161,72 +128,44 @@ void test("POST /api/tickets/:eventId/buy returns orderId and GET /api/orders/:o
       orderId: string;
       message: string;
     };
-    assert.equal(buyBody.message, "Ticket purchase queued");
+    assert.equal(buyBody.message, "Ticket reserved");
     assert.match(
       buyBody.orderId,
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
 
-    assert.equal(publishedEvents.length, 1);
-    assert.ok(publishedEvents[0]);
-    assert.equal(publishedEvents[0].orderId, buyBody.orderId);
-    assert.equal(publishedEvents[0].eventId, eventId);
-    assert.equal(publishedEvents[0].firstName, "Ada");
-    assert.equal(publishedEvents[0].lastName, "Lovelace");
-    assert.ok(
-      typeof publishedEvents[0].queuedAt === "number" &&
-        publishedEvents[0].queuedAt > 0,
-    );
+    // Availability wurde atomar dekrementiert.
+    assert.equal(await redis.get(ticketRedisKeys(eventId).available), "0");
 
-    const workerMessage = createMessage(publishedEvents[0]!);
-    const outcome = await handleBuyTicketMessage(workerMessage, {
-      logger: noopLogger,
-      executeBuyTicket: async () => ticketId,
-      compensateReservation: async () => "already-released",
-      markOrderFailed: async () => "updated",
-      isOrderProcessed: async () => false,
-      finalizeOrder: async (payload, entry: OrderCacheEntry) => {
-        await redis.set(
-          orderRedisKeys.entry(payload.orderId),
-          JSON.stringify(entry),
-          "EX",
-          3600,
-        );
-      },
-      sleep: async () => undefined,
-    });
-
-    assert.equal(outcome.kind, "completed");
-
-    const cachedCompletedOrder = await redis.get(
+    // Der Reservierungs-Record traegt die Kaeuferdaten fuer die Pay-Route.
+    const cachedReservation = await redis.get(
       orderRedisKeys.entry(buyBody.orderId),
     );
-    assert.notEqual(cachedCompletedOrder, null);
+    assert.notEqual(cachedReservation, null);
     assert.deepEqual(
-      JSON.parse(cachedCompletedOrder!),
-      completedOrderCacheEntrySchema.parse({
+      JSON.parse(cachedReservation!),
+      pendingOrderReservationSchema.parse({
         orderId: buyBody.orderId,
         eventId,
-        status: "completed",
-        ticketId,
+        status: "pending",
+        firstName: "Ada",
+        lastName: "Lovelace",
       }),
     );
 
+    // Der oeffentliche Status-Contract streift die Kaeuferdaten wieder ab.
     const orderResponse = await fastify.inject({
       method: "GET",
       url: `/api/orders/${buyBody.orderId}`,
     });
 
     assert.equal(orderResponse.statusCode, 200);
-
-    const orderBody = JSON.parse(orderResponse.body);
     assert.deepEqual(
-      orderBody,
+      JSON.parse(orderResponse.body),
       orderStatusResponseSchema.parse({
         orderId: buyBody.orderId,
         eventId,
-        status: "completed",
-        ticketId,
+        status: "pending",
       }),
     );
   } finally {

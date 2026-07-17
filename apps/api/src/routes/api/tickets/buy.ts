@@ -5,9 +5,8 @@ import {
   buyTicketResponseSchema,
   ticketEventIdSchema,
   type BuyTicketBody,
-  type BuyTicketEvent,
   type BuyTicketResponse,
-  type PendingOrderCacheEntry,
+  type PendingOrderReservation,
 } from "@repo/types/tickets";
 import { ConflictError, TooEarlyError } from "@repo/types/errors";
 import type {
@@ -17,7 +16,6 @@ import type {
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import {
   ordersAcceptedTotal,
-  publishRollbacksTotal,
   reservationsCreatedTotal,
 } from "../../../lib/metrics.ts";
 import {
@@ -25,32 +23,36 @@ import {
   type TicketRedisScripts,
 } from "../../../lib/redis-scripts.ts";
 import type {} from "@fastify/redis";
-import type {} from "../../../plugins/pubsub.ts";
-
-type TicketPublisher = {
-  publishBuyTicket: (payload: BuyTicketEvent) => Promise<string>;
-};
 
 type QueueBuyTicketPurchaseInput = {
   eventId: string;
   body: BuyTicketBody;
   redis: TicketRedisScripts;
-  pubsubPublisher: TicketPublisher;
   pendingOrderTtlSeconds?: number;
   createOrderId?: () => string;
   onReservationCreated?: () => void;
-  onPublishRollback?: () => void;
 };
 
+/**
+ * Reserviert ein Ticket atomar in Redis (Lua: Sale-Unlock-Check + `DECR
+ * available` + Ledger-`ZADD` + Pending-Order) und liefert `orderId` + `202`.
+ *
+ * Nach dem Reserve/Pay-Split (ADR-028) published der Buy **nicht** mehr an
+ * Pub/Sub — der Ticket-Anspruch ist waehrend des Checkouts nur reserviert. Erst
+ * `POST /orders/:orderId/pay` published den `BuyTicketEvent`. Daher gibt es hier
+ * auch keinen Publish-Rollback-Pfad mehr; die Freigabe einer Reservierung
+ * uebernimmt die Cancel-Route bzw. der Pay-Rollback.
+ *
+ * Der Reservierungs-Record enthaelt die Kaeuferdaten (`firstName`/`lastName`),
+ * damit die Pay-Route den `BuyTicketEvent` daraus rekonstruieren kann.
+ */
 export async function queueBuyTicketPurchase({
   eventId,
   body,
   redis,
-  pubsubPublisher,
   pendingOrderTtlSeconds = env.REDIS_PENDING_ORDER_TTL_SECONDS,
   createOrderId = randomUUID,
   onReservationCreated,
-  onPublishRollback,
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
   const keys = ticketRedisKeys(eventId);
   const orderId = createOrderId();
@@ -59,9 +61,12 @@ export async function queueBuyTicketPurchase({
     orderId,
     eventId,
     status: "pending",
-  } satisfies PendingOrderCacheEntry);
-  // Zeitstempel wird dreifach genutzt: Ledger-Score (ZADD), Sale-Unlock-Check
-  // (opensAt) und `queuedAt` im Pub/Sub-Payload — ein Date.now() pro Request.
+    firstName: body.firstName,
+    lastName: body.lastName,
+  } satisfies PendingOrderReservation);
+  // Zeitstempel wird zweifach genutzt: Ledger-Score (ZADD) und Sale-Unlock-
+  // Check (opensAt). `queuedAt` fuer die E2E-Latenz setzt erst die Pay-Route
+  // beim Publish — der Buy misst keine Queue-Latenz mehr (ADR-028).
   const now = Date.now();
 
   const availableAfterReserve = await redis.reserveTicket(
@@ -85,35 +90,8 @@ export async function queueBuyTicketPurchase({
 
   onReservationCreated?.();
 
-  try {
-    await pubsubPublisher.publishBuyTicket({
-      orderId,
-      eventId,
-      queuedAt: now,
-      ...body,
-    });
-  } catch (error) {
-    try {
-      await redis.releaseTicketReservation(
-        keys.reservations,
-        keys.available,
-        orderCacheKey,
-        orderId,
-      );
-    } catch (releaseError) {
-      onPublishRollback?.();
-      throw new AggregateError(
-        [error, releaseError],
-        "Failed to queue ticket purchase and fully roll back reservation",
-      );
-    }
-
-    onPublishRollback?.();
-    throw error;
-  }
-
   return {
-    message: "Ticket purchase queued",
+    message: "Ticket reserved",
     orderId,
   };
 }
@@ -137,11 +115,8 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
         eventId,
         body: req.body,
         redis,
-        pubsubPublisher: fastify.pubsubPublisher,
         onReservationCreated: () =>
           reservationsCreatedTotal.inc({ event_id: eventId }),
-        onPublishRollback: () =>
-          publishRollbacksTotal.inc({ event_id: eventId }),
       });
 
       ordersAcceptedTotal.inc({ event_id: eventId });

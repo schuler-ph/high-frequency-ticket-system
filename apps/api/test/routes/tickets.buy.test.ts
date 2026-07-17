@@ -2,8 +2,7 @@ import * as assert from "node:assert";
 import { test } from "node:test";
 import {
   buyTicketBodySchema,
-  pendingOrderCacheEntrySchema,
-  type BuyTicketEvent,
+  pendingOrderReservationSchema,
 } from "@repo/types/tickets";
 import { ConflictError, TooEarlyError } from "@repo/types/errors";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
@@ -86,9 +85,8 @@ function createScriptsMock(
   };
 }
 
-void test("queueBuyTicketPurchase reserves atomically in one script call and publishes the event", async () => {
+void test("queueBuyTicketPurchase reserves atomically in one script call and does not publish", async () => {
   const redis = createScriptsMock();
-  let publishedPayload: BuyTicketEvent | undefined;
 
   const response = await queueBuyTicketPurchase({
     eventId: EVENT_ID,
@@ -98,15 +96,9 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and pub
     },
     redis,
     createOrderId: () => ORDER_ID,
-    pubsubPublisher: {
-      async publishBuyTicket(payload) {
-        publishedPayload = payload;
-        return "msg-1";
-      },
-    },
   });
 
-  assert.equal(response.message, "Ticket purchase queued");
+  assert.equal(response.message, "Ticket reserved");
   assert.equal(response.orderId, ORDER_ID);
   assert.equal(redis.reserveCalls.length, 1);
   const reserveCall = redis.reserveCalls[0];
@@ -119,11 +111,14 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and pub
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
       opensAtKey: ticketRedisKeys(EVENT_ID).opensAt,
       orderId: ORDER_ID,
+      // Der Reservierungs-Record traegt die Kaeuferdaten fuer die Pay-Route.
       orderCacheValue: JSON.stringify(
-        pendingOrderCacheEntrySchema.parse({
+        pendingOrderReservationSchema.parse({
           orderId: ORDER_ID,
           eventId: EVENT_ID,
           status: "pending",
+          firstName: "Ada",
+          lastName: "Lovelace",
         }),
       ),
       pendingOrderTtlSeconds: 900,
@@ -134,20 +129,11 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and pub
     typeof reserveCall.nowMs === "number" && reserveCall.nowMs > 0,
     `expected nowMs > 0, got ${String(reserveCall.nowMs)}`,
   );
-  assert.equal(reserveCall.nowMs, publishedPayload?.queuedAt);
+  // Buy publiziert nichts mehr und rollt daher auch nichts zurueck (ADR-028).
   assert.equal(redis.releaseCalls.length, 0);
-  assert.ok(publishedPayload);
-  assert.equal(publishedPayload.orderId, ORDER_ID);
-  assert.equal(publishedPayload.eventId, EVENT_ID);
-  assert.equal(publishedPayload.firstName, "Ada");
-  assert.equal(publishedPayload.lastName, "Lovelace");
-  assert.ok(
-    typeof publishedPayload.queuedAt === "number" &&
-      publishedPayload.queuedAt > 0,
-  );
 });
 
-void test("queueBuyTicketPurchase throws ConflictError when sold out and publishes nothing", async () => {
+void test("queueBuyTicketPurchase throws ConflictError when sold out", async () => {
   const redis = createScriptsMock({
     reserveTicket: async () => -1,
   });
@@ -161,11 +147,6 @@ void test("queueBuyTicketPurchase throws ConflictError when sold out and publish
           lastName: "Lovelace",
         },
         redis,
-        pubsubPublisher: {
-          async publishBuyTicket() {
-            throw new Error("should not be called");
-          },
-        },
       }),
     (error: unknown) => {
       assert.ok(error instanceof ConflictError);
@@ -177,7 +158,7 @@ void test("queueBuyTicketPurchase throws ConflictError when sold out and publish
   assert.equal(redis.releaseCalls.length, 0);
 });
 
-void test("queueBuyTicketPurchase throws TooEarlyError when the sale is not yet open and publishes nothing", async () => {
+void test("queueBuyTicketPurchase throws TooEarlyError when the sale is not yet open", async () => {
   const redis = createScriptsMock({
     reserveTicket: async () => -2,
   });
@@ -191,11 +172,6 @@ void test("queueBuyTicketPurchase throws TooEarlyError when the sale is not yet 
           lastName: "Lovelace",
         },
         redis,
-        pubsubPublisher: {
-          async publishBuyTicket() {
-            throw new Error("should not be called");
-          },
-        },
       }),
     (error: unknown) => {
       assert.ok(error instanceof TooEarlyError);
@@ -214,85 +190,6 @@ void test("buyTicketBodySchema validates request body", () => {
   });
 
   assert.equal(result.success, false);
-});
-
-void test("queueBuyTicketPurchase releases the reservation atomically on publish failure", async () => {
-  const redis = createScriptsMock();
-  let rollbackMetricFired = 0;
-
-  await assert.rejects(
-    () =>
-      queueBuyTicketPurchase({
-        eventId: EVENT_ID,
-        body: {
-          firstName: "Ada",
-          lastName: "Lovelace",
-        },
-        redis,
-        createOrderId: () => ORDER_ID,
-        onPublishRollback: () => {
-          rollbackMetricFired += 1;
-        },
-        pubsubPublisher: {
-          async publishBuyTicket() {
-            throw new Error("pubsub unavailable");
-          },
-        },
-      }),
-    /pubsub unavailable/,
-  );
-
-  assert.deepEqual(redis.releaseCalls, [
-    {
-      reservationsLedgerKey: ticketRedisKeys(EVENT_ID).reservations,
-      availableKey: ticketRedisKeys(EVENT_ID).available,
-      orderCacheKey: orderRedisKeys.entry(ORDER_ID),
-      orderId: ORDER_ID,
-    },
-  ]);
-  assert.equal(rollbackMetricFired, 1);
-});
-
-void test("queueBuyTicketPurchase aggregates publish and release errors when the rollback script fails", async () => {
-  const redis = createScriptsMock({
-    releaseTicketReservation: async () => {
-      throw new Error("release failed");
-    },
-  });
-
-  await assert.rejects(
-    () =>
-      queueBuyTicketPurchase({
-        eventId: EVENT_ID,
-        body: {
-          firstName: "Ada",
-          lastName: "Lovelace",
-        },
-        redis,
-        pubsubPublisher: {
-          async publishBuyTicket() {
-            throw new Error("pubsub unavailable");
-          },
-        },
-      }),
-    (error: unknown) => {
-      assert.ok(error instanceof AggregateError);
-      assert.equal(
-        error.message,
-        "Failed to queue ticket purchase and fully roll back reservation",
-      );
-      assert.equal(error.errors.length, 2);
-
-      const [originalError, releaseError] = error.errors;
-
-      assert.ok(originalError instanceof Error);
-      assert.equal(originalError.message, "pubsub unavailable");
-      assert.ok(releaseError instanceof Error);
-      assert.equal(releaseError.message, "release failed");
-
-      return true;
-    },
-  );
 });
 
 void test("registerTicketRedisScripts registers both scripts once via defineCommand", () => {

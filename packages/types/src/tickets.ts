@@ -65,9 +65,8 @@ export type PendingOrderCacheEntry = z.infer<
  * schmaleren `orderStatusResponseSchema` und streift die Namen wieder ab — der
  * oeffentliche Status-Contract bleibt damit unveraendert.
  */
-export const pendingOrderReservationSchema = pendingOrderCacheEntrySchema.extend(
-  buyTicketBodySchema.shape,
-);
+export const pendingOrderReservationSchema =
+  pendingOrderCacheEntrySchema.extend(buyTicketBodySchema.shape);
 
 export type PendingOrderReservation = z.infer<
   typeof pendingOrderReservationSchema
