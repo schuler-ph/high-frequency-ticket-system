@@ -7,7 +7,6 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import {
-  failedOrderCacheEntrySchema,
   orderStatusResponseSchema,
   type BuyTicketEvent,
   type OrderCacheEntry,
