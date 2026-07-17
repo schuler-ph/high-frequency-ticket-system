@@ -30,7 +30,13 @@ export function SiteHeader() {
             fill="none"
             aria-hidden="true"
           >
-            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+            <circle
+              cx="11"
+              cy="11"
+              r="7"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
             <path
               d="m20 20-3-3"
               stroke="currentColor"

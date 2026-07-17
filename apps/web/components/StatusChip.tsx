@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 export type ChipTone = "blue" | "green" | "amber" | "red" | "slate";
 
 const tones: Record<ChipTone, { wrap: string; dot: string }> = {
-  blue: { wrap: "bg-blue-50 text-blue-700 ring-blue-600/20", dot: "bg-blue-500" },
+  blue: {
+    wrap: "bg-blue-50 text-blue-700 ring-blue-600/20",
+    dot: "bg-blue-500",
+  },
   green: {
     wrap: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
     dot: "bg-emerald-500",

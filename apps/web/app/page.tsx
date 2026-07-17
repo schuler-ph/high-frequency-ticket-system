@@ -168,7 +168,9 @@ export default function TicketPage() {
         <SectionPanel title="Tickets">
           <div className="flex items-center gap-3 py-6 text-slate-500">
             <Spinner className="h-5 w-5 text-[#14395e]" />
-            <span className="text-sm">{error ?? "Angebote werden geladen…"}</span>
+            <span className="text-sm">
+              {error ?? "Angebote werden geladen…"}
+            </span>
           </div>
         </SectionPanel>
       </PageChrome>
