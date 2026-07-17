@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PaymentModal } from "../components/PaymentModal";
 import { Toast } from "../components/Toast";
+import { useOrderStatus } from "../hooks/useOrderStatus";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
 import { buyTicket, cancelOrder } from "../lib/api";
 import { env } from "../lib/env";
@@ -383,42 +384,97 @@ function TrackingView({
   orderId: string;
   onReset: () => void;
 }) {
+  const { status, error } = useOrderStatus(orderId);
+  const state = status?.status ?? "pending";
+  const accent = state === "failed" ? "bg-red-500" : "bg-[#FFE600]";
+
   return (
     <main className={shell}>
-      <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#FFE600]" />
+      <div className={`absolute top-0 left-0 right-0 h-[3px] ${accent}`} />
 
       <div className={content}>
         <div className="flex items-center gap-3">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#FFE600] animate-pulse" />
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${accent} ${
+              state === "pending" ? "animate-pulse" : ""
+            }`}
+          />
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-zinc-400">
             Bestellung {orderId.slice(0, 8)}…
           </span>
         </div>
 
-        <h1
-          className="font-black uppercase leading-none tracking-tighter"
-          style={{ fontSize: "clamp(2.5rem, 8vw, 6rem)" }}
-        >
-          <span className="block text-white">Zahlung</span>
-          <span className="block text-[#FFE600]">bestätigt</span>
-        </h1>
+        {state === "completed" ? (
+          <>
+            <h1
+              className="font-black uppercase leading-none tracking-tighter"
+              style={{ fontSize: "clamp(2.5rem, 8vw, 6rem)" }}
+            >
+              <span className="block text-white">Ticket</span>
+              <span className="block text-[#FFE600]">gesichert</span>
+            </h1>
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+                Ticket-Referenz
+              </span>
+              <span className="font-mono font-black text-2xl text-white break-all">
+                {status?.status === "completed" && status.ticketId
+                  ? status.ticketId
+                  : "—"}
+              </span>
+            </div>
+            <p className="font-mono text-sm text-zinc-500 max-w-md leading-relaxed">
+              Dein General-Admission-Pass für das Frequency Festival ist
+              bestätigt. Wir sehen uns in St. Pölten.
+            </p>
+          </>
+        ) : state === "failed" ? (
+          <>
+            <h1
+              className="font-black uppercase leading-none tracking-tighter"
+              style={{ fontSize: "clamp(2.5rem, 8vw, 6rem)" }}
+            >
+              <span className="block text-zinc-500">Kauf</span>
+              <span className="block text-red-500">fehlgeschlagen</span>
+            </h1>
+            <p className="font-mono text-sm text-zinc-400 max-w-md leading-relaxed">
+              {status?.status === "failed"
+                ? status.failureReason
+                : "Die Bestellung konnte nicht abgeschlossen werden."}
+            </p>
+          </>
+        ) : (
+          <>
+            <h1
+              className="font-black uppercase leading-none tracking-tighter"
+              style={{ fontSize: "clamp(2.5rem, 8vw, 6rem)" }}
+            >
+              <span className="block text-white">Zahlung</span>
+              <span className="block text-[#FFE600]">bestätigt</span>
+            </h1>
+            <div className="flex items-center gap-4">
+              <span className="text-3xl animate-spin text-[#FFE600]">⟳</span>
+              <div className="flex flex-col gap-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+                  Status
+                </span>
+                <span className="font-mono font-black text-2xl text-white">
+                  Wird verarbeitet…
+                </span>
+              </div>
+            </div>
+            <p className="font-mono text-sm text-zinc-500 max-w-md leading-relaxed">
+              Deine Bestellung ist in der Warteschlange und wird gerade
+              finalisiert.
+            </p>
+          </>
+        )}
 
-        <div className="flex items-center gap-4">
-          <span className="text-3xl animate-spin text-[#FFE600]">⟳</span>
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
-              Status
-            </span>
-            <span className="font-mono font-black text-2xl text-white">
-              Wird verarbeitet…
-            </span>
-          </div>
-        </div>
-
-        <p className="font-mono text-sm text-zinc-500 max-w-md leading-relaxed">
-          Deine Bestellung ist in der Warteschlange und wird gerade
-          finalisiert.
-        </p>
+        {error && state === "pending" && (
+          <span className="font-mono text-xs text-red-400/70">
+            Verbindung instabil — erneuter Versuch…
+          </span>
+        )}
 
         <button
           onClick={onReset}

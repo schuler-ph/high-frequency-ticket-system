@@ -2,6 +2,7 @@ import type {
   BuyTicketBody,
   BuyTicketResponse,
   CancelOrderResponse,
+  OrderStatusResponse,
   PaymentRequest,
   PaymentResponse,
   TicketAvailabilityResponse,
@@ -92,4 +93,19 @@ export async function cancelOrder(
   });
   if (!res.ok) return null;
   return res.json() as Promise<CancelOrderResponse>;
+}
+
+/**
+ * Liest den finalen Order-Status ausschliesslich aus Redis (`pending` aus der
+ * API, `completed`/`failed` aus dem Worker). `null`, wenn (noch) kein Record
+ * existiert (`404`).
+ */
+export async function fetchOrderStatus(
+  apiUrl: string,
+  orderId: string,
+): Promise<OrderStatusResponse | null> {
+  const res = await fetch(`${apiUrl}/api/orders/${orderId}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Order status fetch failed: ${res.status}`);
+  return res.json() as Promise<OrderStatusResponse>;
 }
