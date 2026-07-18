@@ -222,7 +222,7 @@ Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (n
 
 ### Stage 2 — DB-Hot-Row (naechster echter Limiter nach dem Sleep-Removal)
 
-- [ ] #7 isoliert benchmarken (vor Umsetzung): Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen. **Neu gefasst:** der frueher noetige Schritt "Payment-Mock deaktivieren" entfaellt — mit dem Worker-Sleep-Removal aus Phase 4.7 ist der 1-s-Mock weg, der `sold_count`-Hot-Row-UPDATE ist damit direkt als Limiter isolierbar (Baseline A traf nur den 500/s-Flow-Control-Deckel und bewies den Hot-Row-Limiter nicht separat).
+- [x] #7 isoliert benchmarken (vor Umsetzung): Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen. **Neu gefasst:** der frueher noetige Schritt "Payment-Mock deaktivieren" entfaellt — mit dem Worker-Sleep-Removal aus Phase 4.7 ist der 1-s-Mock weg, der `sold_count`-Hot-Row-UPDATE ist damit direkt als Limiter isolierbar (Baseline A traf nur den 500/s-Flow-Control-Deckel und bewies den Hot-Row-Limiter nicht separat). — Fokussierter Publish-Micro-Bench `scripts/local/bench-hot-row.mjs` (`pnpm bench:hot-row`, published `BuyTicketEvent`s direkt an Pub/Sub, misst Drain-Durchsatz + `pg_stat_activity`-Lock-Wait-Backends + Worker-`/metrics`). BEFORE mit `FLOW_CONTROL=2000`/`POOL_MAX=50`: **235 tickets/s, 49/50 Backends im Lock-Wait** auf der einen `events`-Row — Hot-Row als Limiter bewiesen (`docs/reports/hot-row-bench/README.md`).
 - [ ] #7: `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Aggregation im Reconcile); Order direkt als `completed` einfuegen (ADR-011-Update, Migration + `db:push`, Guardrail-Script `check-buy-ticket-contract.mjs`).
 
 ### Stage 3 — Pre-Baseline-Cleanups (guenstig, vor dem Kapazitaetslauf buendeln)

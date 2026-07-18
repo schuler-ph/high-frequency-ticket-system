@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "spike": "node scripts/local/run-spike.mjs",
+    "bench:hot-row": "node scripts/local/bench-hot-row.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "seed": "node scripts/local/reset-seed.mjs",
