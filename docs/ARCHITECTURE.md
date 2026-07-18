@@ -53,7 +53,7 @@ flowchart TD
     W_consumer -->|"completed/failed order + idempotency marker"| Redis
     PubSub -->|SUBSCRIBE| W_consumer
     W_reconcile -->|"available counter + drift metric"| Redis
-    W_reconcile -->|"DB Read: sold_count + capacity"| DB
+    W_reconcile -->|"DB Read: COUNT(tickets) + capacity; Write-back sold_count"| DB
 
     W_consumer -->|"SELECT buy_ticket(...)"| DB
 ```
@@ -96,10 +96,10 @@ Seit dem Reserve/Pay-Split (ADR-028) ist der Kauf **zwei** synchrone API-Schritt
    ❌ Publish-Fehler → ein atomares Gegen-Script gibt die Reservation frei: `ZREM reservations {orderId}`, `INCR available` nur wenn der Ledger-Eintrag tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Pending-Status. Partielle Rollback-Zustaende sind damit unmoeglich.
    ↩︎ Bricht der Nutzer das Modal ab / laeuft 3DS aus → POST /api/orders/{orderId}/cancel gibt die Reservierung mit demselben Gegen-Script frei (idempotent).
 7. Worker konsumiert BuyTicketEvent aus Pub/Sub (reiner Persist-Consumer, **kein** Payment-Sleep mehr — ADR-028)
-8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (persistiert `orderId` in `orders` und `tickets.order_id`, macht Ticket-INSERT + sold_count Update und setzt `orders.status` auf `completed`)
+8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (fuegt die Order direkt als `completed` ein und macht den Ticket-INSERT mit `tickets.order_id`). **Kein `sold_count`-UPDATE mehr** — der frueher hier serialisierende Hot-Row-`UPDATE` ist raus (Backlog #7, ADR-011-Nachtrag); der Verkaufsstand wird ausschliesslich im Reconcile-Loop via `COUNT(tickets)` aggregiert.
    - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Roundtrip).
    - Parallele Doppel-Zustellungen derselben `orderId` laufen harmlos in den `ON CONFLICT`-Pfad der DB-Transaktion — ein separater Processing-Lock existiert nicht mehr.
-   - Bei Erfolg finalisiert der Worker atomar: Redis-Order-Key mit finalem Status inkl. Ticket-Referenz + laengerer Final-TTL, `processed`-Marker **und** `ZREM reservations {orderId}` — der Anspruch geht in `sold_count` ueber und darf nicht doppelt zaehlen. `available` bleibt beim Erfolg dekrementiert (das Ticket ist verkauft).
+   - Bei Erfolg finalisiert der Worker atomar: Redis-Order-Key mit finalem Status inkl. Ticket-Referenz + laengerer Final-TTL, `processed`-Marker **und** `ZREM reservations {orderId}` — der Anspruch geht vom Ledger in den verkauften Bestand (`tickets`-Row) ueber und darf nicht doppelt zaehlen. `available` bleibt beim Erfolg dekrementiert (das Ticket ist verkauft).
    - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (`ZREM reservations {orderId}` + `INCR available`, nur wenn der Ledger-Eintrag noch existierte — idempotent), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
 9. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
 
@@ -136,7 +136,7 @@ Diese Methode erfordert keinen gemeinsamen State zwischen API und Worker — der
 Nach jedem Reconcile-Lauf schreibt der Worker den aktuellen Konsistenzstand als Prometheus-Gauge:
 
 - **Metrik:** `redis_db_drift_tickets` (Gauge, Label: `event_id`)
-- **Berechnung:** `redis_available − (total_capacity − sold_count − active_reservations)`, wobei `active_reservations = ZCARD tickets:event:{eventId}:reservations`
+- **Berechnung:** `redis_available − (total_capacity − sold_count − active_reservations)`, wobei `sold_count = COUNT(tickets)` je Event (seit Backlog #7 aggregiert, nicht mehr aus der Hot-Row-Spalte gelesen; der Reconcile schreibt den Wert anschliessend nach `events.sold_count` zurueck) und `active_reservations = ZCARD tickets:event:{eventId}:reservations`
 - **Wert 0** = perfekte Konsistenz zwischen Redis und PostgreSQL
 - **Positiver Wert** = Redis zählt mehr verfügbare Tickets als PostgreSQL → seltener, z. B. verlorenes Decrement zwischen Messung und Korrektur
 - **Negativer Wert** = Redis zählt weniger → z. B. nach Worker-Restart vor Reconcile
@@ -179,7 +179,7 @@ Zwei explizite Env-Knobs bestimmen die effektive Backpressure des Workers (statt
 | `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` | 500     | Max. gleichzeitig zugestellte Nachrichten pro Worker-Instanz. Seit dem Reserve/Pay-Split (ADR-028, kein 1-s-Sleep mehr) deckelt der Wert die gleichzeitig laufenden Persist-Operationen, nicht eine kuenstliche Sleep-Rate — Backpressure gegen den DB-Pool. |
 | `DATABASE_POOL_MAX`                | 20      | node-postgres Pool-Größe pro Prozess. Jeder Write hält die Connection nur ~5 ms → 20 Connections tragen ~4.000 Writes/s.                                                                                                                                     |
 
-Back-of-envelope fürs Lastziel (~2.100 abgeschlossene Käufe/s): 4–5 Worker-Instanzen mit den Defaults. Beide Werte gehören beim Skalieren gemeinsam angepasst. Ohne den Payment-Sleep ist der Worker nun so schnell wie `buy_ticket` + Redis-Finalisierung; der reale Durchsatz-Limiter verschiebt sich damit auf den DB-Hot-Row-`UPDATE` (Backlog Stage 2).
+Back-of-envelope fürs Lastziel (~2.100 abgeschlossene Käufe/s): 4–5 Worker-Instanzen mit den Defaults. Beide Werte gehören beim Skalieren gemeinsam angepasst. Ohne den Payment-Sleep ist der Worker nun so schnell wie `buy_ticket` + Redis-Finalisierung. Der frueher vermutete DB-Hot-Row-`UPDATE` (Backlog Stage 2) ist inzwischen entfernt: ein isolierter Micro-Bench zeigte ihn als Limiter (235 tickets/s, 49/50 Pool-Backends im Lock-Wait) und nach der Entfernung ~26k tickets/s bei 0 Lock-Wait-Backends (`docs/reports/hot-row-bench/README.md`). Der naechste Deckel liegt bei Flow-Control / Worker-Concurrency (Baseline B, Stage 4).
 
 ## DTO-Vertrag für Code und Tests
 

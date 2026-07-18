@@ -11,6 +11,12 @@ export type ReconcileRedisClient = Pick<
 
 export type ReconcileTicketAvailabilityDeps = {
   getEventInventorySnapshots: () => Promise<EventInventorySnapshot[]>;
+  // Schreibt den aggregierten `COUNT(tickets)`-Verkaufsstand als Snapshot nach
+  // `events.sold_count` zurueck (Backlog #7). Optional: fehlt der Dep, laeuft
+  // Reconcile unveraendert, nur ohne Materialisierung.
+  persistSoldCounts?: (
+    snapshots: readonly EventInventorySnapshot[],
+  ) => Promise<void>;
   redis: ReconcileRedisClient;
   // Reservierungen, deren Erstellungszeit (ZSet-Score) aelter als dieser
   // Schwellwert ist, gelten als Stale-Kandidaten fuer den Reaper (Phase 6).
@@ -120,4 +126,9 @@ export async function reconcileTicketAvailability(
       await deps.redis.incrby(keys.available, -drift);
     }
   }
+
+  // Aggregierten Verkaufsstand als durable Snapshot zurueckschreiben, nachdem
+  // Redis korrigiert wurde. Erst am Ende, damit ein Fehler beim Persistieren
+  // die Redis-Korrektur nicht verhindert.
+  await deps.persistSoldCounts?.(eventSnapshots);
 }

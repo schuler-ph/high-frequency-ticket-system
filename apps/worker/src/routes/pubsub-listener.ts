@@ -4,6 +4,7 @@ import {
   executeBuyTicket,
   listEventInventorySnapshots,
   markOrderFailed,
+  persistEventSoldCounts,
 } from "@repo/db";
 import { env } from "@repo/env";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
@@ -38,6 +39,7 @@ type TicketRedisClient = Pick<
 type PubSubListenerRouteDeps = {
   executeBuyTicket: typeof executeBuyTicket;
   listEventInventorySnapshots: typeof listEventInventorySnapshots;
+  persistEventSoldCounts: typeof persistEventSoldCounts;
   markOrderFailed: typeof markOrderFailed;
   reconcileTicketAvailability: typeof reconcileTicketAvailability;
 };
@@ -47,6 +49,8 @@ const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
     timeDbQuery("buy_ticket", () => executeBuyTicket(payload)),
   listEventInventorySnapshots: () =>
     timeDbQuery("list_event_inventory", () => listEventInventorySnapshots()),
+  persistEventSoldCounts: (snapshots) =>
+    timeDbQuery("persist_sold_counts", () => persistEventSoldCounts(snapshots)),
   markOrderFailed: (orderId, failureReason) =>
     timeDbQuery("mark_order_failed", () =>
       markOrderFailed(orderId, failureReason),
@@ -132,13 +136,16 @@ const getReconcileIntervalMs = (): number => {
 const runStartupReconcile = async (
   deps: Pick<
     PubSubListenerRouteDeps,
-    "listEventInventorySnapshots" | "reconcileTicketAvailability"
+    | "listEventInventorySnapshots"
+    | "persistEventSoldCounts"
+    | "reconcileTicketAvailability"
   > & {
     redis: Pick<RedisClient, "get" | "mset" | "incrby" | "zcard" | "zcount">;
   },
 ): Promise<void> => {
   await deps.reconcileTicketAvailability({
     getEventInventorySnapshots: deps.listEventInventorySnapshots,
+    persistSoldCounts: deps.persistEventSoldCounts,
     redis: deps.redis,
     staleReservationThresholdMs: env.RESERVATION_STALE_SECONDS * 1000,
     onEventReconciled: (eventId, redisAvailable, computedAvailable) =>
@@ -203,6 +210,7 @@ const createPubSubListenerRoutes = (
       reconcileTimeout = setTimeout(() => {
         runStartupReconcile({
           listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
+          persistEventSoldCounts: routeDeps.persistEventSoldCounts,
           reconcileTicketAvailability: routeDeps.reconcileTicketAvailability,
           redis,
         })
@@ -219,6 +227,7 @@ const createPubSubListenerRoutes = (
     fastify.addHook("onReady", async () => {
       await runStartupReconcile({
         listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
+        persistEventSoldCounts: routeDeps.persistEventSoldCounts,
         reconcileTicketAvailability: routeDeps.reconcileTicketAvailability,
         redis,
       });

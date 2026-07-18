@@ -1,7 +1,7 @@
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, count } from "drizzle-orm";
 import type { BuyTicketEvent } from "@repo/types/tickets";
 import { db } from "./index.ts";
-import { events, orders } from "./schema.ts";
+import { events, orders, tickets } from "./schema.ts";
 
 export type FailedOrderUpdateResult = "updated" | "missing";
 
@@ -24,6 +24,15 @@ export async function executeBuyTicket(
   return result.rows[0]?.ticket_id ?? null;
 }
 
+/**
+ * Verkaufsstand pro Event als `COUNT(tickets)` statt aus der
+ * `events.sold_count`-Spalte. Seit Backlog #7 aktualisiert `buy_ticket` die
+ * Spalte nicht mehr (Hot-Row entfernt) — die durable Wahrheit ueber verkaufte
+ * Tickets ist die `tickets`-Tabelle. Diese Aggregation laeuft nur im
+ * Reconcile-Loop (alle 10–60 s), nie auf dem Write-Hot-Path, und nimmt daher
+ * keinen Row-Lock der `events`-Row. `reconcileTicketAvailability` schreibt den
+ * Wert anschliessend via `persistEventSoldCounts` als Snapshot zurueck.
+ */
 export async function listEventInventorySnapshots(): Promise<
   EventInventorySnapshot[]
 > {
@@ -31,11 +40,31 @@ export async function listEventInventorySnapshots(): Promise<
     .select({
       eventId: events.id,
       totalCapacity: events.totalCapacity,
-      soldCount: events.soldCount,
+      soldCount: count(tickets.id),
     })
-    .from(events);
+    .from(events)
+    .leftJoin(tickets, eq(tickets.eventId, events.id))
+    .groupBy(events.id, events.totalCapacity);
 
   return result;
+}
+
+/**
+ * Schreibt die im Reconcile aggregierten Verkaufsstaende als durable Snapshot
+ * nach `events.sold_count` zurueck. Reine Materialisierung fuer direkte Reads
+ * (z. B. Sold-Out-Erkennung im Lasttest); die Verfuegbarkeitsrechnung selbst
+ * nutzt bereits den frischen `COUNT(tickets)`-Wert aus dem Snapshot. Nur der
+ * Worker ruft das auf — kein Verstoss gegen die API-Async-Writes-Regel.
+ */
+export async function persistEventSoldCounts(
+  snapshots: readonly EventInventorySnapshot[],
+): Promise<void> {
+  for (const snapshot of snapshots) {
+    await db
+      .update(events)
+      .set({ soldCount: snapshot.soldCount })
+      .where(eq(events.id, snapshot.eventId));
+  }
 }
 
 /**

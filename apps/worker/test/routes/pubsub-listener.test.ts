@@ -193,6 +193,7 @@ void test("pubsub-listener reconciles ticket availability once before starting t
       inventoryReads += 1;
       return [];
     },
+    persistEventSoldCounts: async () => undefined,
     markOrderFailed: async () => "updated",
     reconcileTicketAvailability: async ({ getEventInventorySnapshots }) => {
       reconcileCalls += 1;
@@ -223,6 +224,7 @@ void test("pubsub-listener message handler applies the outcome policy (completed
   const route = createPubSubListenerRoutes({
     executeBuyTicket: async () => "2c4fd22c-f5be-4bf7-bb45-5019d92666ab",
     listEventInventorySnapshots: async () => [],
+    persistEventSoldCounts: async () => undefined,
     markOrderFailed: async () => "updated",
     reconcileTicketAvailability: async () => undefined,
   });

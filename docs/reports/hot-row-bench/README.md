@@ -66,4 +66,36 @@ unabhaengig von der Pool-Groesse. Das ist der Hot-Row-Limiter in Reinform.
 
 ### AFTER — `buy_ticket` ohne `sold_count`-Hot-Row-UPDATE (Migration 0009)
 
-_Wird nach der Umsetzung von Backlog #7 ergaenzt._
+Gleiche Konfiguration, `buy_ticket` fuegt die Order direkt als `completed` ein und
+beruehrt `sold_count` nicht mehr; der Verkaufsstand wird im Reconcile-Loop via
+`COUNT(tickets)` aggregiert und nach `events.sold_count` zurueckgeschrieben.
+
+| Metrik                                     | Wert                 |
+| ------------------------------------------ | -------------------- |
+| Durchsatz                                  | **26.385 tickets/s** |
+| Peak Lock-Wait-Backends                    | **0**                |
+| Avg Lock-Wait-Backends                     | 0,0                  |
+| `buy_ticket`-Call-Latenz (inkl. Pool-Wait) | 26,6 ms avg          |
+| Drain-Wallclock (20k)                      | 0,76 s               |
+
+**Deutung:** Ohne den Row-Lock auf der `events`-Row serialisiert nichts mehr —
+`pg_stat_activity` zeigt waehrend des kompletten Drains **null** Lock-Wait-Backends.
+Der Verkaufsstand materialisiert asynchron: der periodische Reconcile-Loop hat
+`events.sold_count` nach dem Lauf korrekt auf 20.000 (= `COUNT(tickets)`)
+zurueckgeschrieben.
+
+### Vorher/Nachher
+
+| Metrik                  | BEFORE (0008) | AFTER (0009) | Faktor |
+| ----------------------- | ------------- | ------------ | ------ |
+| Durchsatz (tickets/s)   | 235           | 26.385       | ~112×  |
+| Peak Lock-Wait-Backends | 49 / 50       | 0            | —      |
+| Drain-Wallclock (20k)   | 85,0 s        | 0,76 s       | ~112×  |
+
+Der `sold_count`-Hot-Row war der Limiter. Nach seiner Entfernung ist der Worker
+nicht mehr DB-lock-gebunden; der naechste Deckel liegt bei Flow-Control /
+Worker-Concurrency (Thema Baseline B, Stage 4). Zahlen sind maschinenspezifisch
+(lokaler Docker-Postgres, ein Worker-Prozess); relevant ist die Groessenordnung
+und das Verschwinden der Lock-Kontention, nicht der Absolutwert.
+
+_Gemessen 2026-07-18, lokal._

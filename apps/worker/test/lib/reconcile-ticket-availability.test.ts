@@ -253,6 +253,57 @@ void test("reconcile reports active and stale ledger measurements per event", as
   assert.deepEqual(measurements, [{ eventId, active: 5, stale: 2 }]);
 });
 
+void test("reconcile writes the aggregated sold counts back via persistSoldCounts (Backlog #7)", async () => {
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock({
+    zcard: { [keys.reservations]: 1 },
+    get: { [keys.available]: "54" },
+  });
+
+  const snapshots: EventInventorySnapshot[] = [
+    { eventId, totalCapacity: 100, soldCount: 45 },
+  ];
+  const persistCalls: EventInventorySnapshot[][] = [];
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => snapshots,
+    persistSoldCounts: async (received) => {
+      persistCalls.push([...received]);
+    },
+    redis,
+  });
+
+  // Der aggregierte COUNT(tickets)-Wert (hier als soldCount im Snapshot) wird
+  // exakt so zurueckgeschrieben.
+  assert.deepEqual(persistCalls, [snapshots]);
+});
+
+void test("reconcile still corrects Redis before persistSoldCounts throws (write-back is last)", async () => {
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock({
+    zcard: { [keys.reservations]: 1 },
+    get: { [keys.available]: "60" },
+  });
+
+  await assert.rejects(
+    reconcileTicketAvailability({
+      getEventInventorySnapshots: async () => [
+        { eventId, totalCapacity: 100, soldCount: 45 },
+      ],
+      persistSoldCounts: async () => {
+        throw new Error("write-back failed");
+      },
+      redis,
+    }),
+    /write-back failed/,
+  );
+
+  // Redis-Drift-Korrektur lief VOR dem fehlgeschlagenen Write-Back.
+  assert.deepEqual(redis.incrbyCalls, [{ key: keys.available, increment: -6 }]);
+});
+
 void test("reconcile calls onEventReconciled with Redis and computed available counts", async () => {
   const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
   const keys = ticketRedisKeys(eventId);

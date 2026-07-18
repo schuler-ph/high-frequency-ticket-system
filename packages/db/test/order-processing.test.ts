@@ -6,7 +6,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { env } from "@repo/env";
 import { events, orders, tickets } from "../src/schema.ts";
-import { executeBuyTicket, markOrderFailed } from "../src/order-processing.ts";
+import {
+  executeBuyTicket,
+  listEventInventorySnapshots,
+  markOrderFailed,
+} from "../src/order-processing.ts";
 
 void describe("order processing actions", () => {
   const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
@@ -109,7 +113,14 @@ void describe("order processing actions", () => {
       .where(eq(events.id, event.id));
 
     assert.equal(storedTickets.length, 1);
-    assert.equal(storedEvent?.soldCount, 1);
+    // Backlog #7: der Hot-Row-UPDATE ist weg — sold_count bleibt unberuehrt (0),
+    // der Verkaufsstand wird via COUNT(tickets) abgeleitet.
+    assert.equal(storedEvent?.soldCount, 0);
+
+    const snapshot = (await listEventInventorySnapshots()).find(
+      (row) => row.eventId === event.id,
+    );
+    assert.equal(snapshot?.soldCount, 1);
 
     await database.delete(tickets).where(eq(tickets.orderId, orderId));
     await database.delete(orders).where(eq(orders.id, orderId));

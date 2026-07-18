@@ -139,12 +139,15 @@ void describe("database integration", () => {
     assert.ok(firstTicketId);
     assert.equal(secondCall.rows[0]?.ticket_id, firstTicketId);
 
+    // Backlog #7: buy_ticket beruehrt sold_count NICHT mehr (Hot-Row entfernt).
+    // Der Verkaufsstand lebt in der tickets-Tabelle und wird erst im
+    // Reconcile-Loop nach events.sold_count aggregiert.
     const [eventAfter] = await db
       .select({ soldCount: events.soldCount })
       .from(events)
       .where(eq(events.id, insertedEvent.id));
 
-    assert.equal(eventAfter?.soldCount, 1);
+    assert.equal(eventAfter?.soldCount, 0);
 
     const ticketsForEvent = await db
       .select({

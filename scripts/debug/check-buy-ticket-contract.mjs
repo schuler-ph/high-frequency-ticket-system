@@ -63,21 +63,27 @@ if (
   );
 }
 
-if (!latest.content.includes("UPDATE orders")) {
-  fail(
-    `Latest buy_ticket function migration (${latest.fileName}) does not update orders after successful ticket creation.`,
-  );
-}
-
 if (!latest.content.includes("WHERE order_id = p_order_id")) {
   fail(
     `Latest buy_ticket function migration (${latest.fileName}) does not look up the existing ticket for duplicate order ids.`,
   );
 }
 
-if (!latest.content.includes("SET status = 'completed', updated_at = NOW()")) {
+// Backlog #7: die Order wird direkt als 'completed' eingefuegt (kein
+// Folge-UPDATE mehr).
+if (!latest.content.includes("VALUES (p_order_id, p_event_id, 'completed')")) {
   fail(
-    `Latest buy_ticket function migration (${latest.fileName}) does not mark orders as completed on success.`,
+    `Latest buy_ticket function migration (${latest.fileName}) does not insert the order directly as completed.`,
+  );
+}
+
+// Backlog #7: der sold_count-Hot-Row-UPDATE muss weg sein — der Verkaufsstand
+// wird ausschliesslich im Reconcile-Loop aggregiert (COUNT(tickets)). Geprueft
+// wird das konkrete Increment-Statement, nicht blosse Erwaehnungen in
+// Kommentaren.
+if (/sold_count\s*=\s*sold_count/.test(latest.content)) {
+  fail(
+    `Latest buy_ticket function migration (${latest.fileName}) still increments sold_count — the hot-row UPDATE must be removed (aggregation moved to reconcile).`,
   );
 }
 
