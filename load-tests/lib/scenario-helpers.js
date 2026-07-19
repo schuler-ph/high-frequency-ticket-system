@@ -1,5 +1,21 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
+import { Counter } from "k6/metrics";
+
+// Diagnose-Metriken (Stage 3). Die eingebauten k6-Metriken sind global; diese
+// Counter machen (a) den Checkout-Funnel lastseitig sichtbar (Abbruchrate
+// `1 − funnel_paid/funnel_reserved`), (b) die HTTP-Status-Verteilung je Endpoint
+// und (c) Transportfehler (Requests ohne App-Response — genau die ~0,28 % aus
+// Baseline A) je Endpoint + `error_code` auswertbar.
+const funnelReserved = new Counter("funnel_reserved"); // buy → 202
+const funnelPaid = new Counter("funnel_paid"); // pay → 200
+const funnelCancelled = new Counter("funnel_cancelled"); // cancel → 200
+const funnelSoldOut = new Counter("funnel_sold_out"); // buy → 409
+const funnelTooEarly = new Counter("funnel_too_early"); // buy → 425
+const funnelAbandoned = new Counter("funnel_abandoned"); // reserviert, nie bezahlt/storniert
+// Getaggt nach { endpoint, status } bzw. { endpoint, error_code }.
+const requestsByStatus = new Counter("requests_by_status");
+const transportErrors = new Counter("transport_errors");
 
 export const BASE_URL = __ENV.BASE_URL || "http://localhost:10002";
 // Default: Frequency Festival 20XX Main Sale (1M tickets, matches local seed)
@@ -85,10 +101,24 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/**
+ * Zaehlt jede Response nach { endpoint, HTTP-Status } und — wenn k6 gar keine
+ * App-Response bekam (Transportfehler: Status 0, `error_code` gesetzt) — nach
+ * { endpoint, error_code }. So sind sowohl die Status-Verteilung als auch die
+ * Requests ohne App-Response pro Stufe diagnostizierbar.
+ */
+function recordResponse(res, endpoint) {
+  requestsByStatus.add(1, { endpoint, status: String(res.status) });
+  if (res.error_code) {
+    transportErrors.add(1, { endpoint, error_code: String(res.error_code) });
+  }
+}
+
 export function checkAvailability() {
   const res = http.get(`${BASE_URL}/api/tickets/${EVENT_ID}/availability`, {
     tags: { endpoint: "availability" },
   });
+  recordResponse(res, "availability");
   check(res, {
     "availability 200": (r) => r.status === 200,
   });
@@ -111,12 +141,17 @@ export function buyTicket() {
     // none of them are infrastructure failures.
     responseCallback: http.expectedStatuses(202, 409, 425),
   });
+  recordResponse(res, "buy");
   check(res, {
     "buy reserved, sold-out, or too-early": (r) =>
       r.status === 202 || r.status === 409 || r.status === 425,
   });
 
+  if (res.status === 409) funnelSoldOut.add(1);
+  if (res.status === 425) funnelTooEarly.add(1);
   if (res.status !== 202) return null;
+
+  funnelReserved.add(1);
   try {
     return res.json("orderId");
   } catch {
@@ -137,9 +172,11 @@ export function payOrder(orderId) {
     tags: { endpoint: "pay" },
     responseCallback: http.expectedStatuses(200, 404, 409),
   });
+  recordResponse(res, "pay");
   check(res, {
     "pay confirmed (200)": (r) => r.status === 200,
   });
+  if (res.status === 200) funnelPaid.add(1);
   return res.status === 200;
 }
 
@@ -153,9 +190,11 @@ export function cancelOrder(orderId) {
     tags: { endpoint: "cancel" },
     responseCallback: http.expectedStatuses(200, 409),
   });
+  recordResponse(res, "cancel");
   check(res, {
     "cancel handled (200)": (r) => r.status === 200,
   });
+  if (res.status === 200) funnelCancelled.add(1);
   return res.status === 200;
 }
 
@@ -169,6 +208,7 @@ export function pollOrderStatus(orderId) {
       tags: { endpoint: "orders" },
       responseCallback: http.expectedStatuses(200, 404),
     });
+    recordResponse(res, "orders");
     if (res.status === 200) {
       let status;
       try {
@@ -214,9 +254,11 @@ export function runCheckout() {
   } else if (roll < PAY_RATE + CANCEL_RATE) {
     // Nutzer bricht das Modal bewusst ab → Reservierung wird freigegeben.
     cancelOrder(orderId);
+  } else {
+    // Abbruch OHNE Cancel — die Ledger-Reservierung bleibt als Phantom-Anspruch
+    // stehen (Reaper-Kandidat, Phase 6). Nur lastseitig gezaehlt.
+    funnelAbandoned.add(1);
   }
-  // sonst: Abbruch OHNE Cancel — die Ledger-Reservierung bleibt als
-  // Phantom-Anspruch stehen (Reaper-Kandidat, Phase 6).
 }
 
 // 60% availability checks, 40% full checkout funnel (buy → pay → optional poll)

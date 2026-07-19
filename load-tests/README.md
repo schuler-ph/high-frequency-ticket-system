@@ -68,6 +68,24 @@ warum das alte reserve-only-Skript keine Baseline-B-Persistenz messen konnte.
 Jede Iteration trägt via `tags: { endpoint: … }` (`buy`/`pay`/`cancel`/
 `availability`/`orders`) einen Endpoint-Tag für die per-Endpoint-Auswertung.
 
+### Diagnose-Metriken
+
+Zusätzlich zu den eingebauten k6-Metriken emittiert `scenario-helpers.js` eigene
+Counter (`k6/metrics`), damit Funnel und Fehlerbild lastseitig auswertbar sind:
+
+- **Funnel:** `funnel_reserved` (buy 202), `funnel_paid` (pay 200),
+  `funnel_cancelled` (cancel 200), `funnel_sold_out` (buy 409),
+  `funnel_too_early` (buy 425), `funnel_abandoned` (reserviert, nie
+  bezahlt/storniert). Die Abbruchrate ist damit `1 − funnel_paid/funnel_reserved`.
+- **`requests_by_status`** — getaggt nach `{ endpoint, status }`: HTTP-Status-
+  Verteilung je Stufe.
+- **`transport_errors`** — getaggt nach `{ endpoint, error_code }`: Requests, die
+  gar keine App-Response bekamen (Status 0 / gesetzter `error_code`) — genau die
+  ~0,28 % aus Baseline A, jetzt nach Stufe und Fehlerklasse aufschlüsselbar.
+
+Die Tags erscheinen als Labels im Prometheus-Remote-Write bzw. als Sub-Metriken
+im JSON-/`--summary-mode=full`-Output (die kompakte End-Summary aggregiert sie).
+
 ### Abandonment-Verzweigung nach dem Reserve
 
 Nach `buy` verzweigt jede Iteration (env-konfigurierbar):
