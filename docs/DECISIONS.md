@@ -583,6 +583,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
   - `package.json` (`spike`-Skript)
   - `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `load-tests/README.md`
+- **Nachtrag (2026-07-19) — Sold-Out-Trigger von `available` auf Completion-Counter umgestellt:** Der urspruengliche Trigger (drei aufeinanderfolgende `GET /availability`-Polls mit `available: 0`) ist mit der k6-Abandonment-/Cancel-Modellierung (ADR-028-Funnel) nicht mehr verlaesslich: ein Cancel macht `INCR available`, wodurch `available` oszilliert, kurz 0 treffen und wieder steigen kann → Phase A stoppte verfrueht. `pollUntilSoldOutOrExit` in `run-spike.mjs` pollt jetzt den **monotonen** Worker-Counter `orders_completed_total` (`WORKER_METRICS_URL`, Default `:10003/metrics`) und erkennt Sold-Out als **Plateau** (Zahl abgeschlossener Orders stagniert fuer `SPIKE_SOLDOUT_CONFIRM_POLLS` Polls). Guard `completed > 0` verhindert einen Fehlalarm in der Pre-Sale-/Warm-Up-Phase, in der der Counter legitim bei 0 steht. `main()` laeuft jetzt nur bei Direktausfuehrung (`import.meta.url`-Guard), damit die Detection-Funktionen isoliert testbar sind. Gegen die Live-Infra verifiziert (Parser + Plateau-Erkennung + Null-Guard).
 
 ---
 

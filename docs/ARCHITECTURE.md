@@ -263,7 +263,7 @@ Der lokale Lasttest (`pnpm spike`) bildet einen echten Ticket-Sale nach: Der Ver
 
 1. `pnpm seed` mit `SALE_OPENS_IN_SECONDS=60` (Default) — Redis/PostgreSQL/Pub/Sub werden zurueckgesetzt, `opensAt` wird auf `jetzt + 60s` gesetzt.
 2. **Phase A** (`load-tests/spike-phase-a.js`): Warm-Up 1.000 RPS flat/45s (Sale ist noch gesperrt, Kaufversuche liefern HTTP 425) → Ramp-Up 1.000→5.000 RPS/45s (Unlock faellt typischerweise in dieses Fenster) → Sustain 5.000 RPS bis Sold-Out.
-3. Die Orchestrierung pollt `GET /api/tickets/:eventId/availability` alle 3s; sobald `available` bei drei aufeinanderfolgenden Polls `0` ist, wird Phase A per `SIGINT` (graceful k6 stop) beendet.
+3. Die Orchestrierung pollt den monotonen Worker-Counter `orders_completed_total` (`/metrics`) alle 3s; sobald die Zahl abgeschlossener Orders fuer drei aufeinanderfolgende Polls stagniert (Plateau, Guard: erst ab `completed > 0`), wird Phase A per `SIGINT` (graceful k6 stop) beendet. Der fruehere `available`-Trigger ist hinfaellig, seit Cancels/Abandons `available` oszillieren lassen (Cancel macht `INCR available`).
 4. **Phase B** (`load-tests/spike-phase-b.js`): Cool-Down 1.000 RPS flat/1min.
 
 **1M Tickets**, Sold-Out-Zeitpunkt ist variabel (haengt von der tatsaechlichen Reservierungsrate ab, nicht von einem Timer). Das Szenario zeigt: Sale-Unlock-Transition (HTTP 425 → 202), Sold-Out-Transition (HTTP 202 → 409), Queue-Backpressure und Cache-Performance.

@@ -15,6 +15,15 @@ const GRACEFUL_STOP_TIMEOUT_MS = Number(
 const PROMETHEUS_RW_URL =
   process.env.K6_PROMETHEUS_RW_SERVER_URL ??
   "http://localhost:10007/api/v1/write";
+// Sold-Out wird an den TATSAECHLICH abgeschlossenen Orders erkannt (monotoner
+// Worker-Counter `orders_completed_total`), nicht mehr am reserve-getriebenen
+// `available`: seit der Abandonment-/Cancel-Modellierung (ADR-028) oszilliert
+// `available` (Cancel macht `INCR available`) und kann 0 kurz treffen und wieder
+// steigen — das stoppte Phase A verfrueht. Der Completion-Counter kann nur
+// steigen; ein Plateau ueber mehrere Polls bedeutet, dass keine Verkaeufe mehr
+// durchgehen (Inventar durch Sales + Phantom-Reservierungen erschoepft).
+const WORKER_METRICS_URL =
+  process.env.WORKER_METRICS_URL ?? "http://localhost:10003/metrics";
 
 const k6Env = {
   ...process.env,
@@ -42,46 +51,69 @@ const spawnK6 = (scriptPath) => {
 };
 
 /**
- * Pollt die Availability-Route, bis entweder `available` fuer
- * SOLDOUT_CONFIRM_POLLS aufeinanderfolgende Polls bei 0 steht (Sold-Out
- * bestaetigt, deterministisch statt auf einen einzigen Ausreisser zu
- * reagieren) oder der Kindprozess von selbst beendet wurde.
+ * Liest den monotonen Worker-Counter `orders_completed_total` (Summe ueber alle
+ * `event_id`-Labels, bzw. gefiltert auf EVENT_ID) aus dem Prometheus-`/metrics`-
+ * Text. Liefert `null`, wenn der Counter (noch) nicht exponiert ist.
  */
-const pollUntilSoldOutOrExit = async (exitPromise) => {
+export const fetchCompletedCount = async () => {
+  const res = await fetch(WORKER_METRICS_URL);
+  if (!res.ok) return null;
+  const text = await res.text();
+
+  let total = null;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("orders_completed_total")) continue;
+    // Optional auf das Ziel-Event filtern; ohne Label-Match zaehlen wir alle.
+    if (line.includes("{") && !line.includes(EVENT_ID)) continue;
+    const value = Number(line.slice(line.lastIndexOf(" ") + 1));
+    if (Number.isFinite(value)) total = (total ?? 0) + value;
+  }
+  return total;
+};
+
+/**
+ * Pollt den Completion-Fortschritt, bis er fuer SOLDOUT_CONFIRM_POLLS
+ * aufeinanderfolgende Polls stagniert (kein neuer abgeschlossener Order —
+ * Sold-Out bestaetigt) oder der Kindprozess von selbst beendet wurde.
+ *
+ * Der Guard `completed > 0` verhindert einen Fehlalarm waehrend der Warm-Up-/
+ * Pre-Sale-Phase, in der der Counter legitim bei 0 stagniert (Verkauf gesperrt).
+ */
+export const pollUntilSoldOutOrExit = async (exitPromise) => {
   let childExited = false;
   exitPromise.then(() => {
     childExited = true;
   });
 
-  let consecutiveZero = 0;
+  let lastCompleted = 0;
+  let consecutiveStall = 0;
 
   while (!childExited) {
     await sleep(POLL_INTERVAL_MS);
     if (childExited) break;
 
     try {
-      const res = await fetch(
-        `${BASE_URL}/api/tickets/${EVENT_ID}/availability`,
-      );
-      if (!res.ok) continue;
+      const completed = await fetchCompletedCount();
+      if (completed === null) continue;
 
-      const body = await res.json();
-
-      if (typeof body.available === "number" && body.available <= 0) {
-        consecutiveZero += 1;
+      // Nur stagnieren lassen, wenn ueberhaupt schon Orders abgeschlossen sind —
+      // sonst wuerde die Pre-Sale-Phase (Counter == 0) sofort Sold-Out melden.
+      if (completed > 0 && completed === lastCompleted) {
+        consecutiveStall += 1;
       } else {
-        consecutiveZero = 0;
+        consecutiveStall = 0;
       }
+      lastCompleted = completed;
 
-      if (consecutiveZero >= SOLDOUT_CONFIRM_POLLS) {
+      if (consecutiveStall >= SOLDOUT_CONFIRM_POLLS) {
         console.log(
-          "[run-spike] Sold out detected — stopping the sustain stage gracefully.",
+          `[run-spike] Sold out detected — completed orders plateaued at ${completed} — stopping the sustain stage gracefully.`,
         );
         return true;
       }
     } catch (error) {
       console.warn(
-        `[run-spike] Availability poll failed, retrying: ${error instanceof Error ? error.message : String(error)}`,
+        `[run-spike] Completion poll failed, retrying: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -175,8 +207,14 @@ const main = async () => {
   process.exit(phaseBExitCode || phaseAExitCode || 0);
 };
 
-main().catch((error) => {
-  console.error("[run-spike] Failed.");
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+// Nur ausfuehren, wenn das Skript direkt gestartet wurde (`node run-spike.mjs`
+// bzw. `pnpm spike`) — beim Import (z.B. aus einem Test) laeuft `main()` nicht,
+// damit die Detection-Funktionen isoliert testbar bleiben.
+const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error("[run-spike] Failed.");
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

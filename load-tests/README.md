@@ -38,7 +38,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 1. `scripts/local/reset-seed.mjs` mit `SALE_OPENS_IN_SECONDS` (Default: `60`) ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
-3. Die Verfügbarkeits-Route wird alle 3s gepollt; bei 3 aufeinanderfolgenden `available: 0`-Antworten wird Phase A per `SIGINT` (graceful k6-Stop) beendet.
+3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, erst ab `completed > 0`), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. **Nicht** mehr `available`: das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen.
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
 
 Ohne Orchestrator lässt sich jede Phase auch einzeln fahren (z.B. zum Debuggen), dann aber ohne reaktiven Sold-Out-Stop:
@@ -104,7 +104,8 @@ lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
 | `PAY_RATE`                       | `0.88`                                 | Anteil der Reservierungen, die bezahlt werden                             |
 | `CANCEL_RATE`                    | `0.08`                                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)            |
 | `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)         |
-| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Availability-Polls in der Orchestrierung                    |
-| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender `available: 0`-Polls bis Sold-Out gilt        |
+| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Completion-Counter-Polls in der Orchestrierung              |
+| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt      |
+| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll          |
 | `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird           |
 | `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                         |
