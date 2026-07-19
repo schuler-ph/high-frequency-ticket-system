@@ -1,5 +1,7 @@
 import {
   buyTicketEventSchema,
+  conflictErrorResponseSchema,
+  notFoundErrorResponseSchema,
   orderIdParamsSchema,
   paymentRequestSchema,
   paymentResponseSchema,
@@ -139,6 +141,10 @@ const orderPayRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       body: paymentRequestSchema,
       response: {
         200: paymentResponseSchema,
+        // Keine (aktive) Reservierung unter dieser orderId → NotFoundError.
+        404: notFoundErrorResponseSchema,
+        // Order ist nicht mehr `pending` (bereits finalisiert) → ConflictError.
+        409: conflictErrorResponseSchema,
       },
     },
     handler: async (req, res) => {

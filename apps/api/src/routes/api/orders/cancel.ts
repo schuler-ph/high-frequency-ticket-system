@@ -1,5 +1,6 @@
 import {
   cancelOrderResponseSchema,
+  conflictErrorResponseSchema,
   orderIdParamsSchema,
   pendingOrderReservationSchema,
   type CancelOrderResponse,
@@ -87,6 +88,10 @@ const orderCancelRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       params: orderIdParamsSchema,
       response: {
         200: cancelOrderResponseSchema,
+        // Order bereits finalisiert (bezahlt → completed/failed) → nicht mehr
+        // stornierbar → ConflictError. Fehlende Reservierung ist idempotent
+        // `200 { cancelled: false }`, kein Fehler.
+        409: conflictErrorResponseSchema,
       },
     },
     handler: async (req, res) => {

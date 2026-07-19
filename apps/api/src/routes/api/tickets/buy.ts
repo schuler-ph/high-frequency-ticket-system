@@ -3,7 +3,9 @@ import { env } from "@repo/env";
 import {
   buyTicketBodySchema,
   buyTicketResponseSchema,
+  conflictErrorResponseSchema,
   ticketEventIdSchema,
+  tooEarlyErrorResponseSchema,
   type BuyTicketBody,
   type BuyTicketResponse,
   type PendingOrderReservation,
@@ -107,6 +109,11 @@ const ticketBuyRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
       body: buyTicketBodySchema,
       response: {
         202: buyTicketResponseSchema,
+        // Ausverkauft (Lua-Reserve liefert < 0 → ConflictError).
+        409: conflictErrorResponseSchema,
+        // Verkauf noch nicht freigegeben (Sale-Unlock-Gate, Lua-Reserve liefert
+        // -2 → TooEarlyError, RFC 8470; siehe ADR-024).
+        425: tooEarlyErrorResponseSchema,
       },
     },
     handler: async (req, res) => {

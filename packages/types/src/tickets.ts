@@ -111,12 +111,45 @@ export const orderStatusResponseSchema = orderCacheEntrySchema;
 
 export type OrderStatusResponse = z.infer<typeof orderStatusResponseSchema>;
 
-export const orderStatusNotFoundResponseSchema = z.object({
-  statusCode: z.literal(404),
-  error: z.literal("NotFoundError"),
-  message: z.string().min(1),
-  reqId: z.string().min(1),
-});
+/**
+ * Einheitliches HTTP-Fehler-Response-Schema, exakt in der Form, die der globale
+ * Error-Handler (`apps/api/src/plugins/error-handler.ts`) fuer `AppError`s
+ * sendet: `{ statusCode, error, message, reqId }`, wobei `error` der Name der
+ * Fehlerklasse ist (z.B. `ConflictError`). Als Fabrik statt Copy-Paste, damit
+ * jede Route ihre Fehler-Stati (409/425/404) im `response`-Schema deklarieren
+ * kann und der Contract nur an einer Stelle definiert ist. Diese Schemas
+ * dienen zugleich der Response-Serialisierung (fastify-type-provider-zod) und
+ * als OpenAPI-Dokumentation der Fehlerantworten.
+ */
+export const httpErrorResponseSchema = <
+  Code extends number,
+  Name extends string,
+>(
+  statusCode: Code,
+  errorName: Name,
+) =>
+  z.object({
+    statusCode: z.literal(statusCode),
+    error: z.literal(errorName),
+    message: z.string().min(1),
+    reqId: z.string().min(1),
+  });
+
+export const notFoundErrorResponseSchema = httpErrorResponseSchema(
+  404,
+  "NotFoundError",
+);
+export const conflictErrorResponseSchema = httpErrorResponseSchema(
+  409,
+  "ConflictError",
+);
+export const tooEarlyErrorResponseSchema = httpErrorResponseSchema(
+  425,
+  "TooEarlyError",
+);
+
+// Bestehender Export-Name bleibt als Alias erhalten (Status-Route + Tests).
+export const orderStatusNotFoundResponseSchema = notFoundErrorResponseSchema;
 
 export type OrderStatusNotFoundResponse = z.infer<
   typeof orderStatusNotFoundResponseSchema
