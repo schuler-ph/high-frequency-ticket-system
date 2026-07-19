@@ -200,15 +200,20 @@ const pubSubRequest = async (method, path, expectedStatuses, body) => {
 };
 
 const resetPubSub = async () => {
-  console.log("[local:reset-seed] Resetting Pub/Sub emulator resources...");
+  console.log(
+    "[local:reset-seed] Ensuring Pub/Sub emulator resources (create-if-missing)...",
+  );
 
   const topicPath = `/v1/projects/${projectId}/topics/${topicName}`;
   const subscriptionPath = `/v1/projects/${projectId}/subscriptions/${subscriptionName}`;
 
-  await pubSubRequest("DELETE", subscriptionPath, [200, 404]);
-  await pubSubRequest("DELETE", topicPath, [200, 404]);
-  await pubSubRequest("PUT", topicPath, [200], {});
-  await pubSubRequest("PUT", subscriptionPath, [200], {
+  // Idempotentes Provisioning: NICHT loeschen+neu-anlegen. Ein Delete wuerde die
+  // Subscription unter einem bereits laufenden Worker wegziehen (sein
+  // Streaming-Pull haengt danach an einer geloeschten Subscription → 0
+  // persistierte Orders). `PUT` legt an, wenn die Ressource fehlt (200), und
+  // liefert 409 ALREADY_EXISTS, wenn sie schon da ist — beides ist ok.
+  await pubSubRequest("PUT", topicPath, [200, 409], {});
+  await pubSubRequest("PUT", subscriptionPath, [200, 409], {
     topic: `projects/${projectId}/topics/${topicName}`,
   });
 };
