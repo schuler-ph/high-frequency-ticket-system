@@ -68,6 +68,27 @@ warum das alte reserve-only-Skript keine Baseline-B-Persistenz messen konnte.
 Jede Iteration trägt via `tags: { endpoint: … }` (`buy`/`pay`/`cancel`/
 `availability`/`orders`) einen Endpoint-Tag für die per-Endpoint-Auswertung.
 
+### Abandonment-Verzweigung nach dem Reserve
+
+Nach `buy` verzweigt jede Iteration (env-konfigurierbar):
+
+- **~88 %** (`PAY_RATE`) → `pay` (bezahlt, published, wird persistiert)
+- **~8 %** (`CANCEL_RATE`) → `cancel` (gibt die Reservierung frei → `INCR available`)
+- **Rest ~4 %** → Abbruch **ohne** Cancel: die Ledger-Reservierung bleibt als
+  Phantom-Anspruch stehen (Reaper-Kandidat, Phase 6)
+
+### Lastprofile (`LOAD_PROFILE`)
+
+Da das Backend nach dem Reserve/Pay-Split **keine** kuenstliche Latenz mehr hat,
+lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
+
+- **`capacity`** (Default): keine Denkzeit, `buy`→`pay` back-to-back → misst rohe
+  Infra-Kapazitaet (Vergleichsgrundlage fuer Baseline B).
+- **`realism`**: randomisierte Denkzeit ~2–8 s (`THINK_TIME_MIN`/`THINK_TIME_MAX`)
+  → misst gleichzeitig gehaltene Ledger-Reservierungen + Redis-Memory. Die
+  Denkzeit blaeht die VU-Zahl massiv auf und ist der Grund fuer die ~20k-VU-/
+  verteilter-Runner-Anforderung in Stage 4.
+
 ## Umgebungsvariablen
 
 | Variable                         | Default                                | Beschreibung                                                              |
@@ -77,6 +98,11 @@ Jede Iteration trägt via `tags: { endpoint: … }` (`buy`/`pay`/`cancel`/
 | `CHECKOUT_POLL`                  | `false`                                | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed` |
 | `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                   | Max. Poll-Versuche pro Order, bevor aufgegeben wird                       |
 | `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                     |
+| `LOAD_PROFILE`                   | `capacity`                             | `capacity` (keine Denkzeit) oder `realism` (randomisierte Denkzeit)       |
+| `THINK_TIME_MIN`                 | `2`                                    | realism: minimale Denkzeit (Sekunden) nach dem Reserve                    |
+| `THINK_TIME_MAX`                 | `8`                                    | realism: maximale Denkzeit (Sekunden) nach dem Reserve                    |
+| `PAY_RATE`                       | `0.88`                                 | Anteil der Reservierungen, die bezahlt werden                             |
+| `CANCEL_RATE`                    | `0.08`                                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)            |
 | `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)         |
 | `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Availability-Polls in der Orchestrierung                    |
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender `available: 0`-Polls bis Sold-Out gilt        |

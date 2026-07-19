@@ -15,6 +15,25 @@ const CHECKOUT_POLL = (__ENV.CHECKOUT_POLL || "false") === "true";
 const POLL_MAX_ATTEMPTS = Number(__ENV.CHECKOUT_POLL_MAX_ATTEMPTS || 10);
 const POLL_INTERVAL_SECONDS = Number(__ENV.CHECKOUT_POLL_INTERVAL || 1);
 
+// Lastprofil (ADR-028). Da das Backend nach dem Reserve/Pay-Split KEINE
+// kuenstliche Latenz mehr hat (Worker-Sleep raus, `/pay` ohne Server-Sleep),
+// lebt die Checkout-Denkzeit als explizites `sleep()` hier im k6-Skript:
+//   - "capacity" (Default): keine Denkzeit, `buy`→`pay` back-to-back → misst
+//     rohe Infra-Kapazitaet (Vergleichsgrundlage fuer Baseline B).
+//   - "realism": randomisierte Denkzeit ~2–8 s → misst gleichzeitig gehaltene
+//     Ledger-Reservierungen + Redis-Memory. Denkzeit blaeht die VU-Zahl massiv
+//     auf (Grund fuer die ~20k-VU-/verteilter-Runner-Anforderung in Stage 4).
+const LOAD_PROFILE = __ENV.LOAD_PROFILE || "capacity";
+const THINK_TIME_MIN = Number(__ENV.THINK_TIME_MIN || 2);
+const THINK_TIME_MAX = Number(__ENV.THINK_TIME_MAX || 8);
+
+// Funnel-Verzweigung nach dem Reserve: Mehrheit zahlt, ein Teil bricht via
+// Cancel ab (gibt die Reservierung frei → `INCR available`), der Rest
+// verschwindet ohne Cancel (Phantom-Anspruch im Ledger, Reaper-Kandidat).
+// Anteile summieren sich nicht zwingend auf 1 — der Rest ist "abandon".
+const PAY_RATE = Number(__ENV.PAY_RATE || 0.88);
+const CANCEL_RATE = Number(__ENV.CANCEL_RATE || 0.08);
+
 const FIRST_NAMES = [
   "Anna",
   "Max",
@@ -165,20 +184,39 @@ export function pollOrderStatus(orderId) {
 }
 
 /**
- * Voller Checkout-Funnel einer Iteration: reservieren → bezahlen → optional
- * auf Persistenz warten. Seit dem Reserve/Pay/Publish-Split (ADR-028) ist der
- * Pay-Schritt zwingend, damit ueberhaupt etwas published/persistiert wird.
+ * Simulierte Checkout-Denkzeit (Karteneingabe + 3DS). Im "capacity"-Profil ein
+ * No-Op (back-to-back), im "realism"-Profil eine randomisierte Pause, die die
+ * Reservierung sichtbar laenger im Ledger haelt.
+ */
+function thinkTime() {
+  if (LOAD_PROFILE !== "realism") return;
+  const span = Math.max(0, THINK_TIME_MAX - THINK_TIME_MIN);
+  sleep(THINK_TIME_MIN + Math.random() * span);
+}
+
+/**
+ * Voller Checkout-Funnel einer Iteration: reservieren → Denkzeit → verzweigen
+ * (bezahlen / stornieren / abbrechen). Seit dem Reserve/Pay/Publish-Split
+ * (ADR-028) ist der Pay-Schritt zwingend, damit ueberhaupt etwas
+ * published/persistiert wird.
  */
 export function runCheckout() {
   const orderId = buyTicket();
   if (!orderId) return;
 
-  const paid = payOrder(orderId);
-  if (!paid) return;
+  // Karteneingabe/3DS-Denkzeit (nur realism-Profil).
+  thinkTime();
 
-  if (CHECKOUT_POLL) {
-    pollOrderStatus(orderId);
+  const roll = Math.random();
+  if (roll < PAY_RATE) {
+    const paid = payOrder(orderId);
+    if (paid && CHECKOUT_POLL) pollOrderStatus(orderId);
+  } else if (roll < PAY_RATE + CANCEL_RATE) {
+    // Nutzer bricht das Modal bewusst ab → Reservierung wird freigegeben.
+    cancelOrder(orderId);
   }
+  // sonst: Abbruch OHNE Cancel — die Ledger-Reservierung bleibt als
+  // Phantom-Anspruch stehen (Reaper-Kandidat, Phase 6).
 }
 
 // 60% availability checks, 40% full checkout funnel (buy → pay → optional poll)
