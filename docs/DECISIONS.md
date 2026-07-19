@@ -554,6 +554,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `apps/api/test/routes/tickets.buy.test.ts`
   - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
   - `docs/ARCHITECTURE.md` (Happy-Path, Redis-Key-Lifecycle)
+- **Nachtrag (2026-07-19) — Test gegen echtes Redis:** Der bisherige Unit-Test (`tickets.buy.test.ts`) mockt nur den `-2`-Rueckgabewert der Service-Schicht und exerziert das Lua-Script selbst nie. Neuer Integrationstest `apps/api/test/lib/reserve-ticket-script.redis.test.ts` fuehrt das echte `RESERVE_TICKET_SCRIPT` via `registerTicketRedisScripts` gegen den `hts-redis`-Container aus und deckt die vier Gate-Faelle ab: `opensAt`-Key fehlt, `opensAt=0`, `nowMs` vor dem Schwellwert (→ `-2`, **keine** Schreibzugriffe) und `nowMs` am/nach dem Schwellwert (→ Reservierung inkl. `DECR`/`ZADD`/`SET`+TTL). Zusaetzlich der Sold-Out-Fall (`-1`, keine Schreibzugriffe) als Beweis desselben No-Write-Kontrakts. `ioredis` als API-devDependency ergaenzt. Praezisierung des aktuellen Script-Layouts (das Script wurde seit dem urspruenglichen ADR umgebaut): der `opensAt`-Schluessel ist heute `KEYS[4]`, `nowMs` ist `ARGV[4]` — nicht mehr `ARGV[5]` wie oben unter Begruendung/`nowMs` beschrieben.
 
 ---
 
