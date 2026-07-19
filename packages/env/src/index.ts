@@ -31,7 +31,6 @@ export const env = createEnv({
     // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).
     // Bewusst unter dem Fastify/avvio-Default (10 s) gehalten.
     REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
-    PUBSUB_STARTUP_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
     // Alter (Sekunden), ab dem ein noch offener Ledger-Eintrag als
     // Stale-Kandidat fuer den Reaper (Phase 6) gilt. Reine Observability:
     // Reservierungen laufen NICHT mehr per TTL ab (ADR-026), sie bleiben ein

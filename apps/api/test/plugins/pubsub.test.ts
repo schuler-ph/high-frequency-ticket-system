@@ -1,5 +1,6 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
+import type { PubSub } from "@google-cloud/pubsub";
 import {
   type PubSubPublisher,
   pubSubPlugin,
@@ -54,7 +55,7 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
         },
       };
     },
-  };
+  } as unknown as PubSub;
 
   const fastify = createFakeFastify();
   await pubSubPlugin(fastify as never, {
@@ -74,67 +75,4 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
     quantity: 1,
   });
   assert.deepEqual(capturedMessage.attributes, { requestId: "req-123" });
-});
-
-void test("pubsub plugin auto-creates missing topic when enabled", async () => {
-  let createTopicCalls = 0;
-
-  const fakeClient = {
-    topic(_topicName: string) {
-      return {
-        exists() {
-          return Promise.resolve([false] as [boolean]);
-        },
-        publishMessage(_message: {
-          data: Buffer;
-          attributes?: Record<string, string>;
-        }) {
-          return Promise.resolve("message-2");
-        },
-      };
-    },
-    createTopic(_topicName: string) {
-      createTopicCalls += 1;
-      return Promise.resolve({});
-    },
-  };
-
-  const fastify = createFakeFastify();
-  await pubSubPlugin(fastify as never, {
-    client: fakeClient,
-    topicName: "buy-ticket",
-    autoCreateTopic: true,
-  });
-
-  await fastify.runHook("onReady");
-  assert.equal(createTopicCalls, 1);
-});
-
-void test("pubsub plugin fails on startup when topic is missing and auto-create is disabled", async () => {
-  const fakeClient = {
-    topic(_topicName: string) {
-      return {
-        exists() {
-          return Promise.resolve([false] as [boolean]);
-        },
-        publishMessage(_message: {
-          data: Buffer;
-          attributes?: Record<string, string>;
-        }) {
-          return Promise.resolve("message-3");
-        },
-      };
-    },
-  };
-
-  const fastify = createFakeFastify();
-  await pubSubPlugin(fastify as never, {
-    client: fakeClient,
-    topicName: "buy-ticket",
-    autoCreateTopic: false,
-  });
-
-  await assert.rejects(async () => {
-    await fastify.runHook("onReady");
-  }, /Configured Pub\/Sub topic "buy-ticket" does not exist/);
 });

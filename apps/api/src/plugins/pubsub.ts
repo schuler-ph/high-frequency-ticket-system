@@ -1,10 +1,7 @@
+import type { PubSub } from "@google-cloud/pubsub";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
-import { withStartupTimeout } from "../lib/startup-timeout.ts";
-
-const unreachableHint = (operation: string, timeoutMs: number): string =>
-  `Pub/Sub ${operation} timed out after ${timeoutMs}ms. Is the emulator reachable at PUBSUB_EMULATOR_HOST=${env.PUBSUB_EMULATOR_HOST}? Start it with \`docker compose up -d\`.`;
 
 export type PubSubAttributes = Record<string, string>;
 
@@ -15,36 +12,21 @@ export interface PubSubPublisher {
   ): Promise<string>;
 }
 
-type TopicLike = {
-  publishMessage(message: {
-    data: Buffer;
-    attributes?: PubSubAttributes;
-  }): Promise<string>;
-  exists?: () => Promise<[boolean]>;
-};
-
-type PubSubClientLike = {
-  topic(topicName: string): TopicLike;
-  createTopic?: (topicName: string) => Promise<unknown>;
-};
-
 export interface PubSubPluginOptions {
-  client?: PubSubClientLike;
+  client?: PubSub;
   topicName?: string;
-  ensureTopicExists?: boolean;
-  autoCreateTopic?: boolean;
 }
 
-const createPubSubClient = async (): Promise<PubSubClientLike> => {
+// Topic-Provisioning lebt in scripts/local/reset-seed.mjs (Emulator-REST),
+// nicht mehr im Startup-Pfad der API. Der Publisher ist ein reiner
+// Runtime-Client und setzt voraus, dass das Topic bereits existiert.
+const createPubSubClient = async (): Promise<PubSub> => {
   const { PubSub } = await import("@google-cloud/pubsub");
 
   return new PubSub({
     projectId: env.GOOGLE_CLOUD_PROJECT,
-  }) as unknown as PubSubClientLike;
+  });
 };
-
-const isGrpcCode = (err: unknown, code: number): boolean =>
-  err instanceof Error && "code" in err && err.code === code;
 
 export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   fastify,
@@ -53,66 +35,6 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   const client = opts.client ?? (await createPubSubClient());
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;
   const topic = client.topic(topicName);
-  const autoCreate = opts.autoCreateTopic ?? Boolean(env.PUBSUB_EMULATOR_HOST);
-
-  if (opts.ensureTopicExists !== false) {
-    fastify.addHook("onReady", async () => {
-      if (!topic.exists) {
-        fastify.log.warn(
-          { topic: topicName },
-          "Skipping Pub/Sub topic existence check — client does not support topic.exists",
-        );
-        return;
-      }
-
-      const timeoutMs = env.PUBSUB_STARTUP_TIMEOUT_MS;
-      fastify.log.info(
-        { topic: topicName },
-        "Verifying Pub/Sub topic connectivity",
-      );
-
-      try {
-        let exists = false;
-        try {
-          [exists] = await withStartupTimeout(
-            topic.exists(),
-            timeoutMs,
-            unreachableHint("topic existence check", timeoutMs),
-          );
-        } catch (err) {
-          if (!isGrpcCode(err, 5)) throw err;
-        }
-
-        if (exists) return;
-
-        if (!autoCreate || !client.createTopic) {
-          throw new Error(
-            `Configured Pub/Sub topic "${topicName}" does not exist. Create it before starting the API.`,
-          );
-        }
-
-        try {
-          await withStartupTimeout(
-            client.createTopic(topicName),
-            timeoutMs,
-            unreachableHint("topic creation", timeoutMs),
-          );
-          fastify.log.info(
-            { topic: topicName },
-            "Created missing Pub/Sub topic",
-          );
-        } catch (err) {
-          if (!isGrpcCode(err, 6)) throw err;
-        }
-      } catch (err) {
-        fastify.log.error(
-          { err, topic: topicName },
-          "Pub/Sub publisher startup check failed",
-        );
-        throw err;
-      }
-    });
-  }
 
   fastify.decorate("pubsubPublisher", {
     publishBuyTicket(payload: unknown, attributes?: PubSubAttributes) {

@@ -1,22 +1,10 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
-import type { Message } from "@google-cloud/pubsub";
-import type { FastifyBaseLogger } from "fastify";
+import type { Message, PubSub, Subscription } from "@google-cloud/pubsub";
 import {
-  type PubSubClientLike,
-  type SubscriptionLike,
-  type TopicLike,
   type PubSubSubscriber,
-  ensureSubscription,
   pubSubSubscriberPlugin,
 } from "../../src/plugins/pubsub.ts";
-import { StartupTimeoutError } from "../../src/lib/startup-timeout.ts";
-
-const noopLog = {
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-} as unknown as FastifyBaseLogger;
 
 function createFakeFastify() {
   const hooks: Record<string, Array<() => Promise<void>>> = {};
@@ -85,10 +73,7 @@ function createListenerRegistry(): ListenerRegistry {
   };
 }
 
-function createSubscriptionMock(
-  listeners: ListenerRegistry,
-  exists: boolean,
-): SubscriptionLike {
+function createSubscriptionMock(listeners: ListenerRegistry): Subscription {
   function on(
     event: "message",
     listener: (message: Message) => void | Promise<void>,
@@ -119,45 +104,15 @@ function createSubscriptionMock(
     close() {
       return Promise.resolve();
     },
-    exists() {
-      return Promise.resolve([exists] as [boolean]);
-    },
-  };
+  } as unknown as Subscription;
 }
 
-function createClientMock(options: {
-  subscription: SubscriptionLike;
-  topicExists: boolean;
-  onCreateSubscription?: () => void;
-  onCreateTopic?: () => void;
-}): PubSubClientLike {
-  const topic: TopicLike = {
-    exists() {
-      return Promise.resolve([options.topicExists] as [boolean]);
-    },
-  };
-
-  if (options.onCreateSubscription) {
-    topic.createSubscription = () => {
-      options.onCreateSubscription?.();
-      return Promise.resolve([options.subscription]);
-    };
-  }
-
+function createClientMock(subscription: Subscription): PubSub {
   return {
     subscription() {
-      return options.subscription;
+      return subscription;
     },
-    topic() {
-      return topic;
-    },
-    createTopic: options.onCreateTopic
-      ? () => {
-          options.onCreateTopic?.();
-          return Promise.resolve({});
-        }
-      : undefined,
-  };
+  } as unknown as PubSub;
 }
 
 async function deliverMessage(
@@ -169,17 +124,13 @@ async function deliverMessage(
 
 void test("pubsub subscriber plugin decorates fastify with subscriber methods", async () => {
   const listeners = createListenerRegistry();
-  const fakeSubscription = createSubscriptionMock(listeners, true);
-  const fakeClient = createClientMock({
-    subscription: fakeSubscription,
-    topicExists: true,
-  });
+  const fakeSubscription = createSubscriptionMock(listeners);
+  const fakeClient = createClientMock(fakeSubscription);
 
   const fastify = createFakeFastify();
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
-    topicName: "buy-ticket",
   });
 
   assert.ok(fastify.pubsubSubscriber);
@@ -190,17 +141,13 @@ void test("pubsub subscriber plugin decorates fastify with subscriber methods", 
 
 void test("pubsub subscriber processes messages through registered handler", async () => {
   const listeners = createListenerRegistry();
-  const fakeSubscription = createSubscriptionMock(listeners, true);
-  const fakeClient = createClientMock({
-    subscription: fakeSubscription,
-    topicExists: true,
-  });
+  const fakeSubscription = createSubscriptionMock(listeners);
+  const fakeClient = createClientMock(fakeSubscription);
 
   const fastify = createFakeFastify();
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
-    topicName: "buy-ticket",
   });
 
   const receivedMessages: unknown[] = [];
@@ -223,110 +170,15 @@ void test("pubsub subscriber processes messages through registered handler", asy
   await fastify.pubsubSubscriber.stop();
 });
 
-void test("pubsub subscriber auto-creates missing subscription when enabled", async () => {
-  let createSubscriptionCalls = 0;
-  let createTopicCalls = 0;
-
-  const fakeSubscription = createSubscriptionMock(
-    createListenerRegistry(),
-    false,
-  );
-  const fakeClient = createClientMock({
-    subscription: fakeSubscription,
-    topicExists: false,
-    onCreateSubscription: () => {
-      createSubscriptionCalls += 1;
-    },
-    onCreateTopic: () => {
-      createTopicCalls += 1;
-    },
-  });
-
-  const fastify = createFakeFastify();
-  await pubSubSubscriberPlugin(fastify as never, {
-    client: fakeClient,
-    subscriptionName: "buy-ticket-worker",
-    topicName: "buy-ticket",
-    autoCreateSubscription: true,
-  });
-
-  assert.equal(createTopicCalls, 1);
-  assert.equal(createSubscriptionCalls, 1);
-});
-
-void test("pubsub subscriber fails on startup when subscription is missing and auto-create is disabled", async () => {
-  const fakeSubscription = createSubscriptionMock(
-    createListenerRegistry(),
-    false,
-  );
-  const fakeClient = createClientMock({
-    subscription: fakeSubscription,
-    topicExists: true,
-  });
-
-  const fastify = createFakeFastify();
-
-  await assert.rejects(async () => {
-    await pubSubSubscriberPlugin(fastify as never, {
-      client: fakeClient,
-      subscriptionName: "buy-ticket-worker",
-      topicName: "buy-ticket",
-      autoCreateSubscription: false,
-    });
-  }, /Configured Pub\/Sub subscription "buy-ticket-worker" does not exist/);
-});
-
-void test("ensureSubscription fails fast with an actionable error when the emulator is unreachable", async () => {
-  // subscription.exists() never resolves — the original hang that surfaced only
-  // as an opaque Fastify plugin timeout with no hint about the cause.
-  const hangingSubscription: SubscriptionLike = {
-    on() {},
-    removeAllListeners() {},
-    close() {
-      return Promise.resolve();
-    },
-    exists() {
-      return new Promise<[boolean]>(() => {});
-    },
-  };
-  const fakeClient = createClientMock({
-    subscription: hangingSubscription,
-    topicExists: true,
-  });
-
-  await assert.rejects(
-    () =>
-      ensureSubscription(
-        hangingSubscription,
-        fakeClient,
-        "buy-ticket-worker",
-        "buy-ticket",
-        true,
-        noopLog,
-        20,
-      ),
-    (err: unknown) => {
-      assert.ok(err instanceof StartupTimeoutError);
-      assert.match(err.message, /PUBSUB_EMULATOR_HOST/);
-      assert.match(err.message, /docker compose up -d/);
-      return true;
-    },
-  );
-});
-
 void test("pubsub subscriber nacks messages when handler throws", async () => {
   const listeners = createListenerRegistry();
-  const fakeSubscription = createSubscriptionMock(listeners, true);
-  const fakeClient = createClientMock({
-    subscription: fakeSubscription,
-    topicExists: true,
-  });
+  const fakeSubscription = createSubscriptionMock(listeners);
+  const fakeClient = createClientMock(fakeSubscription);
 
   const fastify = createFakeFastify();
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
-    topicName: "buy-ticket",
   });
 
   fastify.pubsubSubscriber.onMessage(async () => {
