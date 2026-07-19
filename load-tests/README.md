@@ -48,14 +48,37 @@ k6 run load-tests/spike-phase-a.js
 k6 run load-tests/spike-phase-b.js
 ```
 
+## Iterations-Flow (Checkout-Funnel)
+
+Seit dem Reserve/Pay/Publish-Split (ADR-028) fuehrt jede Kauf-Iteration den
+**vollen Checkout-Funnel** aus `load-tests/lib/scenario-helpers.js` aus — nicht
+mehr reserve-only:
+
+1. `POST /api/tickets/:eventId/buy` — reserviert (`202` liefert `orderId`;
+   `409` Sold-Out / `425` Too-Early beenden die Iteration, beides erwartet).
+2. `POST /api/orders/:orderId/pay` — bestaetigt die (simulierte) Zahlung und
+   **published** den `BuyTicketEvent`; erst danach persistiert der Worker.
+   Fake-Karten-DTO (Testnummer `4242…`), keine echten Zahlungsdaten.
+3. _optional_ `GET /api/orders/:orderId` — pollt bis `completed`/`failed`
+   (nur wenn `CHECKOUT_POLL=true`).
+
+Wichtig: Ohne den Pay-Schritt published nichts und der Worker sieht keine Order
+(**0 abgeschlossene Orders** trotz sinkender `available`) — genau der Grund,
+warum das alte reserve-only-Skript keine Baseline-B-Persistenz messen konnte.
+Jede Iteration trägt via `tags: { endpoint: … }` (`buy`/`pay`/`cancel`/
+`availability`/`orders`) einen Endpoint-Tag für die per-Endpoint-Auswertung.
+
 ## Umgebungsvariablen
 
-| Variable                         | Default                                | Beschreibung                                                       |
-| -------------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
-| `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                      |
-| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                       |
-| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)  |
-| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Availability-Polls in der Orchestrierung             |
-| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender `available: 0`-Polls bis Sold-Out gilt |
-| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird    |
-| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                  |
+| Variable                         | Default                                | Beschreibung                                                              |
+| -------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
+| `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                             |
+| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                              |
+| `CHECKOUT_POLL`                  | `false`                                | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed` |
+| `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                   | Max. Poll-Versuche pro Order, bevor aufgegeben wird                       |
+| `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                     |
+| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)         |
+| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Availability-Polls in der Orchestrierung                    |
+| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender `available: 0`-Polls bis Sold-Out gilt        |
+| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird           |
+| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                         |
