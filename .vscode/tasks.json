@@ -42,6 +42,58 @@
       "args": ["--filter", "api", "run", "watch"],
       "isBackground": true,
       "problemMatcher": ["$tsc-watch"]
+    },
+    {
+      "label": "spike:open-dashboards",
+      "detail": "Öffnet Web-App (10001) und Grafana (10008) im integrierten Simple Browser.",
+      "type": "shell",
+      "command": ": '${input:openWebApp}' '${input:openGrafana}'",
+      "presentation": {
+        "reveal": "silent",
+        "close": true,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "spike:run",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike",
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-lc"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "spike",
+      "detail": "Startet den Spike-Load-Test und öffnet vorher Web + Grafana im integrierten VS Code Browser.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["spike:open-dashboards", "spike:run"],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "openWebApp",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": "http://localhost:10001"
+    },
+    {
+      "id": "openGrafana",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": "http://localhost:10008"
     }
   ]
 }

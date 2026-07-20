@@ -8,21 +8,21 @@ export const options = {
       startRate: 1000,
       timeUnit: "1s",
       preAllocatedVUs: 200,
-      maxVUs: 3000,
+      maxVUs: 10000,
       stages: [
         // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
         // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
         { target: 1000, duration: "45s" },
         // Phase 2 – Ramp-Up:  1.000 → 5.000 RPS, 45s (Sale-Opening naehert
         // sich; `opensAt` liegt typischerweise irgendwo in diesem Fenster)
-        { target: 5000, duration: "45s" },
+        { target: 10000, duration: "45s" },
         // Phase 3 – Sustain:  5.000 RPS, 15 Minuten Sicherheitsnetz. Die
         // Orchestrierung (scripts/local/run-spike.mjs) pollt die
         // Verfuegbarkeit und stoppt diese Stage per SIGINT, sobald
         // `available` auf 0 faellt — die 15 Minuten greifen nur, falls kein
         // Sold-Out erkannt wird (z.B. bei einem manuellen `k6 run` ohne
         // Orchestrator).
-        { target: 5000, duration: "15m" },
+        { target: 10000, duration: "15m" },
       ],
     },
   },

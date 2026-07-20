@@ -49,6 +49,14 @@
         "command": "workbench.action.tasks.runTask"
       },
       {
+        "name": "$(browser) Dashboards",
+        "color": "#C678DD",
+        "tooltip": "Web (10001) + Grafana (10008) im integrierten Simple Browser öffnen",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["spike:open-dashboards"]
+      },
+      {
         "name": "$(git-merge) Merge hfts-dev1 → main",
         "color": "#E06C75",
         "tooltip": "Checkout main, pull latest, and merge hfts-dev1 locally (no push)",

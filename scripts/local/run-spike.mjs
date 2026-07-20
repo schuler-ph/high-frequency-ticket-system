@@ -2,8 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10002";
-const EVENT_ID =
-  process.env.EVENT_ID ?? "00000000-0000-4000-8000-000000000000";
+const EVENT_ID = process.env.EVENT_ID ?? "00000000-0000-4000-8000-000000000000";
 const SALE_OPENS_IN_SECONDS = Number(process.env.SALE_OPENS_IN_SECONDS ?? 60);
 const POLL_INTERVAL_MS = Number(process.env.SPIKE_POLL_INTERVAL_MS ?? 3000);
 const SOLDOUT_CONFIRM_POLLS = Number(
@@ -76,8 +75,15 @@ export const fetchCompletedCount = async () => {
  * aufeinanderfolgende Polls stagniert (kein neuer abgeschlossener Order —
  * Sold-Out bestaetigt) oder der Kindprozess von selbst beendet wurde.
  *
- * Der Guard `completed > 0` verhindert einen Fehlalarm waehrend der Warm-Up-/
- * Pre-Sale-Phase, in der der Counter legitim bei 0 stagniert (Verkauf gesperrt).
+ * `orders_completed_total` ist ein PROZESS-LEBENSDAUER-Counter des Workers: er
+ * ueberlebt ein `reset-seed`/`pnpm spike` (der Worker-Prozess wird nicht
+ * neugestartet), startet also mit einem CARRYOVER aus dem vorigen Lauf (> 0).
+ * Ein absoluter Guard `completed > 0` reicht deshalb NICHT — er wuerde die
+ * Pre-Sale-Phase, in der der stale Counter legitim auf dem Carryover-Wert
+ * stagniert, sofort als Sold-Out fehldeuten. Stattdessen wird der Wert beim
+ * ersten Poll als `baseline` festgehalten; ein Plateau gilt erst als Sold-Out,
+ * wenn RELATIV zur baseline neue Orders abgeschlossen wurden (`completed >
+ * baseline`) und die Zahl dann stagniert.
  */
 export const pollUntilSoldOutOrExit = async (exitPromise) => {
   let childExited = false;
@@ -85,7 +91,8 @@ export const pollUntilSoldOutOrExit = async (exitPromise) => {
     childExited = true;
   });
 
-  let lastCompleted = 0;
+  let baseline = null;
+  let lastCompleted = null;
   let consecutiveStall = 0;
 
   while (!childExited) {
@@ -96,9 +103,18 @@ export const pollUntilSoldOutOrExit = async (exitPromise) => {
       const completed = await fetchCompletedCount();
       if (completed === null) continue;
 
-      // Nur stagnieren lassen, wenn ueberhaupt schon Orders abgeschlossen sind —
-      // sonst wuerde die Pre-Sale-Phase (Counter == 0) sofort Sold-Out melden.
-      if (completed > 0 && completed === lastCompleted) {
+      // Erster verwertbarer Poll: Carryover aus dem vorigen Worker-Leben als
+      // baseline festhalten und noch nicht auf Sold-Out pruefen.
+      if (baseline === null) {
+        baseline = completed;
+        lastCompleted = completed;
+        continue;
+      }
+
+      // Nur stagnieren lassen, wenn seit Lauf-Start (baseline) ueberhaupt neue
+      // Orders abgeschlossen wurden — sonst wuerde die Pre-Sale-Phase (Counter
+      // steht auf dem stale Carryover-Wert) sofort Sold-Out melden.
+      if (completed > baseline && completed === lastCompleted) {
         consecutiveStall += 1;
       } else {
         consecutiveStall = 0;
@@ -107,7 +123,7 @@ export const pollUntilSoldOutOrExit = async (exitPromise) => {
 
       if (consecutiveStall >= SOLDOUT_CONFIRM_POLLS) {
         console.log(
-          `[run-spike] Sold out detected — completed orders plateaued at ${completed} — stopping the sustain stage gracefully.`,
+          `[run-spike] Sold out detected — completed orders plateaued at ${completed} (baseline ${baseline}) — stopping the sustain stage gracefully.`,
         );
         return true;
       }
