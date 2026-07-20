@@ -109,6 +109,12 @@ lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
 
 ## Umgebungsvariablen
 
+Die pnpm-Skripte `seed`/`spike`/`bench:hot-row` laden `.env` automatisch via
+`node --env-file-if-exists=.env`. Precedence: **Shell-inline > `.env` > Default**
+(ein inline gesetzter Wert wie `SALE_OPENS_IN_SECONDS=0 pnpm seed` schlägt `.env`;
+fehlt `.env`, greifen die Defaults). Ein direktes `node scripts/local/…` ohne den
+Flag liest `.env` nicht.
+
 | Variable                         | Default                                | Beschreibung                                                              |
 | -------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
 | `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                             |
