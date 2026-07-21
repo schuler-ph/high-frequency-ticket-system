@@ -3,6 +3,7 @@ import { execFileSync, execSync } from "node:child_process";
 const POSTGRES_CONTAINER = "hts-postgres";
 const REDIS_CONTAINER = "hts-redis";
 const PUBSUB_CONTAINER = "hts-pubsub";
+const PROMETHEUS_CONTAINER = "hts-prometheus";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 
@@ -218,6 +219,70 @@ const resetPubSub = async () => {
   });
 };
 
+const isContainerRunning = (name) => {
+  try {
+    const state = execSync(`docker inspect -f '{{.State.Running}}' ${name}`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .trim()
+      .toLowerCase();
+    return state === "true";
+  } catch {
+    return false;
+  }
+};
+
+// Prometheus haelt bei hoher Label-Kardinalitaet (z.B. Series-Churn aus einem
+// vorherigen Lasttest) einen aufgeblaehten Go-Heap resident, auch nachdem die
+// Series wieder verschwunden sind. Ein frischer Seed-Lauf soll auch die Metrik-
+// Historie leeren: Container stoppen (kein Prozess haelt dann die gemappten
+// Chunk-/WAL-Dateien), TSDB-Volume via Wegwerf-Container leeren (--volumes-from
+// koppelt uns nicht an den Compose-Volume-Namen) und frisch starten. Reclaimt
+// RAM + Disk und vermeidet ein Replay des aufgeblaehten WAL. Nicht-fatal:
+// Prometheus ist Monitoring, kein Seed-Kern-State.
+const resetPrometheus = () => {
+  if (process.env.SKIP_PROMETHEUS_RESET === "1") {
+    console.log(
+      "[local:reset-seed] Skipping Prometheus reset (SKIP_PROMETHEUS_RESET=1).",
+    );
+    return;
+  }
+
+  if (!isContainerRunning(PROMETHEUS_CONTAINER)) {
+    console.log(
+      `[local:reset-seed] ${PROMETHEUS_CONTAINER} not running; skipping Prometheus reset.`,
+    );
+    return;
+  }
+
+  console.log("[local:reset-seed] Wiping Prometheus TSDB (fresh metrics)...");
+  try {
+    execFileSync("docker", ["stop", PROMETHEUS_CONTAINER], { stdio: "inherit" });
+    execFileSync(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--volumes-from",
+        PROMETHEUS_CONTAINER,
+        "busybox",
+        "sh",
+        "-c",
+        "cd /prometheus && rm -rf ./* ./.[!.]* 2>/dev/null; exit 0",
+      ],
+      { stdio: "inherit" },
+    );
+    execFileSync("docker", ["start", PROMETHEUS_CONTAINER], { stdio: "inherit" });
+  } catch (error) {
+    console.warn(
+      `[local:reset-seed] Prometheus reset failed (non-fatal): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+};
+
 const main = async () => {
   console.log("[local:reset-seed] Validating local infrastructure...");
   checkContainers();
@@ -225,6 +290,7 @@ const main = async () => {
   resetPostgres();
   resetRedis();
   await resetPubSub();
+  resetPrometheus();
 
   console.log("[local:reset-seed] Completed successfully.");
   console.log(

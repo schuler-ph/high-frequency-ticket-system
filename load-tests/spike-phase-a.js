@@ -8,7 +8,7 @@ export const options = {
       startRate: 1000,
       timeUnit: "1s",
       preAllocatedVUs: 200,
-      maxVUs: 10000,
+      maxVUs: 5000,
       stages: [
         // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
         // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
