@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "description": "Versioned validity policy for the deterministic load-test report generator (docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md). Changing a threshold here is a report-logic change and must be reviewed alongside the golden fixtures.",
+  "benchmark": {
+    "maxDroppedIterationRateForValidRun": 0.001,
+    "maxDroppedIterationRateForDegradedRun": 0.05,
+    "maxScrapeGapSeconds": 15,
+    "requireApiAndWorkerUp": true,
+    "requireCounterBaselines": true,
+    "requireDrainForCorrectnessVerdict": true
+  },
+  "histogram": {
+    "maxFractionAboveLargestBucketForValid": 0.05
+  },
+  "drain": {
+    "timeoutSeconds": 900,
+    "stablePolls": 3,
+    "pollIntervalSeconds": 5
+  }
+}

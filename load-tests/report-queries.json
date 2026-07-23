@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "description": "Versioned PromQL catalog for the load-test report collector. The renderer must never parse Grafana dashboard JSON (presentation reductions caused Baseline-A misreadings). `absence` tells the collector how to treat a missing series: 'zero-if-target-up' => 0 only when the scrape target is healthy; 'instrumentation-defect' => a gauge that must always exist; 'missing' => report as unavailable.",
+  "instant": [
+    {
+      "id": "ordersAccepted",
+      "promql": "sum(orders_accepted_total{job=\"api\"})",
+      "absence": "zero-if-target-up",
+      "source": "api"
+    },
+    {
+      "id": "ordersCompleted",
+      "promql": "sum(orders_completed_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    },
+    {
+      "id": "ordersFailed",
+      "promql": "sum(orders_failed_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    },
+    {
+      "id": "reservationsCreated",
+      "promql": "sum(reservations_created_total{job=\"api\"})",
+      "absence": "zero-if-target-up",
+      "source": "api"
+    },
+    {
+      "id": "publishRollbacks",
+      "promql": "sum(publish_rollbacks_total{job=\"api\"})",
+      "absence": "zero-if-target-up",
+      "source": "api"
+    },
+    {
+      "id": "checkoutsCancelled",
+      "promql": "sum(checkouts_cancelled_total{job=\"api\"})",
+      "absence": "zero-if-target-up",
+      "source": "api"
+    },
+    {
+      "id": "workerRedeliveries",
+      "promql": "sum(worker_redeliveries_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    },
+    {
+      "id": "workerIdempotencyHits",
+      "promql": "sum(worker_idempotency_hits_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    },
+    {
+      "id": "workerCompensations",
+      "promql": "sum(worker_compensations_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    },
+    {
+      "id": "redisDbDrift",
+      "promql": "redis_db_drift_tickets{job=\"worker\"}",
+      "absence": "instrumentation-defect",
+      "source": "worker"
+    }
+  ],
+  "range": [
+    {
+      "id": "apiRpsPeak",
+      "promql": "max_over_time((sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m])))[__WINDOW__:__STEP__])",
+      "absence": "zero-if-target-up",
+      "source": "api"
+    },
+    {
+      "id": "workerCompletionRatePeak",
+      "promql": "max_over_time((sum(rate(orders_completed_total{job=\"worker\"}[1m])))[__WINDOW__:__STEP__])",
+      "absence": "zero-if-target-up",
+      "source": "worker"
+    }
+  ],
+  "health": [
+    {
+      "id": "apiUp",
+      "promql": "up{job=\"api\"}",
+      "absence": "missing",
+      "source": "prometheus"
+    },
+    {
+      "id": "workerUp",
+      "promql": "up{job=\"worker\"}",
+      "absence": "missing",
+      "source": "prometheus"
+    }
+  ]
+}
