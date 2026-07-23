@@ -5,3 +5,8 @@ build
 coverage
 pnpm-lock.yaml
 .turbo
+
+# Load-test report golden fixtures: these must stay byte-identical to the
+# deterministic renderer output (scripts/load-test/lib/render-markdown.mjs);
+# Prettier reformatting them would break the golden-file tests.
+scripts/load-test/test/golden
