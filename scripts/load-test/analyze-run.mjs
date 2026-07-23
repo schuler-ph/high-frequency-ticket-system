@@ -82,7 +82,8 @@ const isDirectRun =
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectRun) {
-  const runDir = process.argv[2];
+  // Tolerate a `--` separator (pnpm run script -- <args>).
+  const runDir = process.argv.slice(2).filter((arg) => arg !== "--")[0];
   if (!runDir) {
     console.error("Usage: node scripts/load-test/analyze-run.mjs <run-dir>");
     process.exit(2);

@@ -50,6 +50,9 @@ jobs:
       - name: buy_ticket contract guardrail
         run: pnpm run debug:buy-ticket-contract
 
+      - name: Load-test report unit tests
+        run: pnpm run spike:report:test
+
       - name: Lint
         run: pnpm run lint
         env:

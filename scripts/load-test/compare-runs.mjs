@@ -31,7 +31,10 @@ const isDirectRun =
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectRun) {
-  const [, , baselineArg, candidateArg] = process.argv;
+  // Tolerate a `--` separator (pnpm run script -- <args>).
+  const [baselineArg, candidateArg] = process.argv
+    .slice(2)
+    .filter((arg) => arg !== "--");
   if (!baselineArg || !candidateArg) {
     console.error(
       "Usage: node scripts/load-test/compare-runs.mjs <baseline> <candidate>",
