@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
+  "git": { "commit": "0000000", "branch": "main", "dirty": false },
+  "host": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpuCount": 8,
+    "memoryBytes": 16000000000
+  },
+  "profile": {
+    "phaseA": "load-tests/spike-phase-a.js",
+    "phaseB": "load-tests/spike-phase-b.js",
+    "eventId": "00000000-0000-4000-8000-000000000000"
+  },
+  "configuration": {
+    "PUBSUB_FLOW_CONTROL_MAX_MESSAGES": "500",
+    "DATABASE_POOL_MAX": "20",
+    "LOAD_PROFILE": "capacity"
+  },
+  "capacity": { "totalCapacity": 1000, "opensAt": 0 },
+  "timestamps": {
+    "seededAt": "2026-07-14T00:00:00Z",
+    "workloadStartedAt": "2026-07-14T00:00:10Z",
+    "phaseAEndedAt": "2026-07-14T00:06:56Z",
+    "workloadEndedAt": "2026-07-14T00:07:56Z",
+    "drainEndedAt": "2026-07-14T00:14:42Z"
+  }
+}

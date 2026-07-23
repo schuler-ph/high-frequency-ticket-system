@@ -1,0 +1,5 @@
+# TYPE orders_accepted_total counter
+orders_accepted_total{event_id="00000000-0000-4000-8000-000000000000"} 0
+reservations_created_total{event_id="00000000-0000-4000-8000-000000000000"} 0
+publish_rollbacks_total 0
+checkouts_cancelled_total 0

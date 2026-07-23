@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "rendererVersion": 1,
+  "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
+  "git": {
+    "commit": "0000000",
+    "branch": "main",
+    "dirty": false
+  },
+  "host": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpuCount": 8,
+    "memoryBytes": 16000000000
+  },
+  "configuration": {
+    "PUBSUB_FLOW_CONTROL_MAX_MESSAGES": "500",
+    "DATABASE_POOL_MAX": "20",
+    "LOAD_PROFILE": "capacity"
+  },
+  "capacity": {
+    "totalCapacity": 1000,
+    "opensAt": 0
+  },
+  "offeredLoad": {
+    "phases": [
+      {
+        "name": "phase-a",
+        "iterations": 320,
+        "droppedIterations": 680,
+        "scheduled": 1000,
+        "executedShare": 0.32,
+        "droppedShare": 0.68,
+        "httpReqs": 640,
+        "duration": {
+          "avg": 15,
+          "med": 12,
+          "p90": 30,
+          "p95": 40,
+          "p99": 55,
+          "max": 60
+        },
+        "failedRate": 0.0028,
+        "vusMax": 500,
+        "exitCode": 99,
+        "reason": "sold-out-sigint"
+      },
+      {
+        "name": "phase-b",
+        "iterations": 100,
+        "droppedIterations": 0,
+        "scheduled": 100,
+        "executedShare": 1,
+        "droppedShare": 0,
+        "httpReqs": 200,
+        "duration": {
+          "avg": 5,
+          "med": 4,
+          "p90": 8,
+          "p95": 10,
+          "p99": 12,
+          "max": 15
+        },
+        "failedRate": 0,
+        "vusMax": 50,
+        "exitCode": 0,
+        "reason": "completed"
+      }
+    ],
+    "totalIterations": 420,
+    "totalDropped": 680,
+    "scheduled": 1100,
+    "droppedShare": 0.6181818181818182,
+    "executedShare": 0.38181818181818183
+  },
+  "counters": {
+    "ordersAccepted": {
+      "before": 0,
+      "after": 1000,
+      "value": 1000,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "reservationsCreated": {
+      "before": 0,
+      "after": 1000,
+      "value": 1000,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "publishRollbacks": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "checkoutsCancelled": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "ordersCompleted": {
+      "before": 0,
+      "after": 1000,
+      "value": 1000,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "ordersFailed": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerRedeliveries": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerIdempotencyHits": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerCompensations": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    }
+  },
+  "e2eLatency": {
+    "count": 1000,
+    "sum": 406000,
+    "mean": 406,
+    "saturation": {
+      "largestFiniteLe": 30,
+      "countAtLargestFinite": 141,
+      "totalCount": 1000,
+      "fractionAboveLargestFinite": 0.859
+    },
+    "quantiles": {
+      "p50": {
+        "le": 30,
+        "censored": true
+      },
+      "p95": {
+        "le": 30,
+        "censored": true
+      },
+      "p99": {
+        "le": 30,
+        "censored": true
+      }
+    }
+  },
+  "drain": {
+    "status": "complete",
+    "pendingAtEnd": 0,
+    "durationSeconds": 406
+  },
+  "state": {
+    "postgres": {
+      "capacity": 1000,
+      "soldCount": 1000,
+      "orders": 1000,
+      "tickets": 1000,
+      "pendingOrders": 0,
+      "dbSizeBytes": 12345678
+    },
+    "redis": {
+      "total": 1000,
+      "available": 0,
+      "activeReservations": 0,
+      "dbSize": 42,
+      "usedMemoryBytes": 1048576
+    }
+  },
+  "drift": {
+    "min": 0,
+    "final": 0
+  },
+  "invariants": [
+    {
+      "id": "accepted == completed + failed",
+      "ok": true,
+      "expected": 1000,
+      "actual": 1000
+    },
+    {
+      "id": "dbOrders == completed + failed",
+      "ok": true,
+      "expected": 1000,
+      "actual": 1000
+    },
+    {
+      "id": "dbTickets == completed",
+      "ok": true,
+      "expected": 1000,
+      "actual": 1000
+    },
+    {
+      "id": "pendingOrders == 0",
+      "ok": true,
+      "expected": 0,
+      "actual": 0
+    }
+  ],
+  "validity": {
+    "benchmark": {
+      "verdict": "invalid",
+      "reasons": [
+        "Dropped-iteration rate 61.82% indicates load-generator saturation; capacity cannot be claimed."
+      ]
+    },
+    "system": {
+      "verdict": "pass",
+      "reasons": [
+        "All evaluated invariants hold."
+      ]
+    }
+  },
+  "recommendations": [
+    {
+      "id": "generator-saturated",
+      "message": "Load generator dropped scheduled iterations; do not claim the target RPS as backend capacity.",
+      "evidence": [
+        "droppedShare=0.6181818181818182"
+      ]
+    },
+    {
+      "id": "e2e-histogram-censored",
+      "message": "Extend the E2E histogram buckets; the reported upper quantiles are censored at the largest finite bucket.",
+      "evidence": [
+        "fractionAboveLargestFinite=0.859"
+      ]
+    }
+  ]
+}

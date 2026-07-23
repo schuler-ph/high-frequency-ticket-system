@@ -1,0 +1,17 @@
+{
+  "postgres": {
+    "capacity": 1000,
+    "soldCount": 0,
+    "orders": 0,
+    "tickets": 0,
+    "pendingOrders": 0,
+    "dbSizeBytes": 9000000
+  },
+  "redis": {
+    "total": 1000,
+    "available": 1000,
+    "activeReservations": 0,
+    "dbSize": 3,
+    "usedMemoryBytes": 1000000
+  }
+}
