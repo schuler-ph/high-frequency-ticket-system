@@ -21,6 +21,27 @@ docker compose ps
 # falls nicht: docker compose up -d
 ```
 
+## API/Worker fuer den Lasttest starten (gebauter Stand, nicht `pnpm dev`)
+
+Fuer einen belastbaren Kapazitaetslauf (Baseline B) duerfen API und Worker **nicht**
+im Dev-Modus laufen. `pnpm dev` startet `dev` via `tsc-watch --onSuccess`, das
+`fastify start` mit `-P` (pino-pretty — ein synchroner, den Event-Loop
+blockierender Log-Transform) faehrt und zusaetzlich einen TS-Compiler + FS-Watcher
+mitlaufen laesst, der lokal um dieselben Cores wie k6/Postgres/Redis/Prometheus
+konkurriert (ein FS-Event mitten im Lauf triggert sogar Rebuild + Restart).
+
+Stattdessen je Service den dedizierten `start:loadtest`-Task nutzen — kompiliert
+`dist/app.js`, startet `fastify start` **ohne** `-P` und mit
+`NODE_ENV=production`/`LOG_LEVEL=warn`/`-l warn`:
+
+```bash
+pnpm --filter api run start:loadtest      # API auf :10002
+pnpm --filter worker run start:loadtest   # Worker auf :10003
+```
+
+Die Dev-Tasks (`pnpm dev`) bleiben unveraendert und weiterhin die Wahl fuer die
+lokale Entwicklung.
+
 ## Ausführen
 
 ```bash
