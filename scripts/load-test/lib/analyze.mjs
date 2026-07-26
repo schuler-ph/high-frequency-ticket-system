@@ -98,6 +98,27 @@ const COUNTER_QUERIES = {
 };
 
 /**
+ * Read the effective service configuration straight from the scraped
+ * `service_config_info` labels.
+ *
+ * The manifest's `configuration` is the ORCHESTRATOR's environment. That is the
+ * right source for load-shaping knobs (`LOAD_PROFILE`, `PAY_RATE`, …) but the
+ * wrong one for service knobs: Baseline B reported `NODE_ENV=test` even though
+ * both services ran under `start:loadtest` with `NODE_ENV=production`, which made
+ * the documented measurement configuration misleading (report §2). The services
+ * now publish their own, and this reads it back.
+ *
+ * @param {Array<{ name: string, labels: Record<string,string> }>} samples
+ * @returns {Record<string, string> | null}
+ */
+const readServiceConfig = (samples) => {
+  const sample = samples.find((s) => s.name === "service_config_info");
+  if (!sample) return null;
+  const { service: _service, ...config } = sample.labels;
+  return Object.keys(config).length > 0 ? config : null;
+};
+
+/**
  * Resolve one counter sample, applying the `zero-if-target-up` absence policy
  * declared for every counter in `load-tests/report-queries.json`.
  *
@@ -316,6 +337,12 @@ export const deriveReport = (input) => {
     git: manifest?.git ?? null,
     host: manifest?.host ?? null,
     configuration: manifest?.configuration ?? {},
+    // Effective per-service config, straight from the services (not the
+    // orchestrator's env). `null` for a service that does not publish it yet.
+    serviceConfig: {
+      api: readServiceConfig(samples.apiBefore),
+      worker: readServiceConfig(samples.workerBefore),
+    },
     capacity: manifest?.capacity ?? null,
     offeredLoad: {
       phases,

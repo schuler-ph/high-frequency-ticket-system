@@ -5,7 +5,7 @@
 - **Git:** `0000000` (main)
 - **Host:** linux/x64, 8 CPUs
 - **Seeded capacity:** 1 000
-- **Configuration:**
+- **Configuration (load harness / orchestrator env):**
   - `DATABASE_POOL_MAX` = `20`
   - `LOAD_PROFILE` = `capacity`
   - `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` = `500`

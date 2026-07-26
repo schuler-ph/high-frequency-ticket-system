@@ -123,6 +123,43 @@ test("pre-ADR-028 runs fall back to the reserve count as published", () => {
   assert.equal(published.ok, true);
 });
 
+// Regression for the misleading measurement configuration in Baseline B
+// (report §2): the manifest carries the ORCHESTRATOR's env, which reported
+// NODE_ENV=test while both services actually ran under `start:loadtest` with
+// NODE_ENV=production. The services now publish their effective config.
+test("effective service config is read from the services, not the orchestrator", () => {
+  const derived = deriveReport({
+    manifest: { runId: "cfg", configuration: { NODE_ENV: "test" } },
+    metricsBefore: {
+      api: 'service_config_info{service="api",node_env="production",log_level="warn"} 1\n',
+      worker:
+        'service_config_info{service="worker",node_env="production",database_pool_max="50"} 1\n',
+    },
+    metricsAfter: { api: "", worker: "" },
+    policy,
+  });
+
+  // The harness env is preserved verbatim (it shapes the load)...
+  assert.equal(derived.configuration.NODE_ENV, "test");
+  // ...but the services report what they actually ran with.
+  assert.equal(derived.serviceConfig.api.node_env, "production");
+  assert.equal(derived.serviceConfig.api.log_level, "warn");
+  assert.equal(derived.serviceConfig.worker.database_pool_max, "50");
+  // The `service` label is the selector, not part of the config itself.
+  assert.equal(derived.serviceConfig.api.service, undefined);
+});
+
+test("service config is null when a service does not publish it", () => {
+  const derived = deriveReport({
+    manifest: { runId: "cfg-absent" },
+    metricsBefore: { api: "orders_accepted_total 0\n", worker: "" },
+    metricsAfter: { api: "", worker: "" },
+    policy,
+  });
+  assert.equal(derived.serviceConfig.api, null);
+  assert.equal(derived.serviceConfig.worker, null);
+});
+
 test("deriveReport is pure over in-memory fixtures (no run dir needed)", () => {
   const derived = deriveReport({
     manifest: { runId: "unit" },

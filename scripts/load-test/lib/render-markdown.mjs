@@ -87,9 +87,19 @@ export const renderReport = (derived) => {
   }
   const configKeys = Object.keys(derived.configuration ?? {}).sort();
   if (configKeys.length > 0) {
-    push("- **Configuration:**");
+    // Explicitly labelled as the harness environment: it shapes the LOAD, but it
+    // is not what the services ran with (see the per-service block below).
+    push("- **Configuration (load harness / orchestrator env):**");
     for (const key of configKeys) {
       push(`  - \`${key}\` = \`${derived.configuration[key]}\``);
+    }
+  }
+  for (const service of ["api", "worker"]) {
+    const config = derived.serviceConfig?.[service];
+    if (!config) continue;
+    push(`- **Effective \`${service}\` configuration (reported by the service):**`);
+    for (const key of Object.keys(config).sort()) {
+      push(`  - \`${key}\` = \`${config[key]}\``);
     }
   }
   push("");

@@ -39,7 +39,7 @@ pnpm spike:report:test
 | `lib/analyze.mjs`         | Compose artifacts → the full `derived` object.                        |
 | `lib/render-markdown.mjs` | Byte-stable Markdown renderer (idempotent).                           |
 | `lib/compare.mjs`         | Two-run compatibility checks + deltas.                                |
-| `lib/manifest.mjs`        | Manifest shape + secret-redaction allowlist.                          |
+| `lib/manifest.mjs`        | Manifest shape + secret-redaction allowlist (**orchestrator** env).   |
 | `lib/config.mjs`          | Policy/query loaders, Git/host info, preflight.                       |
 | `lib/snapshots.mjs`       | PostgreSQL/Redis state via the container CLIs (read-only).            |
 | `lib/prometheus.mjs`      | Prometheus instant query + target health.                             |
@@ -60,3 +60,25 @@ reviewed baseline is copied into `docs/reports/` by hand.
   hypotheses; a plausible-but-uninstrumented root cause stays `inconclusive`.
 - **Idempotent output.** Re-running `spike:analyze` over the same artifacts
   yields byte-identical `report.md` (no wall-clock timestamps).
+
+## Zwei Konfigurations-Quellen (bewusst getrennt)
+
+Der Report weist Konfiguration aus **zwei** Quellen aus, weil sie verschiedene
+Dinge beschreiben:
+
+- **Load harness / orchestrator env** (`manifest.configuration`, aus
+  `redactConfig(process.env)`): formt die _Last_ — `LOAD_PROFILE`, `PAY_RATE`,
+  `CANCEL_RATE`, `SALE_OPENS_IN_SECONDS`, k6-Knobs.
+- **Effective service configuration** (`derived.serviceConfig`, aus dem
+  `service_config_info`-Gauge in `/metrics`): das, womit API und Worker
+  **tatsaechlich** liefen — `NODE_ENV`, `LOG_LEVEL`,
+  `DISABLE_REQUEST_LOGGING`, und beim Worker zusaetzlich
+  `PUBSUB_FLOW_CONTROL_MAX_MESSAGES`, `DATABASE_POOL_MAX`,
+  `WORKER_RECONCILE_MODE`.
+
+Vor dieser Trennung wies der Report die Orchestrator-Umgebung als
+Messkonfiguration aus und behauptete dadurch `NODE_ENV=test`, obwohl beide
+Services via `start:loadtest` unter `NODE_ENV=production` liefen (Baseline B,
+Report §2). Ein Service, der den Gauge nicht exponiert, erscheint als `null` —
+so bleiben aeltere Laeufe (Baseline A) ehrlich auswertbar statt falsch
+beschriftet.

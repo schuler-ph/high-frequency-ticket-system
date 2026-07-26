@@ -1,6 +1,40 @@
-import { Counter, Histogram, Registry } from "prom-client";
+import { env } from "@repo/env";
+import { Counter, Gauge, Histogram, Registry } from "prom-client";
 
 export const apiRegistry = new Registry();
+
+/**
+ * Prometheus-Info-Metrik: die **effektiv laufende** Konfiguration dieses
+ * Prozesses als Labels, Wert immer 1.
+ *
+ * Grund (Baseline B, Report §2): Der Report-Collector snapshottete die
+ * Konfiguration aus `process.env` des **Orchestrators** und wies deshalb
+ * `NODE_ENV=test` aus, obwohl API und Worker via `start:loadtest` mit
+ * `NODE_ENV=production` liefen — die dokumentierte Messkonfiguration war also
+ * irrefuehrend. Da der Collector `/metrics` ohnehin vor und nach dem Lauf
+ * abzieht, ist der Service selbst die verlaessliche Quelle.
+ */
+export const serviceConfigInfo = new Gauge({
+  name: "service_config_info",
+  help: "Effective runtime configuration of this service (labels carry the values, value is always 1)",
+  labelNames: [
+    "service",
+    "node_env",
+    "log_level",
+    "disable_request_logging",
+  ] as const,
+  registers: [apiRegistry],
+});
+
+serviceConfigInfo.set(
+  {
+    service: "api",
+    node_env: env.NODE_ENV,
+    log_level: env.LOG_LEVEL,
+    disable_request_logging: String(env.DISABLE_REQUEST_LOGGING),
+  },
+  1,
+);
 
 export const ordersAcceptedTotal = new Counter({
   name: "orders_accepted_total",

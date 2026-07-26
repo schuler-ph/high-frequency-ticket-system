@@ -18,6 +18,10 @@
     "DATABASE_POOL_MAX": "20",
     "LOAD_PROFILE": "capacity"
   },
+  "serviceConfig": {
+    "api": null,
+    "worker": null
+  },
   "capacity": {
     "totalCapacity": 1000,
     "opensAt": 0

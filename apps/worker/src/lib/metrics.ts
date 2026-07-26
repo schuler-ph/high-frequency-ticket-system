@@ -1,7 +1,48 @@
 import { pool } from "@repo/db";
+import { env } from "@repo/env";
 import { Counter, Gauge, Histogram, Registry } from "prom-client";
 
 export const workerRegistry = new Registry();
+
+/**
+ * Prometheus-Info-Metrik: die **effektiv laufende** Konfiguration dieses
+ * Prozesses als Labels, Wert immer 1. Enthaelt die Durchsatz-Knobs, weil genau
+ * die eine Kapazitaetsaussage qualifizieren (`PUBSUB_FLOW_CONTROL_MAX_MESSAGES`,
+ * `DATABASE_POOL_MAX`).
+ *
+ * Grund (Baseline B, Report §2): Der Collector snapshottete die Konfiguration
+ * aus `process.env` des **Orchestrators** und wies deshalb `NODE_ENV=test` aus,
+ * obwohl der Worker via `start:loadtest` mit `NODE_ENV=production` lief.
+ */
+export const serviceConfigInfo = new Gauge({
+  name: "service_config_info",
+  help: "Effective runtime configuration of this service (labels carry the values, value is always 1)",
+  labelNames: [
+    "service",
+    "node_env",
+    "log_level",
+    "disable_request_logging",
+    "pubsub_flow_control_max_messages",
+    "database_pool_max",
+    "worker_reconcile_mode",
+  ] as const,
+  registers: [workerRegistry],
+});
+
+serviceConfigInfo.set(
+  {
+    service: "worker",
+    node_env: env.NODE_ENV,
+    log_level: env.LOG_LEVEL,
+    disable_request_logging: String(env.DISABLE_REQUEST_LOGGING),
+    pubsub_flow_control_max_messages: String(
+      env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES,
+    ),
+    database_pool_max: String(env.DATABASE_POOL_MAX),
+    worker_reconcile_mode: env.WORKER_RECONCILE_MODE,
+  },
+  1,
+);
 
 export const ordersCompletedTotal = new Counter({
   name: "orders_completed_total",
