@@ -16,6 +16,10 @@ export interface AppOptions
   extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 // Pass --options via CLI arguments in command to enable these options.
 const options: AppOptions = {
+  // Unterdrueckt Fastifys automatisches `incoming request`/`request completed`
+  // pro Request — im Kapazitaetslauf (10k+ RPS) die versteckte Log-Last.
+  // Default `false`, eigene Warn/Error-Logs bleiben unberuehrt.
+  disableRequestLogging: env.DISABLE_REQUEST_LOGGING,
   logger: {
     level: env.LOG_LEVEL,
     // Format logs to map Pino's `level` to GCP's `severity` for correct Cloud Logging display

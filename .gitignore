@@ -33,6 +33,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Load-test run artifacts (raw evidence written by `pnpm spike:report`).
+# A selected, reviewed baseline report is copied into docs/reports/ by hand.
+artifacts/
+
 # Misc
 .DS_Store
 *.pem

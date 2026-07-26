@@ -2,11 +2,28 @@
 
 k6-Lasttests für das High-Frequency Ticket System.
 
-Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung fuer kuenftige Baselines ist in `docs/LOAD-TEST-REPORT-AUTOMATION.md` beschrieben. Der Leitfaden trennt Rohdaten, deterministische Analyse und Report-Rendering, damit Dashboard-Auswertungen nicht erneut manuell oder durch einen KI-Agenten rekonstruiert werden muessen.
+Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung fuer kuenftige Baselines ist in `docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md` beschrieben. Der Leitfaden trennt Rohdaten, deterministische Analyse und Report-Rendering, damit Dashboard-Auswertungen nicht erneut manuell oder durch einen KI-Agenten rekonstruiert werden muessen.
 
-## Erste Baseline
+Der **MVP dieser Pipeline ist umgesetzt** unter `scripts/load-test/` (siehe [`scripts/load-test/README.md`](../scripts/load-test/README.md)):
 
-Der erste lokale Spike-Lauf ist als [Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md) dokumentiert. Der Report enthaelt Messkonfiguration, Befund, Grenzen der Aussagekraft und einen einklappbaren Anhang mit den Grafana-Screenshots. Er belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
+```bash
+pnpm spike:report                 # kompletter Lauf: seed -> Last -> Drain -> Report (braucht Live-Stack)
+pnpm spike:analyze -- <run-dir>   # rein: Artefakte -> derived.json + report.md (keine Infra noetig)
+pnpm spike:compare -- <a> <b>     # zwei Laeufe vergleichen (verweigert inkompatible Kapazitaets-Claims)
+pnpm spike:report:test            # reine Unit-/Golden-Tests (laufen auch in CI)
+```
+
+Rohartefakte landen unter `artifacts/load-tests/<run-id>/` (gitignored); ein geprüfter Baseline-Report wird per Hand nach `docs/reports/` kopiert.
+
+## Baselines
+
+- **[Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md)** — erster lokaler Spike-Lauf. Messkonfiguration, Befund, Grenzen der Aussagekraft und ein einklappbarer Anhang mit den Grafana-Screenshots. Belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
+- **[Baseline B vom 2026-07-26](../docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach dem Reserve/Pay-Split (ADR-028) und der Hot-Row-Entfernung, und erster End-to-End-Lauf von `pnpm spike:report`. Belegt ebenfalls **keine** 50k RPS (67,66 % dropped iterations, `maxVUs`-Deckel erreicht, Generator co-lokalisiert), zeigt aber fachliche Korrektheit unter ~14 min Dauerlast: 867.575 persistierte Orders, 0 Nachrichtenverlust, exakte Inventar-Erhaltung, 0 Oversell, 0 Drift. E2E-Mittel 406 s → 7,52 s gegenueber Baseline A. Die `system=fail`- und Drain-Timeout-Signale des Laufs sind Defekte der Messkette (siehe Report §4) und als Todos erfasst.
+
+> Vor dem naechsten Kapazitaetslauf (Baseline C) zuerst den Abschnitt
+> „Backlog: Baseline-B-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten —
+> die dort gelisteten P0-Defekte machen sonst auch den naechsten Lauf nicht
+> auswertbar.
 
 ## Voraussetzungen
 
@@ -20,6 +37,27 @@ Lokale Docker-Container müssen laufen:
 docker compose ps
 # falls nicht: docker compose up -d
 ```
+
+## API/Worker fuer den Lasttest starten (gebauter Stand, nicht `pnpm dev`)
+
+Fuer einen belastbaren Kapazitaetslauf (Baseline B) duerfen API und Worker **nicht**
+im Dev-Modus laufen. `pnpm dev` startet `dev` via `tsc-watch --onSuccess`, das
+`fastify start` mit `-P` (pino-pretty — ein synchroner, den Event-Loop
+blockierender Log-Transform) faehrt und zusaetzlich einen TS-Compiler + FS-Watcher
+mitlaufen laesst, der lokal um dieselben Cores wie k6/Postgres/Redis/Prometheus
+konkurriert (ein FS-Event mitten im Lauf triggert sogar Rebuild + Restart).
+
+Stattdessen je Service den dedizierten `start:loadtest`-Task nutzen — kompiliert
+`dist/app.js`, startet `fastify start` **ohne** `-P` und mit
+`NODE_ENV=production`/`LOG_LEVEL=warn`/`-l warn`:
+
+```bash
+pnpm --filter api run start:loadtest      # API auf :10002
+pnpm --filter worker run start:loadtest   # Worker auf :10003
+```
+
+Die Dev-Tasks (`pnpm dev`) bleiben unveraendert und weiterhin die Wahl fuer die
+lokale Entwicklung.
 
 ## Ausführen
 
@@ -38,7 +76,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 1. `scripts/local/reset-seed.mjs` mit `SALE_OPENS_IN_SECONDS` (Default: `60`) ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
-3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, erst ab `completed > 0`), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. **Nicht** mehr `available`: das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen.
+3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
 
 Ohne Orchestrator lässt sich jede Phase auch einzeln fahren (z.B. zum Debuggen), dann aber ohne reaktiven Sold-Out-Stop:
@@ -132,4 +170,39 @@ Flag liest `.env` nicht.
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt      |
 | `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll          |
 | `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird           |
+| `K6_PROMETHEUS_RW`               | `false`                                | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)     |
 | `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                         |
+
+## k6-Remote-Write ist standardmaessig aus
+
+`pnpm spike` und `pnpm spike:report` starten k6 **ohne** `--out experimental-prometheus-rw`.
+Grund: der Report liest gar keine k6-Serien aus Prometheus — alle Queries in
+`load-tests/report-queries.json` gehen gegen `job="api"` bzw. `job="worker"`. Das
+Remote-Write diente nur dem Live-Blick in Grafana, trieb aber in Baseline B durch
+die `{endpoint,status}`-Tags pro Iteration `hts-prometheus` auf 5,5 GiB, bis es mit
+`503 Service Unavailable` antwortete — und nahm damit genau die Daten mit, die der
+Report braucht (`apiUp`/`workerUp` wurden `null`, beide Peak-Throughput-Queries
+unauswertbar).
+
+Fuer einen kleinen Debug-Lauf, bei dem man die k6-Metriken live in Grafana sehen
+will, explizit aktivieren:
+
+```bash
+K6_PROMETHEUS_RW=true pnpm spike
+```
+
+## Sold-Out vs. Stall
+
+Ein Plateau des Completion-Counters ist **kein** Beweis fuer einen Ausverkauf. Die
+Orchestrierung prueft daher zusaetzlich den Rest-Bestand:
+
+- `available == 0` → echter Ausverkauf (`stopReason: "sold-out"`)
+- `available > 0` → **Stall** (`stopReason: "stalled"`), z. B. durch
+  Host-Contention unter Generator-Saturation
+- Bestand nicht lesbar → bleibt `stalled`, nie ein behaupteter Ausverkauf
+
+Beide Faelle beenden die Sustain-Stage (die restliche Zeit misst nichts), aber der
+Grund landet in `k6/phase-a-meta.json` (`stopReason`, `availableAtStop`) und wird
+im Log als Warnung ausgegeben. Baseline B stoppte so bei 888 s von 990 s mit
+**89.359 noch verfuegbaren Tickets** — und beantwortete damit nicht, wie lange ein
+1M-Ausverkauf dauert.

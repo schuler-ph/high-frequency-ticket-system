@@ -36,11 +36,17 @@ const k6Env = {
  * (fuer Signal-Handling) als auch ein Promise auf den Exit-Code.
  */
 const spawnK6 = (scriptPath) => {
-  const child = spawn(
-    "k6",
-    ["run", "--out", "experimental-prometheus-rw", scriptPath],
-    { stdio: "inherit", env: k6Env },
-  );
+  // Prometheus-Remote-Write ist bewusst opt-in (`K6_PROMETHEUS_RW=true`): die
+  // `{endpoint,status}`-Tags pro Iteration trieben `hts-prometheus` in Baseline B
+  // auf 5,5 GiB, bis es mit `503` antwortete — und nahmen damit genau die
+  // Health-/Peak-Auswertung mit, die der Report braucht (Report §4.1).
+  const args = ["run"];
+  if (process.env.K6_PROMETHEUS_RW === "true") {
+    args.push("--out", "experimental-prometheus-rw");
+  }
+  args.push(scriptPath);
+
+  const child = spawn("k6", args, { stdio: "inherit", env: k6Env });
 
   const exitPromise = new Promise((resolve) => {
     child.on("exit", (code) => resolve(code ?? 0));
@@ -54,6 +60,23 @@ const spawnK6 = (scriptPath) => {
  * `event_id`-Labels, bzw. gefiltert auf EVENT_ID) aus dem Prometheus-`/metrics`-
  * Text. Liefert `null`, wenn der Counter (noch) nicht exponiert ist.
  */
+/**
+ * Liest den Rest-Bestand aus der Availability-Route, um ein Completion-Plateau
+ * von einem echten Ausverkauf zu unterscheiden. Liefert `null`, wenn der Wert
+ * nicht lesbar ist — dann bleibt das Plateau bewusst unklassifiziert, statt
+ * einen Ausverkauf zu behaupten, der nicht belegt ist.
+ */
+export const fetchAvailableCount = async () => {
+  try {
+    const res = await fetch(`${BASE_URL}/api/tickets/${EVENT_ID}/availability`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body?.available === "number" ? body.available : null;
+  } catch {
+    return null;
+  }
+};
+
 export const fetchCompletedCount = async () => {
   const res = await fetch(WORKER_METRICS_URL);
   if (!res.ok) return null;
@@ -122,9 +145,22 @@ export const pollUntilSoldOutOrExit = async (exitPromise) => {
       lastCompleted = completed;
 
       if (consecutiveStall >= SOLDOUT_CONFIRM_POLLS) {
-        console.log(
-          `[run-spike] Sold out detected — completed orders plateaued at ${completed} (baseline ${baseline}) — stopping the sustain stage gracefully.`,
-        );
+        // Ein Plateau allein ist KEIN Ausverkauf: unter Generator-Saturation
+        // genuegen drei Polls (~9 s) ohne neue Completion, obwohl noch Inventar
+        // da ist. Baseline B stoppte so bei 888 s von 990 s mit 89.359 noch
+        // verfuegbaren Tickets und beantwortete damit nie, wie lange ein
+        // 1M-Ausverkauf dauert (Report §4.5). Deshalb gegen den Rest-Bestand
+        // pruefen und den Grund benennen.
+        const available = await fetchAvailableCount();
+        if (available === 0) {
+          console.log(
+            `[run-spike] Sold out detected — completed orders plateaued at ${completed} (baseline ${baseline}) and available is 0 — stopping the sustain stage gracefully.`,
+          );
+        } else {
+          console.warn(
+            `[run-spike] STALL (not a sell-out) — completed orders plateaued at ${completed} (baseline ${baseline}) but ${available ?? "unknown"} tickets are still available. Stopping the sustain stage; do NOT read this run as a completed sale.`,
+          );
+        }
         return true;
       }
     } catch (error) {

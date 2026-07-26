@@ -55,7 +55,7 @@ function createDeps(
     compensateReservation,
     markOrderFailed: async (): Promise<FailedOrderUpdateResult> => "updated",
     isOrderProcessed: async () => false,
-    finalizeOrder: async () => undefined,
+    finalizeOrder: async () => true,
     ...overrides,
   };
 }
@@ -139,6 +139,7 @@ void test("outcome policy encodes the documented ACK/NACK table exactly", () => 
   assert.deepEqual(ackByKind, {
     completed: true,
     duplicate: true,
+    "duplicate-absorbed": true,
     "invalid-payload": false,
     "terminal-failed": true,
     "compensation-failed": false,
@@ -150,6 +151,7 @@ void test("applyBuyTicketOutcome ACKs exactly once for ack-outcomes and NACKs ot
   const outcomes: BuyTicketOutcome[] = [
     { kind: "completed", eventId: "e-1", queuedAt: Date.now() },
     { kind: "duplicate", eventId: "e-1" },
+    { kind: "duplicate-absorbed", eventId: "e-1" },
     { kind: "invalid-payload" },
     { kind: "terminal-failed", eventId: "e-1", queuedAt: Date.now() },
     { kind: "compensation-failed", eventId: "e-1" },
@@ -267,6 +269,7 @@ void test("handler returns completed outcome and finalizes atomically on success
     {
       finalizeOrder: async (_payload, entry) => {
         finalizedEntry = entry;
+        return true;
       },
     },
   );
@@ -287,6 +290,39 @@ void test("handler returns completed outcome and finalizes atomically on success
       ticketId,
     }),
   );
+});
+
+// Regression fuer die Baseline-B-Ueberzaehlung (Report §4.3): bei echter
+// Gleichzeitigkeit passieren zwei Auslieferungen derselben Nachricht den
+// `processed`-Marker, eine wird von `buy_ticket` per ON CONFLICT absorbiert.
+// Erkennbar ist das ausschliesslich am Ledger-Signal des Finalize-Scripts.
+void test("handler reports duplicate-absorbed when the ledger claim was already gone", async () => {
+  const message = createMessage(JSON.stringify(createValidPayload()));
+  const ticketId = "2c4fd22c-f5be-4bf7-bb45-5019d92666ab";
+  let finalizeCalls = 0;
+
+  const outcome = await handleBuyTicketMessage(
+    message,
+    createDeps(
+      async () => ticketId,
+      async () => "already-released",
+      {
+        // ZREM lieferte 0 -> eine andere Auslieferung war zuerst fertig.
+        finalizeOrder: async () => {
+          finalizeCalls += 1;
+          return false;
+        },
+      },
+    ),
+  );
+
+  assert.equal(finalizeCalls, 1, "finalize still runs (recovery side effects)");
+  assert.equal(outcome.kind, "duplicate-absorbed");
+  // Muss ACKen wie ein Duplikat — die Nachricht ist erledigt, nicht fehlerhaft.
+  assert.equal(buyTicketOutcomePolicy["duplicate-absorbed"].ack, true);
+  // Und darf NICHT als Verkauf zaehlen: sonst laufen orders_completed_total,
+  // die Grafana-Durchsatz-Panels und die Sold-Out-Erkennung zu hoch.
+  assert.notEqual(outcome.kind, "completed");
 });
 
 void test("handler returns duplicate outcome for already-processed messages", async () => {
@@ -350,6 +386,7 @@ void test("handler compensates reservation and returns terminal-failed outcome o
         },
         finalizeOrder: async (_payload, entry) => {
           finalizedEntry = entry;
+          return true;
         },
       },
     ),

@@ -24,6 +24,7 @@ type CompensationResult = "released" | "already-released";
 export type BuyTicketOutcome =
   | { kind: "completed"; eventId: string; queuedAt: number }
   | { kind: "duplicate"; eventId: string }
+  | { kind: "duplicate-absorbed"; eventId: string }
   | { kind: "invalid-payload" }
   | { kind: "terminal-failed"; eventId: string; queuedAt: number }
   | { kind: "compensation-failed"; eventId: string }
@@ -40,10 +41,17 @@ export type BuyTicketMessageHandlerDeps = {
     failureReason: string,
   ) => Promise<FailedOrderUpdateResult>;
   isOrderProcessed: (payload: BuyTicketPayload) => Promise<boolean>;
+  /**
+   * Schreibt den finalen Order-Zustand, den `processed`-Marker und entfernt den
+   * Ledger-Anspruch. Liefert `true`, wenn *diese* Nachricht die Order erstmalig
+   * finalisiert hat, und `false`, wenn der Ledger-Anspruch schon weg war — dann
+   * war es eine erneute Auslieferung, deren DB-Insert per `ON CONFLICT`
+   * absorbiert wurde (siehe `FINALIZE_ORDER_PROCESSING_SCRIPT`).
+   */
   finalizeOrder: (
     payload: BuyTicketPayload,
     entry: FinalOrderCacheEntry,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 };
 
 const getCauseCode = (error: unknown): string | undefined => {
@@ -115,12 +123,26 @@ export async function handleBuyTicketMessage(
     // ein reiner Persist-Consumer — er sieht die Order erst nach bestaetigter
     // Zahlung und persistiert sie so schnell wie moeglich.
     const ticketId = await deps.executeBuyTicket(parsed.data);
-    await deps.finalizeOrder(parsed.data, {
+    const firstFinalize = await deps.finalizeOrder(parsed.data, {
       orderId,
       eventId,
       status: "completed",
       ticketId,
     } satisfies CompletedOrderCacheEntry);
+
+    // Der Ledger-Anspruch war schon weg: eine parallele Auslieferung derselben
+    // Nachricht hat die Order bereits abgeschlossen, und `buy_ticket` hat diesen
+    // Insert per `ON CONFLICT` absorbiert (der `processed`-Marker greift bei
+    // echter Gleichzeitigkeit noch nicht). Fachlich korrekt — aber kein weiteres
+    // verkauftes Ticket, also darf es weder `orders_completed_total` noch das
+    // E2E-Histogramm erhoehen, sonst zaehlt der Durchsatz zu hoch.
+    if (!firstFinalize) {
+      deps.logger.info(
+        { messageId: message.id, eventId, orderId, ticketId },
+        "Absorbed duplicate BuyTicketEvent delivery (order already finalized)",
+      );
+      return { kind: "duplicate-absorbed", eventId };
+    }
 
     deps.logger.info(
       { messageId: message.id, eventId, orderId, ticketId },

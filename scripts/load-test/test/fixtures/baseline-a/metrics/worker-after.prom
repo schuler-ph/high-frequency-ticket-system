@@ -1,0 +1,14 @@
+# TYPE orders_completed_total counter
+orders_completed_total{event_id="00000000-0000-4000-8000-000000000000"} 1000
+orders_failed_total{event_id="00000000-0000-4000-8000-000000000000"} 0
+worker_redeliveries_total 0
+worker_idempotency_hits_total 0
+worker_compensations_total 0
+redis_db_drift_tickets{job="worker"} 0
+# TYPE order_e2e_latency_seconds histogram
+order_e2e_latency_seconds_bucket{le="1",status="completed"} 10
+order_e2e_latency_seconds_bucket{le="10",status="completed"} 50
+order_e2e_latency_seconds_bucket{le="30",status="completed"} 141
+order_e2e_latency_seconds_bucket{le="+Inf",status="completed"} 1000
+order_e2e_latency_seconds_count{status="completed"} 1000
+order_e2e_latency_seconds_sum{status="completed"} 406000

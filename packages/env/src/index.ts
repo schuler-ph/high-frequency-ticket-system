@@ -63,6 +63,18 @@ export const env = createEnv({
       .int()
       .positive()
       .default(60),
+    // Schaltet Fastifys automatisches Per-Request-Logging
+    // (`incoming request`/`request completed`) ab. Bei 10k+ RPS ist genau das
+    // — nicht die wenigen eigenen `log.info` — die versteckte Log-Last. Im
+    // Kapazitaetslauf zusammen mit `LOG_LEVEL=warn` gesetzt; Default `false`
+    // laesst Dev/Test-Verhalten unveraendert.
+    //
+    // Bewusst KEIN `z.coerce.boolean()`: das macht jeden nicht-leeren String
+    // (auch `"false"`) zu `true`. Stattdessen explizites Enum + Transform.
+    DISABLE_REQUEST_LOGGING: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
   },
 
   /**

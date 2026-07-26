@@ -3,6 +3,10 @@
   "private": true,
   "scripts": {
     "spike": "node --env-file-if-exists=.env scripts/local/run-spike.mjs",
+    "spike:report": "node --env-file-if-exists=.env scripts/load-test/run-and-report.mjs",
+    "spike:analyze": "node scripts/load-test/analyze-run.mjs",
+    "spike:compare": "node scripts/load-test/compare-runs.mjs",
+    "spike:report:test": "node --test \"scripts/load-test/test/**/*.test.mjs\"",
     "bench:hot-row": "node --env-file-if-exists=.env scripts/local/bench-hot-row.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
