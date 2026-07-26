@@ -21,33 +21,33 @@
   },
   "actionButtons": {
     "commands": [
-      {
-        "name": "$(check-all) Verify Quick",
-        "color": "#98C379",
-        "tooltip": "Run format check, guardrails, lint, typecheck and fast tests for the current workspace",
-        "cwd": "${workspaceFolder}",
-        "singleInstance": true,
-        "focus": true,
-        "saveAll": true,
-        "command": "pnpm run verify:quick"
-      },
-      {
-        "name": "$(beaker) Verify All",
-        "color": "#FF8C00",
-        "tooltip": "Run the full workspace verification including coverage tests and build",
-        "cwd": "${workspaceFolder}",
-        "singleInstance": true,
-        "focus": true,
-        "saveAll": true,
-        "command": "pnpm run verify:all"
-      },
-      {
-        "name": "$(tools) Run Task",
-        "color": "#3498DB",
-        "tooltip": "Open the VS Code Run Task picker",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask"
-      },
+      // {
+      //   "name": "$(check-all) Verify Quick",
+      //   "color": "#98C379",
+      //   "tooltip": "Run format check, guardrails, lint, typecheck and fast tests for the current workspace",
+      //   "cwd": "${workspaceFolder}",
+      //   "singleInstance": true,
+      //   "focus": true,
+      //   "saveAll": true,
+      //   "command": "pnpm run verify:quick"
+      // },
+      // {
+      //   "name": "$(beaker) Verify All",
+      //   "color": "#FF8C00",
+      //   "tooltip": "Run the full workspace verification including coverage tests and build",
+      //   "cwd": "${workspaceFolder}",
+      //   "singleInstance": true,
+      //   "focus": true,
+      //   "saveAll": true,
+      //   "command": "pnpm run verify:all"
+      // },
+      // {
+      //   "name": "$(tools) Run Task",
+      //   "color": "#3498DB",
+      //   "tooltip": "Open the VS Code Run Task picker",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask"
+      // },
       {
         "name": "$(browser) Dashboards",
         "color": "#C678DD",
@@ -55,17 +55,17 @@
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["spike:open-dashboards"]
-      },
-      {
-        "name": "$(git-merge) Merge hfts-dev1 → main",
-        "color": "#E06C75",
-        "tooltip": "Checkout main, pull latest, and merge hfts-dev1 locally (no push)",
-        "cwd": "${workspaceFolder}",
-        "singleInstance": true,
-        "focus": true,
-        "saveAll": true,
-        "command": "git checkout main && git pull && git merge hfts-dev1"
       }
+      // {
+      //   "name": "$(git-merge) Merge hfts-dev1 → main",
+      //   "color": "#E06C75",
+      //   "tooltip": "Checkout main, pull latest, and merge hfts-dev1 locally (no push)",
+      //   "cwd": "${workspaceFolder}",
+      //   "singleInstance": true,
+      //   "focus": true,
+      //   "saveAll": true,
+      //   "command": "git checkout main && git pull && git merge hfts-dev1"
+      // }
     ],
     "defaultColor": "white",
     "reloadButton": "↻",
