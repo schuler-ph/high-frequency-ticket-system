@@ -97,33 +97,33 @@
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:analyze"]
       },
-      {
-        "name": "$(database) DB Apply",
-        "color": "#D19A66",
-        "tooltip": "RUNBOOK §7: db:push gegen die Ziel-DB + Guardrails",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["db:schema apply"]
-      },
-      {
-        "name": "$(bug) Debug All",
-        "color": "#C678DD",
-        "tooltip": "RUNBOOK §8: Runtime-Env, Schema-Drift und buy_ticket-Contract prüfen",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["debug:all"]
-      },
-      {
-        // `workbench.action.quickOpen` nimmt zuverlaessig ein String-Argument;
-        // `markdown.showPreview` erwartet eine Uri und ist aus settings/tasks
-        // heraus nicht verlaesslich mit einem Pfad-String aufrufbar.
-        "name": "$(book) Runbook",
-        "color": "#ABB2BF",
-        "tooltip": "RUNBOOK.md öffnen (Enter im Quick-Open bestätigen)",
-        "useVsCodeApi": true,
-        "command": "workbench.action.quickOpen",
-        "args": ["RUNBOOK.md"]
-      }
+      // {
+      //   "name": "$(database) DB Apply",
+      //   "color": "#D19A66",
+      //   "tooltip": "RUNBOOK §7: db:push gegen die Ziel-DB + Guardrails",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["db:schema apply"]
+      // },
+      // {
+      //   "name": "$(bug) Debug All",
+      //   "color": "#C678DD",
+      //   "tooltip": "RUNBOOK §8: Runtime-Env, Schema-Drift und buy_ticket-Contract prüfen",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["debug:all"]
+      // },
+      // {
+      //   // `workbench.action.quickOpen` nimmt zuverlaessig ein String-Argument;
+      //   // `markdown.showPreview` erwartet eine Uri und ist aus settings/tasks
+      //   // heraus nicht verlaesslich mit einem Pfad-String aufrufbar.
+      //   "name": "$(book) Runbook",
+      //   "color": "#ABB2BF",
+      //   "tooltip": "RUNBOOK.md öffnen (Enter im Quick-Open bestätigen)",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.quickOpen",
+      //   "args": ["RUNBOOK.md"]
+      // }
       // {
       //   "name": "$(git-merge) Merge hfts-dev1 → main",
       //   "color": "#E06C75",
