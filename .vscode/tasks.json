@@ -103,16 +103,35 @@
     },
     {
       "label": "stack:wait-ready",
-      "detail": "Pollt /metrics von API und Worker per HTTP. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2).",
+      "detail": "Pollt /metrics von API und Worker per HTTP, mit Timeout. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2). Bei Timeout werden die Service-Logs ausgegeben statt endlos zu warten.",
       "type": "shell",
-      "command": "until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done; echo 'API (10002) + Worker (10003) sind bereit.'",
+      "command": "i=0; until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 240 ]; then echo \"TIMEOUT nach ${i}s — API und/oder Worker sind nicht bereit. Vollstaendige Logs: Task 'loadtest:logs'.\"; for f in .logs/api-loadtest.log .logs/worker-loadtest.log; do echo \"--- $f (letzte 25 Zeilen)\"; tail -25 \"$f\" 2>/dev/null || echo '  (kein Log)'; done; exit 1; fi; done; echo \"API (10002) + Worker (10003) bereit nach ${i}s.\"; if grep -qi 'subscription does not exist' .logs/worker-loadtest.log 2>/dev/null; then echo 'WARNUNG: Der Worker findet die Pub/Sub-Subscription nicht — er persistiert nichts. Ursache: seed lief nicht vor dem Worker (RUNBOOK §3, Falle 1).'; exit 1; fi",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []
     },
     {
-      "label": "loadtest:api",
-      "detail": "API auf gebautem Stand (:10002) — ohne pino-pretty, ohne tsc-watch.",
+      "label": "loadtest:services",
+      "detail": "Startet API (:10002) und Worker (:10003) auf gebautem Stand ABGEKOPPELT und kehrt sofort zurück, damit eine dependsOrder-Sequenz weiterlaufen kann. Logs: .logs/api-loadtest.log und .logs/worker-loadtest.log (Task 'loadtest:logs' zeigt sie live).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null; mkdir -p .logs; : > .logs/api-loadtest.log; : > .logs/worker-loadtest.log; ( nohup pnpm --filter api run start:loadtest >> .logs/api-loadtest.log 2>&1 & ); ( nohup pnpm --filter worker run start:loadtest >> .logs/worker-loadtest.log 2>&1 & ); echo 'API + Worker abgekoppelt gestartet (Build laeuft mit, erster Start dauert laenger). Logs: .logs/*-loadtest.log'",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:logs",
+      "detail": "Folgt den Logs der abgekoppelten Lasttest-Services (Strg+C beendet nur das Tail, nicht die Services).",
+      "type": "shell",
+      "command": "mkdir -p .logs; touch .logs/api-loadtest.log .logs/worker-loadtest.log; tail -n 50 -f .logs/api-loadtest.log .logs/worker-loadtest.log",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:api (blockierend)",
+      "detail": "NUR manuell: API im Vordergrund mit Live-Log im Terminal. Blockiert dauerhaft — NICHT in dependsOn-Sequenzen verwenden, sonst haengt die Sequenz (dafuer gibt es loadtest:services).",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter api run start:loadtest",
       "isBackground": true,
@@ -121,8 +140,8 @@
       "problemMatcher": []
     },
     {
-      "label": "loadtest:worker",
-      "detail": "Worker auf gebautem Stand (:10003) — ohne pino-pretty, ohne tsc-watch.",
+      "label": "loadtest:worker (blockierend)",
+      "detail": "NUR manuell: Worker im Vordergrund mit Live-Log im Terminal. Blockiert dauerhaft — NICHT in dependsOn-Sequenzen verwenden (dafuer gibt es loadtest:services).",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter worker run start:loadtest",
       "isBackground": true,
@@ -153,16 +172,16 @@
     },
     {
       "label": "loadtest:stack up",
-      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (gebauter Stand) → Readiness-Poll.",
+      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker abgekoppelt → Readiness-Poll. Die Services laufen via loadtest:services, weil ein blockierender Task die Sequenz anhalten wuerde.",
       "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "stack:seed", "loadtest:api", "loadtest:worker", "stack:wait-ready"],
+      "dependsOn": ["infra:up", "stack:seed", "loadtest:services", "stack:wait-ready"],
       "problemMatcher": []
     },
     {
       "label": "loadtest:stack down",
-      "detail": "RUNBOOK §3 — killt die Prozesse auf 10002/10003 nach PORT, nicht nach Prozessmuster: pkill trifft nur den pnpm-Wrapper, der node-Prozess hält den Port weiter (Falle 3).",
+      "detail": "RUNBOOK §3 — beendet ALLE Listener auf 10002/10003 nach PORT (pkill trifft nur den pnpm-Wrapper, der node-Prozess haelt den Port weiter), mit SIGKILL-Eskalation und Endkontrolle.",
       "type": "shell",
-      "command": "for p in 10002 10003; do PID=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null | head -1); if [ -n \"$PID\" ]; then kill \"$PID\" && echo \"gestoppt: PID $PID auf Port $p\"; else echo \"Port $p war frei\"; fi; done",
+      "command": "for p in 10002 10003; do for attempt in 1 2 3; do PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); [ -z \"$PIDS\" ] && break; echo \"Port $p: SIGTERM an $(echo $PIDS | tr '\\n' ' ')\"; kill $PIDS 2>/dev/null; sleep 2; done; PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"Port $p: SIGKILL an $(echo $PIDS | tr '\\n' ' ')\"; kill -9 $PIDS 2>/dev/null; sleep 1; fi; if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"Port $p ist NOCH belegt\"; else echo \"Port $p frei\"; fi; done",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []

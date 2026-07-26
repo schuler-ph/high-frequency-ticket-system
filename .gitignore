@@ -42,3 +42,5 @@ artifacts/
 *.pem
 
 chat.md
+# Logs der abgekoppelten Lasttest-Services (.vscode/tasks.json: loadtest:services)
+.logs/

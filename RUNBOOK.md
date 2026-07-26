@@ -76,27 +76,40 @@ flowchart TD
     B -->|nicht alle true| C["docker compose up -d"]
     B -->|alle true| D
     C --> D["<b>pnpm seed</b><br/><i>legt Topic + Subscription an</i>"]
-    D --> E["API: pnpm --filter api run start:loadtest"]
-    D --> F["Worker: pnpm --filter worker run start:loadtest"]
-    E --> G["<b>wait-ready</b><br/>until curl :10002/metrics<br/>&& curl :10003/metrics"]
-    F --> G
-    G --> H(["Stack bereit"])
-
-    D -.->|"Falle 1: Seed VOR dem Worker"| F
+    D --> E["<b>Services abgekoppelt starten</b><br/>nohup … &amp; → kehrt sofort zurück<br/><i>Logs nach .logs/*-loadtest.log</i>"]
+    E --> F["<b>wait-ready</b><br/>until curl :10002/metrics<br/>&amp;&amp; curl :10003/metrics<br/><i>Timeout 240s</i>"]
+    F --> G{bereit?}
+    G -->|ja| H(["Stack bereit"])
+    G -->|"Timeout"| I["Log-Auszug ausgeben<br/>Exit 1"]
+    G -->|"'subscription does not exist'<br/>im Worker-Log"| J["Warnung: Seed lief<br/>nicht vor dem Worker<br/>Exit 1"]
 
     style D fill:#4a7,color:#fff
-    style G fill:#e8a,color:#fff
+    style F fill:#e8a,color:#fff
+    style I fill:#c55,color:#fff
+    style J fill:#c55,color:#fff
 ```
 
 ```bash
 pnpm seed                                    # ZUERST — sonst scheitert der Worker
-pnpm --filter api run start:loadtest &       # :10002
-pnpm --filter worker run start:loadtest &    # :10003
+mkdir -p .logs
+( nohup pnpm --filter api    run start:loadtest >> .logs/api-loadtest.log    2>&1 & )
+( nohup pnpm --filter worker run start:loadtest >> .logs/worker-loadtest.log 2>&1 & )
 until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Task:** `loadtest:stack up` · **Button:** `LT Stack`
+**Task:** `loadtest:stack up` · **Button:** `LT Stack` · Logs live: Task `loadtest:logs`
+
+### Warum die Services abgekoppelt starten (Falle 4)
+
+Das ist keine Kosmetik, sondern Voraussetzung dafür, dass der Ablauf überhaupt durchläuft:
+
+- `dependsOrder: "sequence"` wartet, bis jeder Task **beendet** ist. Ein Server endet nie — die Sequenz bliebe beim ersten Service stehen, und Worker sowie Readiness-Check würden nie starten. Symptom: Port 10002 belegt, 10003 frei.
+- `isBackground: true` allein hilft **nicht**. Damit VS Code einen Hintergrund-Task als „fertig genug" ansieht, braucht es einen `problemMatcher` mit `background.endsPattern` — also eine Logzeile, die Bereitschaft signalisiert. Genau die gibt es hier nicht (Falle 2: `LOG_LEVEL=warn` unterdrückt sie).
+
+Deshalb startet `loadtest:services` beide Prozesse via `( nohup … & )`, kehrt sofort zurück und schreibt in `.logs/`. Verifiziert: der Launcher-Shell endet, die Prozesse laufen weiter und antworten. Preis: keine Live-Ausgabe im Task-Terminal — dafür gibt es `loadtest:logs` (`tail -f` über beide Logs), und die Logs sind persistent, was für Lasttests eher ein Vorteil ist.
+
+Wer ein Live-Terminal für **einen** Service will, nimmt `loadtest:api (blockierend)` bzw. `loadtest:worker (blockierend)` — die sind bewusst so benannt und dürfen in keiner Sequenz stehen.
 
 ### Drei Fallen, die hier real aufgetreten sind
 
@@ -114,22 +127,35 @@ flowchart LR
         C1["pkill auf<br/>pnpm-Wrapper"] --> C2["node-Prozess lebt weiter"]
         C2 --> C3["Port 10002/10003<br/>bleibt belegt"]
     end
+    subgraph P4["Falle 4 — Sequenz"]
+        D1["Server-Task in<br/>dependsOrder: sequence"] --> D2["Task endet nie"]
+        D2 --> D3["Sequenz bleibt stehen:<br/>10002 belegt, 10003 frei"]
+    end
 
     style A2 fill:#c55,color:#fff
     style B3 fill:#c55,color:#fff
     style C3 fill:#c55,color:#fff
+    style D3 fill:#c55,color:#fff
 ```
 
 1. **Seed vor dem Worker.** Der Pub/Sub-Emulator verliert Topic und Subscription beim Container-Neustart, und die Plugins sind seit #9/ADR-028 reine Runtime-Clients — der Worker scheitert hart mit `Subscription does not exist (resource=buy-ticket-worker)`. Reseed _im Betrieb_ ist inzwischen idempotent (Todo #242), die Boot-Reihenfolge bleibt trotzdem Pflicht.
 2. **Readiness per HTTP-Poll, nicht per Log-Pattern.** Ein `problemMatcher.background.endsPattern` auf „Server listening" greift nicht: die Zeile ist Info-Level und erscheint bei `LOG_LEVEL=warn` gar nicht.
-3. **Beim Aufräumen den Port killen, nicht das Prozessmuster.** `pkill` auf das pnpm-Wrapper-Pattern beendet nur den Wrapper; der `node`-Prozess hält den Port weiter.
+3. **Beim Aufräumen den Port killen, nicht das Prozessmuster.** `pkill` auf das pnpm-Wrapper-Pattern beendet nur den Wrapper; der `node`-Prozess hält den Port weiter. Und: **einmal killen genügt nicht** — es können mehrere Listener bzw. ein Wrapper mit Kind auf demselben Port hängen. Deshalb alle PIDs, mit Wiederholung, `SIGKILL`-Eskalation und Endkontrolle.
+4. **Kein blockierender Task in einer Sequenz** — siehe Abschnitt oben.
 
 ### Herunterfahren
 
 ```bash
 for p in 10002 10003; do
-  PID=$(lsof -nP -tiTCP:$p -sTCP:LISTEN | head -1)
-  [ -n "$PID" ] && kill "$PID"
+  for attempt in 1 2 3; do
+    PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null)
+    [ -z "$PIDS" ] && break
+    kill $PIDS 2>/dev/null; sleep 2
+  done
+  PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null)
+  [ -n "$PIDS" ] && kill -9 $PIDS 2>/dev/null      # Eskalation
+  lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1 \
+    && echo "Port $p NOCH belegt" || echo "Port $p frei"
 done
 ```
 
