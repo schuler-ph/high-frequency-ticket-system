@@ -25,7 +25,7 @@
     "debug:db:ticket-order-fk": "pnpm --filter @repo/db run debug:ticket-order-fk",
     "debug:db:buy-ticket-function": "pnpm --filter @repo/db run debug:buy-ticket-function",
     "debug:docs": "node scripts/debug/check-docs.mjs",
-    "debug:all": "pnpm run debug:runtime && pnpm run debug:migrations && pnpm run debug:buy-ticket-contract",
+    "debug:all": "pnpm run debug:runtime && pnpm run debug:migrations && pnpm run debug:buy-ticket-contract && pnpm run debug:docs",
     "verify:quick": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test",
     "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && pnpm run build",
     "prepare": "husky"
