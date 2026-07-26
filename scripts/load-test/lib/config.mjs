@@ -105,4 +105,47 @@ export const preflight = (opts = {}) => {
   return { ok: problems.length === 0, problems };
 };
 
+/**
+ * Second preflight stage: are the services under test actually reachable?
+ *
+ * Containers running is not enough — API and worker are host processes started
+ * separately (`start:loadtest`). Without this check the orchestrator seeded
+ * first and only then discovered the services were down, aborting with a bare
+ * `fetch failed` *after* it had already truncated the database and wiped the
+ * Prometheus TSDB. That contradicts the promise of step 1 ("fail before
+ * mutating any state"), so reachability is verified up front and reported with
+ * the command needed to fix it.
+ *
+ * Kept separate from `preflight()` so that stays synchronous and dependency-free.
+ *
+ * @param {Array<{ name: string, url: string, hint?: string }>} endpoints
+ * @param {{ timeoutMs?: number, fetchImpl?: typeof fetch }} [opts]
+ * @returns {Promise<{ ok: boolean, problems: string[] }>}
+ */
+export const checkEndpoints = async (endpoints, opts = {}) => {
+  const timeoutMs = opts.timeoutMs ?? 3000;
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const problems = [];
+
+  for (const { name, url, hint } of endpoints) {
+    try {
+      const res = await fetchImpl(url, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) {
+        problems.push(
+          `${name} answered ${res.status} at ${url}${hint ? ` — ${hint}` : ""}`,
+        );
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      problems.push(
+        `${name} unreachable at ${url} (${reason})${hint ? ` — ${hint}` : ""}`,
+      );
+    }
+  }
+
+  return { ok: problems.length === 0, problems };
+};
+
 export { REPO_ROOT };

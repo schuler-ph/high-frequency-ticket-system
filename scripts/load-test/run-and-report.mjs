@@ -22,6 +22,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  checkEndpoints,
   loadPolicy,
   getGitInfo,
   getHostInfo,
@@ -79,11 +80,34 @@ const fetchCounters = async () => {
 const main = async () => {
   const policy = loadPolicy();
 
-  // 1. Preflight — fail before mutating any state.
+  // 1. Preflight — fail before mutating any state. Tools + containers first,
+  // then the services under test: they are host processes, so running containers
+  // say nothing about them. Both gates run BEFORE the seed, because the seed
+  // truncates the database and wipes the Prometheus TSDB.
   const pf = preflight();
   if (!pf.ok) {
     console.error("[spike:report] Preflight failed:");
     for (const problem of pf.problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
+
+  const reachable = await checkEndpoints([
+    {
+      name: "API",
+      url: API_METRICS,
+      hint: "start it with `pnpm --filter api run start:loadtest` (VS Code: Task 'loadtest:stack up')",
+    },
+    {
+      name: "Worker",
+      url: WORKER_METRICS,
+      hint: "start it with `pnpm --filter worker run start:loadtest` (VS Code: Task 'loadtest:stack up')",
+    },
+  ]);
+  if (!reachable.ok) {
+    console.error(
+      "[spike:report] Preflight failed — the services under test are not ready. Nothing was seeded or reset:",
+    );
+    for (const problem of reachable.problems) console.error(`  - ${problem}`);
     process.exit(1);
   }
 

@@ -103,35 +103,16 @@
     },
     {
       "label": "stack:wait-ready",
-      "detail": "Pollt /metrics von API und Worker per HTTP, mit Timeout. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2). Bei Timeout werden die Service-Logs ausgegeben statt endlos zu warten.",
+      "detail": "Pollt /metrics von API und Worker per HTTP, mit Timeout. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2). Bei Timeout Abbruch mit Hinweis statt endlosem Warten.",
       "type": "shell",
-      "command": "i=0; until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 240 ]; then echo \"TIMEOUT nach ${i}s — API und/oder Worker sind nicht bereit. Vollstaendige Logs: Task 'loadtest:logs'.\"; for f in .logs/api-loadtest.log .logs/worker-loadtest.log; do echo \"--- $f (letzte 25 Zeilen)\"; tail -25 \"$f\" 2>/dev/null || echo '  (kein Log)'; done; exit 1; fi; done; echo \"API (10002) + Worker (10003) bereit nach ${i}s.\"; if grep -qi 'subscription does not exist' .logs/worker-loadtest.log 2>/dev/null; then echo 'WARNUNG: Der Worker findet die Pub/Sub-Subscription nicht — er persistiert nichts. Ursache: seed lief nicht vor dem Worker (RUNBOOK §3, Falle 1).'; exit 1; fi",
+      "command": "i=0; until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 240 ]; then echo \"TIMEOUT nach ${i}s: API (10002) und/oder Worker (10003) antworten nicht.\"; for p in 10002 10003; do if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"  Port $p: Listener vorhanden\"; else echo \"  Port $p: KEIN Listener — Service laeuft nicht\"; fi; done; echo \"Ursache im jeweiligen Service-Terminal nachsehen (Tasks loadtest:api / loadtest:worker). Haeufigster Fall: das Terminal wurde geschlossen, dann beendet VS Code den Prozess.\"; exit 1; fi; done; echo \"API (10002) + Worker (10003) bereit nach ${i}s.\"",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []
     },
     {
-      "label": "loadtest:services",
-      "detail": "Startet API (:10002) und Worker (:10003) auf gebautem Stand ABGEKOPPELT und kehrt sofort zurück, damit eine dependsOrder-Sequenz weiterlaufen kann. Logs: .logs/api-loadtest.log und .logs/worker-loadtest.log (Task 'loadtest:logs' zeigt sie live).",
-      "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null; mkdir -p .logs; : > .logs/api-loadtest.log; : > .logs/worker-loadtest.log; ( nohup pnpm --filter api run start:loadtest >> .logs/api-loadtest.log 2>&1 & ); ( nohup pnpm --filter worker run start:loadtest >> .logs/worker-loadtest.log 2>&1 & ); echo 'API + Worker abgekoppelt gestartet (Build laeuft mit, erster Start dauert laenger). Logs: .logs/*-loadtest.log'",
-      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:logs",
-      "detail": "Folgt den Logs der abgekoppelten Lasttest-Services (Strg+C beendet nur das Tail, nicht die Services).",
-      "type": "shell",
-      "command": "mkdir -p .logs; touch .logs/api-loadtest.log .logs/worker-loadtest.log; tail -n 50 -f .logs/api-loadtest.log .logs/worker-loadtest.log",
-      "isBackground": true,
-      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:api (blockierend)",
-      "detail": "NUR manuell: API im Vordergrund mit Live-Log im Terminal. Blockiert dauerhaft — NICHT in dependsOn-Sequenzen verwenden, sonst haengt die Sequenz (dafuer gibt es loadtest:services).",
+      "label": "loadtest:api",
+      "detail": "API auf gebautem Stand (:10002), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben, sonst beendet VS Code den Prozess.",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter api run start:loadtest",
       "isBackground": true,
@@ -140,13 +121,20 @@
       "problemMatcher": []
     },
     {
-      "label": "loadtest:worker (blockierend)",
-      "detail": "NUR manuell: Worker im Vordergrund mit Live-Log im Terminal. Blockiert dauerhaft — NICHT in dependsOn-Sequenzen verwenden (dafuer gibt es loadtest:services).",
+      "label": "loadtest:worker",
+      "detail": "Worker auf gebautem Stand (:10003), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben.",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter worker run start:loadtest",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:services",
+      "detail": "Startet API und Worker parallel, jeweils im eigenen Terminal. Laeuft absichtlich dauerhaft (Server enden nie) und steht deshalb als LETZTER Schritt einer Sequenz.",
+      "dependsOrder": "parallel",
+      "dependsOn": ["loadtest:api", "loadtest:worker"],
       "problemMatcher": []
     },
     {
@@ -172,9 +160,9 @@
     },
     {
       "label": "loadtest:stack up",
-      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker abgekoppelt → Readiness-Poll. Die Services laufen via loadtest:services, weil ein blockierender Task die Sequenz anhalten wuerde.",
+      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' (Button 'LT Ready') — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "stack:seed", "loadtest:services", "stack:wait-ready"],
+      "dependsOn": ["infra:up", "stack:seed", "loadtest:services"],
       "problemMatcher": []
     },
     {
@@ -187,12 +175,19 @@
       "problemMatcher": []
     },
     {
-      "label": "loadtest:run+report",
-      "detail": "RUNBOOK §4 — voller Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Braucht einen bereiten Stack (loadtest:stack up). Laufzeit: viele Minuten.",
+      "label": "loadtest:report",
+      "detail": "Nur der Lauf selbst (setzt einen bereiten Stack voraus). Normalerweise ueber 'loadtest:run+report' aufrufen, das vorher die Bereitschaft prueft.",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike:report",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:run+report",
+      "detail": "RUNBOOK §4 — prueft zuerst die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["stack:wait-ready", "loadtest:report"],
       "problemMatcher": []
     },
     {

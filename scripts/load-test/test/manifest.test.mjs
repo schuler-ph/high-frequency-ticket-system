@@ -6,6 +6,7 @@ import {
   buildManifest,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/manifest.mjs";
+import { checkEndpoints } from "../lib/config.mjs";
 
 test("redactConfig keeps only allowlisted, non-empty settings", () => {
   const out = redactConfig({
@@ -48,4 +49,44 @@ test("buildManifest passes through provided git / capacity", () => {
   });
   assert.equal(m.git.commit, "deadbeef");
   assert.equal(m.capacity.totalCapacity, 1000000);
+});
+
+// --- Preflight-Stufe 2: Erreichbarkeit der Services ------------------------
+// Regression: `spike:report` setzte erst die DB zurueck und scheiterte dann mit
+// einem nackten `fetch failed`, weil laufende Container nichts darueber sagen,
+// ob die Host-Prozesse API/Worker laufen.
+
+test("checkEndpoints reports every unreachable service with its fix hint", async () => {
+  const result = await checkEndpoints(
+    [
+      { name: "API", url: "http://localhost:1/metrics", hint: "start it" },
+      { name: "Worker", url: "http://localhost:2/metrics" },
+    ],
+    { fetchImpl: async () => { throw new Error("connect ECONNREFUSED"); } },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 2);
+  assert.match(result.problems[0], /API unreachable/);
+  assert.match(result.problems[0], /start it/);
+  assert.match(result.problems[1], /Worker unreachable/);
+});
+
+test("checkEndpoints treats a non-2xx answer as a problem", async () => {
+  const result = await checkEndpoints([{ name: "API", url: "http://x/metrics" }], {
+    fetchImpl: async () => ({ ok: false, status: 503 }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.problems[0], /answered 503/);
+});
+
+test("checkEndpoints passes when every service answers", async () => {
+  const result = await checkEndpoints(
+    [
+      { name: "API", url: "http://x/metrics" },
+      { name: "Worker", url: "http://y/metrics" },
+    ],
+    { fetchImpl: async () => ({ ok: true, status: 200 }) },
+  );
+  assert.deepEqual(result, { ok: true, problems: [] });
 });

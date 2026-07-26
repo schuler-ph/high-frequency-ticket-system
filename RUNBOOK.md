@@ -76,42 +76,45 @@ flowchart TD
     B -->|nicht alle true| C["docker compose up -d"]
     B -->|alle true| D
     C --> D["<b>pnpm seed</b><br/><i>legt Topic + Subscription an</i>"]
-    D --> E["<b>Services abgekoppelt starten</b><br/>nohup … &amp; → kehrt sofort zurück<br/><i>Logs nach .logs/*-loadtest.log</i>"]
-    E --> F["<b>wait-ready</b><br/>until curl :10002/metrics<br/>&amp;&amp; curl :10003/metrics<br/><i>Timeout 240s</i>"]
-    F --> G{bereit?}
-    G -->|ja| H(["Stack bereit"])
-    G -->|"Timeout"| I["Log-Auszug ausgeben<br/>Exit 1"]
-    G -->|"'subscription does not exist'<br/>im Worker-Log"| J["Warnung: Seed lief<br/>nicht vor dem Worker<br/>Exit 1"]
+    D --> E["API + Worker parallel starten<br/><i>je eigenes Terminal, laufen dauerhaft</i>"]
+    E --> F(["Stack läuft<br/><i>Terminals offen lassen!</i>"])
+
+    F --> G["<b>LT Ready</b> / stack:wait-ready<br/>curl :10002 + :10003<br/><i>Timeout 240s</i>"]
+    G --> H{bereit?}
+    H -->|ja| I(["bereit für §4"])
+    H -->|nein| J["nennt den Port ohne Listener<br/>Exit 1"]
 
     style D fill:#4a7,color:#fff
-    style F fill:#e8a,color:#fff
-    style I fill:#c55,color:#fff
+    style G fill:#e8a,color:#fff
     style J fill:#c55,color:#fff
 ```
 
 ```bash
-pnpm seed                                    # ZUERST — sonst scheitert der Worker
-mkdir -p .logs
-( nohup pnpm --filter api    run start:loadtest >> .logs/api-loadtest.log    2>&1 & )
-( nohup pnpm --filter worker run start:loadtest >> .logs/worker-loadtest.log 2>&1 & )
+pnpm seed                                   # ZUERST — sonst scheitert der Worker
+pnpm --filter api    run start:loadtest     # :10002 — eigenes Terminal, offen lassen
+pnpm --filter worker run start:loadtest     # :10003 — eigenes Terminal, offen lassen
+
+# in einem dritten Terminal:
 until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Task:** `loadtest:stack up` · **Button:** `LT Stack` · Logs live: Task `loadtest:logs`
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Buttons:** `LT Stack`, `LT Ready`
 
-### Warum die Services abgekoppelt starten (Falle 4)
+### Warum der Readiness-Check ein eigener Schritt ist (Falle 4)
 
-Das ist keine Kosmetik, sondern Voraussetzung dafür, dass der Ablauf überhaupt durchläuft:
+Die Services **besitzen ihre Terminals** und laufen dauerhaft. Daraus folgt zweierlei:
 
-- `dependsOrder: "sequence"` wartet, bis jeder Task **beendet** ist. Ein Server endet nie — die Sequenz bliebe beim ersten Service stehen, und Worker sowie Readiness-Check würden nie starten. Symptom: Port 10002 belegt, 10003 frei.
-- `isBackground: true` allein hilft **nicht**. Damit VS Code einen Hintergrund-Task als „fertig genug" ansieht, braucht es einen `problemMatcher` mit `background.endsPattern` — also eine Logzeile, die Bereitschaft signalisiert. Genau die gibt es hier nicht (Falle 2: `LOG_LEVEL=warn` unterdrückt sie).
+- `dependsOrder: "sequence"` wartet, bis jeder Task **beendet** ist. Ein Server endet nie, also darf er nur der **letzte** Schritt einer Sequenz sein — sonst startet nichts danach mehr. Symptom eines solchen Fehlers: Port 10002 belegt, 10003 frei.
+- `isBackground: true` ändert das **nicht**. VS Code hält einen Hintergrund-Task erst dann für „fertig genug", wenn ein `problemMatcher` mit `background.endsPattern` eine Bereitschafts-Zeile erkennt — und genau die gibt es hier nicht (Falle 2: `LOG_LEVEL=warn` unterdrückt sie).
 
-Deshalb startet `loadtest:services` beide Prozesse via `( nohup … & )`, kehrt sofort zurück und schreibt in `.logs/`. Verifiziert: der Launcher-Shell endet, die Prozesse laufen weiter und antworten. Preis: keine Live-Ausgabe im Task-Terminal — dafür gibt es `loadtest:logs` (`tail -f` über beide Logs), und die Logs sind persistent, was für Lasttests eher ein Vorteil ist.
+Deshalb endet `loadtest:stack up` mit den Services, und die Bereitschaft prüft ein separater Schritt. `loadtest:run+report` hat ihn als ersten Schritt eingebaut — ein Klick auf `Spike Report` scheitert damit sofort und verständlich, statt erst die Datenbank zurückzusetzen (§4).
 
-Wer ein Live-Terminal für **einen** Service will, nimmt `loadtest:api (blockierend)` bzw. `loadtest:worker (blockierend)` — die sind bewusst so benannt und dürfen in keiner Sequenz stehen.
+> **Nicht per `nohup` abkoppeln.** Naheliegend wäre, die Services via `( nohup … & )` zu starten, damit die Sequenz weiterläuft. Das funktioniert hier **nicht**: VS Code beendet beim Wiederverwenden des Terminals die **Prozessgruppe** des Task-Shells, und `nohup` schützt nur gegen `SIGHUP`, nicht gegen ein `kill` an die Gruppe. Beobachtet: beide Logdateien blieben 0 Byte — die Prozesse starben, bevor sie das erste pnpm-Banner schreiben konnten.
 
-### Drei Fallen, die hier real aufgetreten sind
+Wer nur **einen** Service braucht, startet `loadtest:api` bzw. `loadtest:worker` direkt.
+
+### Vier Fallen, die hier real aufgetreten sind
 
 ```mermaid
 flowchart LR
@@ -174,8 +177,10 @@ flowchart TD
     B -->|nur Last| C["pnpm spike"]
     B -->|Belege + Report| D["pnpm spike:report"]
 
-    D --> D1["Preflight<br/><i>bricht ab, bevor State mutiert</i>"]
-    D1 --> D2["reset-seed"]
+    D --> D0["<b>Preflight</b><br/>Tools + Container,<br/>dann API/Worker erreichbar?"]
+    D0 -->|"nicht erreichbar"| DX["Exit 1 mit Startbefehl —<br/><b>nichts</b> zurückgesetzt"]
+    D0 -->|ok| D1["<i>ab hier wird State mutiert</i>"]
+    D1 --> D2["reset-seed<br/><i>TRUNCATE + Prometheus-TSDB-Wipe</i>"]
     D2 --> D3["Snapshots VORHER<br/>/metrics, DB, Redis"]
     D3 --> D4["Phase A<br/>1k → 10k RPS<br/><i>Stop bei Plateau</i>"]
     D4 --> D5["Phase B<br/>1k RPS Cool-Down"]
@@ -193,7 +198,10 @@ flowchart TD
 
     style D fill:#4a7,color:#fff
     style H fill:#c55,color:#fff
+    style DX fill:#c55,color:#fff
 ```
+
+> **`reset-seed` ist destruktiv:** es macht `TRUNCATE`, setzt die Redis-Counter zurück und löscht die Prometheus-TSDB. Deshalb prüft der Preflight **vorher**, ob API und Worker antworten — laufende Container beweisen das nicht, denn beide sind Host-Prozesse. Ohne diese Prüfung setzte ein Lauf gegen einen nicht laufenden Stack erst alles zurück und brach dann mit einem nackten `fetch failed` ab.
 
 ```bash
 pnpm spike                    # nur Last (kein Report)
@@ -207,7 +215,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 > **k6-Remote-Write ist standardmäßig aus.** Der Report liest keine k6-Serien aus Prometheus — alle Queries gehen gegen `job="api"`/`job="worker"`. Das Remote-Write diente nur dem Live-Blick, trieb Prometheus aber auf 5,5 GiB bis zum `503` und nahm dabei genau die Daten mit, die der Report braucht.
 
-**Task:** `loadtest:run+report` · **Button:** `Spike Report`
+**Task:** `loadtest:run+report` (prüft zuerst die Bereitschaft) · **Button:** `Spike Report`
 
 ---
 
