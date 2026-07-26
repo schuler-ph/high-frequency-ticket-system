@@ -110,7 +110,7 @@ test("drift follows the ADR-023 identity", () => {
 
 test("evaluateInvariants passes when every source converges", () => {
   const inv = evaluateInvariants({
-    accepted: 100,
+    published: 100,
     completed: 90,
     failed: 10,
     dbOrders: 100,
@@ -122,26 +122,45 @@ test("evaluateInvariants passes when every source converges", () => {
 
 test("evaluateInvariants marks unevaluable checks null, not failed", () => {
   const inv = evaluateInvariants({
-    accepted: null,
+    published: null,
     completed: 90,
     failed: 10,
     dbOrders: 100,
     dbTickets: 90,
     pendingOrders: 0,
   });
-  const acceptedCheck = inv.find((i) => i.id.startsWith("accepted"));
-  assert.equal(acceptedCheck.ok, null);
+  const publishedCheck = inv.find((i) => i.id.startsWith("published"));
+  assert.equal(publishedCheck.ok, null);
 });
 
 test("evaluateInvariants fails a violated check", () => {
   const inv = evaluateInvariants({
-    accepted: 100,
+    published: 100,
     completed: 80,
     failed: 10,
     dbOrders: 100,
     dbTickets: 80,
     pendingOrders: 0,
   });
-  const acceptedCheck = inv.find((i) => i.id.startsWith("accepted"));
-  assert.equal(acceptedCheck.ok, false); // 100 != 90
+  const publishedCheck = inv.find((i) => i.id.startsWith("published"));
+  assert.equal(publishedCheck.ok, false); // 100 != 90
+});
+
+// Regression for the Baseline-B misreading (report §4.4): reservations that are
+// cancelled or abandoned are never published, so holding the worker to the
+// RESERVE count invents a permanent shortfall. Here 100 reserved / 88 published
+// / 88 persisted is a fully drained, correct system.
+test("evaluateInvariants ignores unpublished reservations (abandonment profile)", () => {
+  const inv = evaluateInvariants({
+    published: 88,
+    completed: 88,
+    failed: 0,
+    dbOrders: 88,
+    dbTickets: 88,
+    pendingOrders: 0,
+  });
+  assert.ok(
+    inv.every((i) => i.ok === true),
+    "a correct run with 12% abandonment must not fail any invariant",
+  );
 });

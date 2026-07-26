@@ -77,6 +77,7 @@ export const summarisePhase = (summary, meta, name) => {
 const COUNTER_QUERIES = {
   ordersAccepted: { metric: "orders_accepted_total", source: "api" },
   reservationsCreated: { metric: "reservations_created_total", source: "api" },
+  paymentsConfirmed: { metric: "payments_confirmed_total", source: "api" },
   publishRollbacks: { metric: "publish_rollbacks_total", source: "api" },
   checkoutsCancelled: { metric: "checkouts_cancelled_total", source: "api" },
   ordersCompleted: { metric: "orders_completed_total", source: "worker" },
@@ -90,6 +91,33 @@ const COUNTER_QUERIES = {
     metric: "worker_compensations_total",
     source: "worker",
   },
+};
+
+/**
+ * Resolve one counter sample, applying the `zero-if-target-up` absence policy
+ * declared for every counter in `load-tests/report-queries.json`.
+ *
+ * `prom-client` only exposes a *labelled* counter after its first increment, so
+ * a freshly booted service legitimately has no `orders_failed_total` line at
+ * all. Treating that absence as "unknown" made `hasCounterBaselines` false and
+ * auto-invalidated the whole benchmark — Baseline B was reported `invalid`
+ * partly for that reason alone, independent of load-generator saturation
+ * (docs/reports/baseline-b-2026-07-26, report §4.2).
+ *
+ * The distinction that makes absence safe to read as zero: the orchestrator
+ * throws if a `/metrics` scrape fails, so a snapshot that contains *any* sample
+ * was captured from a live target. Absent counter in a captured snapshot ⇒
+ * genuinely zero. An empty snapshot ⇒ still `null` (unknown), so a missing or
+ * unreachable target is never silently reported as zero activity.
+ *
+ * @param {Array<{ name: string, labels: Record<string,string>, value: number }>} samples
+ * @param {string} metric
+ * @returns {number | null}
+ */
+const resolveCounter = (samples, metric) => {
+  const value = sumSamples(samples, metric);
+  if (value !== null && value !== undefined) return value;
+  return samples.length > 0 ? 0 : null;
 };
 
 /**
@@ -172,11 +200,11 @@ export const deriveReport = (input) => {
   let anyCounterReset = false;
   let allCountersHaveBaseline = phases.length > 0;
   for (const [key, { metric, source }] of Object.entries(COUNTER_QUERIES)) {
-    const before = sumSamples(
+    const before = resolveCounter(
       source === "api" ? samples.apiBefore : samples.workerBefore,
       metric,
     );
-    const after = sumSamples(
+    const after = resolveCounter(
       source === "api" ? samples.apiAfter : samples.workerAfter,
       metric,
     );
@@ -230,8 +258,21 @@ export const deriveReport = (input) => {
   const driftMin = drain?.driftMin ?? driftFinal;
 
   // --- Invariants ---
+  // Which counter represents "published" depends on the architecture that
+  // produced the run. Post-ADR-028 the pay route publishes, so
+  // `payments_confirmed_total` is authoritative. A pre-split run (Baseline A)
+  // published inside `/buy` and never exposed that metric at all — there,
+  // `orders_accepted_total` IS the publish count. Absence is distinguished from
+  // a real zero via the raw samples, because `resolveCounter` has already
+  // collapsed a missing series to 0 for delta purposes.
+  const payRouteInstrumented =
+    sumSamples(samples.apiAfter, "payments_confirmed_total") !== null;
+  const published = payRouteInstrumented
+    ? counters.paymentsConfirmed.value
+    : counters.ordersAccepted.value;
+
   const invariants = evaluateInvariants({
-    accepted: counters.ordersAccepted.value,
+    published,
     completed: counters.ordersCompleted.value,
     failed: counters.ordersFailed.value,
     dbOrders: stateAfter?.postgres?.orders ?? null,

@@ -88,6 +88,13 @@
       "reset": false,
       "hasBaseline": true
     },
+    "paymentsConfirmed": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
     "publishRollbacks": {
       "before": 0,
       "after": 0,
@@ -191,7 +198,7 @@
   },
   "invariants": [
     {
-      "id": "accepted == completed + failed",
+      "id": "published == completed + failed",
       "ok": true,
       "expected": 1000,
       "actual": 1000

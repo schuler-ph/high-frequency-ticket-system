@@ -27,6 +27,13 @@
       "source": "api"
     },
     {
+      "id": "paymentsConfirmed",
+      "promql": "sum(payments_confirmed_total{job=\"api\"})",
+      "absence": "zero-if-target-up",
+      "source": "api",
+      "note": "Messages actually published to Pub/Sub (ADR-028: /pay publishes, /buy only reserves). This — not ordersAccepted — is the drain numerator and the 'published' operand of the correctness invariants."
+    },
+    {
       "id": "publishRollbacks",
       "promql": "sum(publish_rollbacks_total{job=\"api\"})",
       "absence": "zero-if-target-up",

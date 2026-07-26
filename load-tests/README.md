@@ -15,9 +15,15 @@ pnpm spike:report:test            # reine Unit-/Golden-Tests (laufen auch in CI)
 
 Rohartefakte landen unter `artifacts/load-tests/<run-id>/` (gitignored); ein geprüfter Baseline-Report wird per Hand nach `docs/reports/` kopiert.
 
-## Erste Baseline
+## Baselines
 
-Der erste lokale Spike-Lauf ist als [Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md) dokumentiert. Der Report enthaelt Messkonfiguration, Befund, Grenzen der Aussagekraft und einen einklappbaren Anhang mit den Grafana-Screenshots. Er belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
+- **[Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md)** — erster lokaler Spike-Lauf. Messkonfiguration, Befund, Grenzen der Aussagekraft und ein einklappbarer Anhang mit den Grafana-Screenshots. Belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
+- **[Baseline B vom 2026-07-26](../docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach dem Reserve/Pay-Split (ADR-028) und der Hot-Row-Entfernung, und erster End-to-End-Lauf von `pnpm spike:report`. Belegt ebenfalls **keine** 50k RPS (67,66 % dropped iterations, `maxVUs`-Deckel erreicht, Generator co-lokalisiert), zeigt aber fachliche Korrektheit unter ~14 min Dauerlast: 867.575 persistierte Orders, 0 Nachrichtenverlust, exakte Inventar-Erhaltung, 0 Oversell, 0 Drift. E2E-Mittel 406 s → 7,52 s gegenueber Baseline A. Die `system=fail`- und Drain-Timeout-Signale des Laufs sind Defekte der Messkette (siehe Report §4) und als Todos erfasst.
+
+> Vor dem naechsten Kapazitaetslauf (Baseline C) zuerst den Abschnitt
+> „Backlog: Baseline-B-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten —
+> die dort gelisteten P0-Defekte machen sonst auch den naechsten Lauf nicht
+> auswertbar.
 
 ## Voraussetzungen
 

@@ -35,6 +35,7 @@
 | ordersAccepted | 0 | 1 000 | 1 000 |
 | ordersCompleted | 0 | 1 000 | 1 000 |
 | ordersFailed | 0 | 0 | 0 |
+| paymentsConfirmed | 0 | 0 | 0 |
 | publishRollbacks | 0 | 0 | 0 |
 | reservationsCreated | 0 | 1 000 | 1 000 |
 | workerCompensations | 0 | 0 | 0 |
@@ -58,7 +59,7 @@
 
 | Invariant | Expected | Actual | Result |
 | --------- | -------- | ------ | ------ |
-| accepted == completed + failed | 1 000 | 1 000 | ✅ |
+| published == completed + failed | 1 000 | 1 000 | ✅ |
 | dbOrders == completed + failed | 1 000 | 1 000 | ✅ |
 | dbTickets == completed | 1 000 | 1 000 | ✅ |
 | pendingOrders == 0 | 0 | 0 | ✅ |

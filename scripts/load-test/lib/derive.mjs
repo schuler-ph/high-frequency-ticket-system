@@ -161,8 +161,17 @@ export const drift = ({
  * is only asserted when its operands are available; missing operands produce an
  * `inconclusive` invariant rather than a false failure.
  *
+ * `published` is the number of messages actually handed to Pub/Sub — the only
+ * quantity the worker can be held to. It is deliberately NOT the reserve count:
+ * since the Reserve/Pay split (ADR-028) `/buy` only reserves and `/pay`
+ * publishes, so with abandonment modelled (~12% of reservations are cancelled or
+ * abandoned and never published) `accepted - completed` is a permanent non-zero
+ * gap rather than a backlog. Asserting against the reserve count is what made
+ * Baseline B look like it had lost 92 539 orders when nothing was lost at all
+ * (docs/reports/baseline-b-2026-07-26, report §4.4).
+ *
  * @param {{
- *   accepted: number | null,
+ *   published: number | null,
  *   completed: number | null,
  *   failed: number | null,
  *   dbOrders: number | null,
@@ -172,7 +181,7 @@ export const drift = ({
  * @returns {Array<{ id: string, ok: boolean | null, expected: number | null, actual: number | null }>}
  */
 export const evaluateInvariants = (facts) => {
-  const { accepted, completed, failed, dbOrders, dbTickets, pendingOrders } =
+  const { published, completed, failed, dbOrders, dbTickets, pendingOrders } =
     facts;
 
   const check = (id, expected, actual) => {
@@ -201,7 +210,7 @@ export const evaluateInvariants = (facts) => {
       : null;
 
   return [
-    check("accepted == completed + failed", accepted, finalized),
+    check("published == completed + failed", published, finalized),
     check("dbOrders == completed + failed", dbOrders, finalized),
     check("dbTickets == completed", dbTickets, completed ?? null),
     check("pendingOrders == 0", 0, pendingOrders ?? null),

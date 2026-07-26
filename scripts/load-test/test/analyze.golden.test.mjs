@@ -44,6 +44,85 @@ test("analysis is idempotent (byte-identical Markdown across runs)", () => {
   assert.equal(first, second);
 });
 
+// Regression for the Baseline-B auto-invalidation (report §4.2): prom-client
+// only exposes a LABELLED counter after its first increment, so a clean boot has
+// no `orders_failed_total` line at all. Treating that as a missing baseline made
+// `benchmark=invalid` unavoidable regardless of load-generator quality.
+test("a counter absent from a captured snapshot counts as zero, not unknown", () => {
+  const derived = deriveReport({
+    manifest: { runId: "absence" },
+    phaseA: { metrics: { iterations: { count: 10 }, dropped_iterations: {} } },
+    // Neither snapshot mentions orders_failed_total / publish_rollbacks_total.
+    metricsBefore: {
+      api: "orders_accepted_total 0\npayments_confirmed_total 0\n",
+      worker: "orders_completed_total 0\n",
+    },
+    metricsAfter: {
+      api: "orders_accepted_total 10\npayments_confirmed_total 10\n",
+      worker: "orders_completed_total 10\n",
+    },
+    stateAfter: {
+      postgres: { orders: 10, tickets: 10, pendingOrders: 0 },
+      redis: {},
+    },
+    drain: { status: "complete" },
+    policy,
+  });
+
+  assert.equal(derived.counters.ordersFailed.value, 0);
+  assert.equal(derived.counters.ordersFailed.hasBaseline, true);
+  assert.equal(derived.counters.publishRollbacks.value, 0);
+  // ...so the benchmark is no longer invalidated for missing baselines.
+  assert.ok(
+    !derived.validity.benchmark.reasons.some((r) => r.includes("baseline")),
+    `unexpected baseline complaint: ${derived.validity.benchmark.reasons.join("; ")}`,
+  );
+  assert.equal(derived.validity.system.verdict, "pass");
+});
+
+// An empty snapshot means the scrape never produced data — that must stay
+// `null` (unknown), otherwise an unreachable target would masquerade as "zero
+// activity" and every invariant would trivially pass.
+test("an empty snapshot leaves counters unknown rather than zero", () => {
+  const derived = deriveReport({
+    manifest: { runId: "no-scrape" },
+    metricsBefore: { api: "", worker: "" },
+    metricsAfter: { api: "", worker: "" },
+    policy,
+  });
+  assert.equal(derived.counters.ordersCompleted.value, null);
+  assert.equal(derived.counters.ordersCompleted.hasBaseline, false);
+});
+
+// Baseline A predates the Reserve/Pay split: it published inside `/buy` and
+// never exposed payments_confirmed_total. There the reserve count IS the publish
+// count, so the invariant must fall back to it instead of reading the
+// absence-derived 0 and declaring 1000 completions unaccounted for.
+test("pre-ADR-028 runs fall back to the reserve count as published", () => {
+  const derived = deriveReport({
+    manifest: { runId: "pre-split" },
+    metricsBefore: {
+      api: "orders_accepted_total 0\n",
+      worker: "orders_completed_total 0\n",
+    },
+    metricsAfter: {
+      api: "orders_accepted_total 1000\n",
+      worker: "orders_completed_total 1000\n",
+    },
+    stateAfter: {
+      postgres: { orders: 1000, tickets: 1000, pendingOrders: 0 },
+      redis: {},
+    },
+    drain: { status: "complete" },
+    policy,
+  });
+  const published = derived.invariants.find((i) =>
+    i.id.startsWith("published"),
+  );
+  assert.equal(published.expected, 1000);
+  assert.equal(published.ok, true);
+});
+
 test("deriveReport is pure over in-memory fixtures (no run dir needed)", () => {
   const derived = deriveReport({
     manifest: { runId: "unit" },

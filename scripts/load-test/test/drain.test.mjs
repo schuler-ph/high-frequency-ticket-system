@@ -16,14 +16,14 @@ const makeClock = () => {
 
 test("waitForDrain completes once pending is zero for stablePolls", async () => {
   const clock = makeClock();
-  const baseline = { accepted: 0, completed: 0, failed: 0 };
-  // accepted stays 10; completed climbs 4 -> 8 -> 10 -> 10 -> 10.
+  const baseline = { published: 0, completed: 0, failed: 0 };
+  // published stays 10; completed climbs 4 -> 8 -> 10 -> 10 -> 10.
   const completedSeq = [4, 8, 10, 10, 10];
   let i = 0;
   const result = await waitForDrain({
     baseline,
     fetchCounters: async () => ({
-      accepted: 10,
+      published: 10,
       completed: completedSeq[Math.min(i++, completedSeq.length - 1)],
       failed: 0,
     }),
@@ -40,8 +40,8 @@ test("waitForDrain completes once pending is zero for stablePolls", async () => 
 test("waitForDrain times out when pending never clears", async () => {
   const clock = makeClock();
   const result = await waitForDrain({
-    baseline: { accepted: 0, completed: 0, failed: 0 },
-    fetchCounters: async () => ({ accepted: 100, completed: 40, failed: 0 }),
+    baseline: { published: 0, completed: 0, failed: 0 },
+    fetchCounters: async () => ({ published: 100, completed: 40, failed: 0 }),
     sleep: clock.sleep,
     now: clock.now,
     pollIntervalSeconds: 1,
@@ -56,11 +56,11 @@ test("waitForDrain keeps polling through a transient scrape failure", async () =
   const clock = makeClock();
   let call = 0;
   const result = await waitForDrain({
-    baseline: { accepted: 0, completed: 0, failed: 0 },
+    baseline: { published: 0, completed: 0, failed: 0 },
     fetchCounters: async () => {
       call += 1;
       if (call === 1) throw new Error("scrape failed");
-      return { accepted: 5, completed: 5, failed: 0 };
+      return { published: 5, completed: 5, failed: 0 };
     },
     sleep: clock.sleep,
     now: clock.now,

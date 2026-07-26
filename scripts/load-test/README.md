@@ -43,7 +43,7 @@ pnpm spike:report:test
 | `lib/config.mjs`          | Policy/query loaders, Git/host info, preflight.                       |
 | `lib/snapshots.mjs`       | PostgreSQL/Redis state via the container CLIs (read-only).            |
 | `lib/prometheus.mjs`      | Prometheus instant query + target health.                             |
-| `lib/drain.mjs`           | Drain monitor (`pending = Δaccepted − Δcompleted − Δfailed`).         |
+| `lib/drain.mjs`           | Drain monitor (`pending = Δpublished − Δcompleted − Δfailed`).        |
 | `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop.                           |
 | `test/`                   | Unit tests + anonymized Baseline-A fixture and approved golden files. |
 

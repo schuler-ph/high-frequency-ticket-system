@@ -53,12 +53,20 @@ const fetchText = async (url) => {
   return res.text();
 };
 
-/** Read the drain-relevant counters (accepted from API, completed/failed from worker). */
+/**
+ * Read the drain-relevant counters: `published` from the API (confirmed
+ * payments — the point at which a message actually reaches Pub/Sub, ADR-028),
+ * `completed`/`failed` from the worker.
+ *
+ * Deliberately NOT `orders_accepted_total`: that increments at reserve time, so
+ * cancelled and abandoned checkouts would count as an eternal backlog and the
+ * drain could never reach zero (see lib/drain.mjs).
+ */
 const fetchCounters = async () => {
   const api = parseOpenMetrics(await fetchText(API_METRICS));
   const worker = parseOpenMetrics(await fetchText(WORKER_METRICS));
   return {
-    accepted: sumSamples(api, "orders_accepted_total") ?? 0,
+    published: sumSamples(api, "payments_confirmed_total") ?? 0,
     completed: sumSamples(worker, "orders_completed_total") ?? 0,
     failed: sumSamples(worker, "orders_failed_total") ?? 0,
   };
