@@ -271,6 +271,7 @@ void test("worker compensates reservation and marks order failed on terminal P00
             "EX",
             86400,
           );
+          return true;
         },
       },
     );

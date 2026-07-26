@@ -39,6 +39,7 @@
 | publishRollbacks | 0 | 0 | 0 |
 | reservationsCreated | 0 | 1 000 | 1 000 |
 | workerCompensations | 0 | 0 | 0 |
+| workerDuplicateDeliveries | 0 | 0 | 0 |
 | workerIdempotencyHits | 0 | 0 | 0 |
 | workerRedeliveries | 0 | 0 | 0 |
 

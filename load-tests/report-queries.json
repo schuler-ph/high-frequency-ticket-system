@@ -58,6 +58,13 @@
       "source": "worker"
     },
     {
+      "id": "workerDuplicateDeliveries",
+      "promql": "sum(worker_duplicate_deliveries_total{job=\"worker\"})",
+      "absence": "zero-if-target-up",
+      "source": "worker",
+      "note": "Redeliveries absorbed by buy_ticket ON CONFLICT (detected via the finalize script's ZREM signal). Kept out of orders_completed_total so completions stay one-per-sold-ticket."
+    },
+    {
       "id": "workerCompensations",
       "promql": "sum(worker_compensations_total{job=\"worker\"})",
       "absence": "zero-if-target-up",

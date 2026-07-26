@@ -160,7 +160,9 @@ Der belastbare qualitative Fortschritt: **die E2E-Latenz fiel von 406 s auf 7,5 
 
 ## 6. Abgeleitete Folge-Massnahmen
 
-Erfasst als neue Todos in `docs/TODO.md` (Abschnitt "Backlog: Baseline-B-Nachlauf (entdeckt 2026-07-26)"), nach der append-forward-Regel:
+Erfasst als neue Todos in `docs/TODO.md` (Abschnitt "Backlog: Baseline-B-Nachlauf (entdeckt 2026-07-26)"), nach der append-forward-Regel.
+
+> **Status-Nachtrag 2026-07-26 (nach dem Lauf):** Die drei P0-Punkte sind **erledigt** — Drain-Formel auf `payments_confirmed_total`, Counter-Absenz gilt als 0 statt „unbekannt", und die Duplikat-Erkennung laeuft jetzt ueber das `ZREM`-Signal des Finalize-Scripts (neues Outcome `duplicate-absorbed` mit eigenem Counter `worker_duplicate_deliveries_total`; ADR-023-Nachtrag 2026-07-26). Die **Messwerte in diesem Report bleiben unveraendert** — sie dokumentieren den Zustand des Laufs vom 2026-07-26 und werden nicht rueckwirkend korrigiert. Eine erneute Analyse derselben Artefakte zeigt jetzt allerdings ein schaerferes Bild: `benchmark=invalid` nennt nur noch die Generator-Saturation (§4.1), und die Invarianten konvergieren auf die eine Ursache aus §4.3. Der Drain-Status bleibt im Artefakt `timeout`, weil er waehrend des Laufs mit der alten Formel erhoben wurde und nicht nachtraeglich berechenbar ist. P1/P2 sind weiterhin offen.
 
 **P0 — Messkette reparieren (sonst ist auch Baseline C nicht auswertbar)**
 

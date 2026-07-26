@@ -226,6 +226,7 @@ void test("buy reserves, pay publishes, worker persists, and GET /api/orders/:or
             "EX",
             3600,
           );
+          return true;
         },
       },
     );

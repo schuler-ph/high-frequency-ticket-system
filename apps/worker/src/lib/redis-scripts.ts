@@ -11,6 +11,20 @@ import type { RedisClient } from "@repo/types/redis-client";
  * ueber und darf nicht doppelt (als aktive Reservierung UND als Verkauf)
  * zaehlen. Idempotent — ein zweiter Lauf entfernt nichts mehr (ADR-026).
  *
+ * **Rueckgabewert = genau dieses `ZREM`-Ergebnis** und damit das
+ * Erst-Finalisierung-Signal: `1` = der Ledger-Anspruch war noch da, diese
+ * Nachricht hat die Order erstmalig abgeschlossen. `0` = der Anspruch war
+ * bereits entfernt, es handelt sich also um eine erneute Auslieferung, die die
+ * `buy_ticket`-Transaktion per `ON CONFLICT` idempotent absorbiert hat — fachlich
+ * korrekt, aber eben *kein* zusaetzlich verkauftes Ticket.
+ *
+ * Dieselbe Idempotenz-Mechanik nutzt `COMPENSATE_RESERVATION_SCRIPT` unten
+ * bereits. Bis Baseline B wurde der Wert verworfen (`return 1`), wodurch
+ * `orders_completed_total` Duplikate als Verkaeufe zaehlte: 897.006 gemeldete
+ * Completions gegen 867.575 real persistierte Tickets (+3,39 %), was zusaetzlich
+ * die Grafana-Durchsatz-Panels und die Sold-Out-Erkennung verfaelschte
+ * (docs/reports/baseline-b-2026-07-26, Report §4.3).
+ *
  * KEYS[1] = orderCacheKey, KEYS[2] = processedKey, KEYS[3] = reservationsLedger
  * ARGV[1] = orderCacheValue, ARGV[2] = orderCacheTtlSeconds,
  * ARGV[3] = orderId, ARGV[4] = processedTtlSeconds
@@ -18,8 +32,7 @@ import type { RedisClient } from "@repo/types/redis-client";
 const FINALIZE_ORDER_PROCESSING_SCRIPT = `
 redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
 redis.call("SET", KEYS[2], ARGV[3], "EX", ARGV[4])
-redis.call("ZREM", KEYS[3], ARGV[3])
-return 1
+return redis.call("ZREM", KEYS[3], ARGV[3])
 `;
 
 /**

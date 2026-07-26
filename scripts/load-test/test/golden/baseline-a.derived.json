@@ -137,6 +137,13 @@
       "reset": false,
       "hasBaseline": true
     },
+    "workerDuplicateDeliveries": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
     "workerCompensations": {
       "before": 0,
       "after": 0,

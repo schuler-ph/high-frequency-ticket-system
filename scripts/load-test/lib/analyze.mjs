@@ -87,6 +87,10 @@ const COUNTER_QUERIES = {
     metric: "worker_idempotency_hits_total",
     source: "worker",
   },
+  workerDuplicateDeliveries: {
+    metric: "worker_duplicate_deliveries_total",
+    source: "worker",
+  },
   workerCompensations: {
     metric: "worker_compensations_total",
     source: "worker",

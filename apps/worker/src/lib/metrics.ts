@@ -38,6 +38,18 @@ export const workerIdempotencyHitsTotal = new Counter({
   registers: [workerRegistry],
 });
 
+// Redeliveries that slipped past the `processed`-marker shortcut (true
+// concurrency) and were absorbed by the buy_ticket ON CONFLICT path. Counted
+// separately so `orders_completed_total` stays one-per-sold-ticket: folding these
+// in inflated Baseline B's completions by 3.39% and, with them, the Grafana
+// throughput panels and the sell-out detection (report §4.3).
+export const workerDuplicateDeliveriesTotal = new Counter({
+  name: "worker_duplicate_deliveries_total",
+  help: "Duplicate message deliveries absorbed idempotently (order was already finalized; no additional ticket)",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
 export const redisDbDriftTickets = new Gauge({
   name: "redis_db_drift_tickets",
   help: "Redis available counter minus DB-computed availability per event (0 = consistent)",

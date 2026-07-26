@@ -25,6 +25,7 @@ import {
   reservationLedgerStale,
   timeDbQuery,
   workerCompensationsTotal,
+  workerDuplicateDeliveriesTotal,
   workerIdempotencyHitsTotal,
   workerRedeliveriesTotal,
 } from "../lib/metrics.ts";
@@ -90,6 +91,15 @@ export const buyTicketOutcomePolicy: {
   duplicate: {
     ack: true,
     record: (o) => workerIdempotencyHitsTotal.inc({ event_id: o.eventId }),
+  },
+  // Redelivery, die den `processed`-Marker passiert hat (echte Gleichzeitigkeit)
+  // und deren DB-Insert per ON CONFLICT absorbiert wurde. ACK wie `duplicate` —
+  // die Nachricht ist erledigt. Bewusst NICHT `ordersCompletedTotal` und
+  // bewusst ohne `observeE2eLatency`: es entstand kein zusaetzliches Ticket, und
+  // eine zweite Latenz-Beobachtung wuerde das Histogramm verzerren.
+  "duplicate-absorbed": {
+    ack: true,
+    record: (o) => workerDuplicateDeliveriesTotal.inc({ event_id: o.eventId }),
   },
   "invalid-payload": { ack: false },
   "terminal-failed": {
@@ -177,7 +187,9 @@ const createPubSubListenerRoutes = (
         },
         finalizeOrder: async (payload, entry) => {
           const keys = ticketRedisKeys(payload.eventId);
-          await scripts.finalizeOrderProcessing(
+          // 1 = Ledger-Anspruch war noch da -> Erst-Finalisierung.
+          // 0 = schon entfernt -> absorbierte Duplikat-Auslieferung.
+          const removedFromLedger = await scripts.finalizeOrderProcessing(
             orderRedisKeys.entry(payload.orderId),
             keys.processed(payload.orderId),
             keys.reservations,
@@ -186,6 +198,8 @@ const createPubSubListenerRoutes = (
             payload.orderId,
             env.REDIS_WORKER_PROCESSED_TTL_SECONDS,
           );
+
+          return removedFromLedger === 1;
         },
         compensateReservation: async (payload) => {
           const keys = ticketRedisKeys(payload.eventId);
