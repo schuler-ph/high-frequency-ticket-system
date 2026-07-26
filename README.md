@@ -123,6 +123,11 @@ load-tests/ k6 Szenarien
 
 ## Lokales Setup
 
+> **Reihenfolge der Befehle unklar?** [`RUNBOOK.md`](RUNBOOK.md) zeigt jeden Ablauf
+> (Dev-Stack, Lasttest-Stack, Lauf + Auswertung, Schema-Änderung, Debugging) als
+> Flussdiagramm samt Befehlen — und benennt die Fallen, in die man dabei tappt.
+> Jeder Ablauf hat zusätzlich einen VS-Code-Task und einen Button in der Statusleiste.
+
 ### Voraussetzungen
 
 - Node.js >= 24
@@ -356,6 +361,7 @@ Zusatzsicherung lokal ueber Husky:
 
 Fuer Architektur- und Entscheidungsdetails:
 
+- `RUNBOOK.md` — Abläufe als Flussdiagramme: welcher Befehl, in welcher Reihenfolge
 - `docs/REQUIREMENTS.md`
 - `docs/DECISIONS.md`
 - `docs/ARCHITECTURE.md`

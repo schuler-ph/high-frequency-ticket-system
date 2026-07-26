@@ -55,6 +55,74 @@
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["spike:open-dashboards"]
+      },
+      // --- Abläufe aus RUNBOOK.md -------------------------------------------
+      {
+        "name": "$(play) Dev Stack",
+        "color": "#61AFEF",
+        "tooltip": "RUNBOOK §2: Infra → Seed → pnpm dev (Reihenfolge ist Pflicht)",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["dev:stack up"]
+      },
+      {
+        "name": "$(rocket) LT Stack",
+        "color": "#98C379",
+        "tooltip": "RUNBOOK §3: Lasttest-Stack auf gebautem Stand hochfahren (Seed → API + Worker → Readiness-Poll)",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:stack up"]
+      },
+      {
+        "name": "$(debug-stop) LT Stop",
+        "color": "#E06C75",
+        "tooltip": "RUNBOOK §3: Prozesse auf Port 10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:stack down"]
+      },
+      {
+        "name": "$(dashboard) Spike Report",
+        "color": "#FF8C00",
+        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten)",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:run+report"]
+      },
+      {
+        "name": "$(graph) Analyze",
+        "color": "#56B6C2",
+        "tooltip": "RUNBOOK §5: Run-Verzeichnis auswerten — rein, ohne laufenden Stack",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:analyze"]
+      },
+      {
+        "name": "$(database) DB Apply",
+        "color": "#D19A66",
+        "tooltip": "RUNBOOK §7: db:push gegen die Ziel-DB + Guardrails",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["db:schema apply"]
+      },
+      {
+        "name": "$(bug) Debug All",
+        "color": "#C678DD",
+        "tooltip": "RUNBOOK §8: Runtime-Env, Schema-Drift und buy_ticket-Contract prüfen",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["debug:all"]
+      },
+      {
+        // `workbench.action.quickOpen` nimmt zuverlaessig ein String-Argument;
+        // `markdown.showPreview` erwartet eine Uri und ist aus settings/tasks
+        // heraus nicht verlaesslich mit einem Pfad-String aufrufbar.
+        "name": "$(book) Runbook",
+        "color": "#ABB2BF",
+        "tooltip": "RUNBOOK.md öffnen (Enter im Quick-Open bestätigen)",
+        "useVsCodeApi": true,
+        "command": "workbench.action.quickOpen",
+        "args": ["RUNBOOK.md"]
       }
       // {
       //   "name": "$(git-merge) Merge hfts-dev1 → main",

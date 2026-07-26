@@ -80,6 +80,137 @@
       "dependsOn": ["spike:open-dashboards", "spike:run"],
       "group": "test",
       "problemMatcher": []
+    },
+
+    // ---------------------------------------------------------------------
+    // Bausteine (RUNBOOK.md §2/§3). Einzeln nutzbar, aber vor allem als
+    // dependsOn der zusammengesetzten Tasks weiter unten gedacht.
+    // ---------------------------------------------------------------------
+    {
+      "label": "infra:up",
+      "detail": "Docker-Infrastruktur starten (postgres, redis, pubsub, prometheus, grafana).",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "problemMatcher": []
+    },
+    {
+      "label": "stack:seed",
+      "detail": "Schema + Test-Event + Redis-Counter + Pub/Sub-Topic/Subscription. MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run seed",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "problemMatcher": []
+    },
+    {
+      "label": "stack:wait-ready",
+      "detail": "Pollt /metrics von API und Worker per HTTP. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2).",
+      "type": "shell",
+      "command": "until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done; echo 'API (10002) + Worker (10003) sind bereit.'",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:api",
+      "detail": "API auf gebautem Stand (:10002) — ohne pino-pretty, ohne tsc-watch.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter api run start:loadtest",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:worker",
+      "detail": "Worker auf gebautem Stand (:10003) — ohne pino-pretty, ohne tsc-watch.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter worker run start:loadtest",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev:services",
+      "detail": "Web + API + Worker im Dev-Modus (Hot-Reload).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run dev",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+
+    // ---------------------------------------------------------------------
+    // Zusammengesetzte Flows (RUNBOOK.md)
+    // ---------------------------------------------------------------------
+    {
+      "label": "dev:stack up",
+      "detail": "RUNBOOK §2 — Infra → Seed → pnpm dev. Reihenfolge ist Pflicht: der Worker scheitert hart, wenn die Pub/Sub-Subscription beim Boot fehlt.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["infra:up", "stack:seed", "dev:services"],
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:stack up",
+      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (gebauter Stand) → Readiness-Poll.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["infra:up", "stack:seed", "loadtest:api", "loadtest:worker", "stack:wait-ready"],
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:stack down",
+      "detail": "RUNBOOK §3 — killt die Prozesse auf 10002/10003 nach PORT, nicht nach Prozessmuster: pkill trifft nur den pnpm-Wrapper, der node-Prozess hält den Port weiter (Falle 3).",
+      "type": "shell",
+      "command": "for p in 10002 10003; do PID=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null | head -1); if [ -n \"$PID\" ]; then kill \"$PID\" && echo \"gestoppt: PID $PID auf Port $p\"; else echo \"Port $p war frei\"; fi; done",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:run+report",
+      "detail": "RUNBOOK §4 — voller Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Braucht einen bereiten Stack (loadtest:stack up). Laufzeit: viele Minuten.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike:report",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:analyze",
+      "detail": "RUNBOOK §5 — rein: Artefakte → derived.json + report.md. Kein Netz, keine DB, kein laufender Stack nötig.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike:analyze -- '${input:runDir}'",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:compare",
+      "detail": "RUNBOOK §5 — zwei Läufe vergleichen. Exit 3 = inkompatibel (der Vergleich wird bewusst verweigert).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike:compare -- '${input:baselineDir}' '${input:candidateDir}'",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "db:schema apply",
+      "detail": "RUNBOOK §7 — db:push gegen die Ziel-DB, danach Guardrails. Handgeschriebenes SQL läuft stattdessen über `pnpm db:apply-sql`.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter @repo/db run db:push && pnpm run debug:all",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "debug:all",
+      "detail": "RUNBOOK §8 — Runtime-Env, Schema-Drift und buy_ticket-Contract prüfen.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run debug:all",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
     }
   ],
   "inputs": [
@@ -94,6 +225,22 @@
       "type": "command",
       "command": "simpleBrowser.show",
       "args": "http://localhost:10008"
+    },
+    {
+      "id": "runDir",
+      "type": "promptString",
+      "description": "Run-Verzeichnis (z. B. artifacts/load-tests/2026-07-26T13-13-41-929Z-eb62aca)"
+    },
+    {
+      "id": "baselineDir",
+      "type": "promptString",
+      "description": "Baseline: Run-Verzeichnis oder derived.json",
+      "default": "scripts/load-test/test/golden/baseline-a.derived.json"
+    },
+    {
+      "id": "candidateDir",
+      "type": "promptString",
+      "description": "Candidate: Run-Verzeichnis oder derived.json"
     }
   ]
 }
