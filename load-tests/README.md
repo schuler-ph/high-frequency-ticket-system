@@ -76,7 +76,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 1. `scripts/local/reset-seed.mjs` mit `SALE_OPENS_IN_SECONDS` (Default: `60`) ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
-3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, erst ab `completed > 0`), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. **Nicht** mehr `available`: das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen.
+3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
 
 Ohne Orchestrator lässt sich jede Phase auch einzeln fahren (z.B. zum Debuggen), dann aber ohne reaktiven Sold-Out-Stop:
@@ -170,4 +170,39 @@ Flag liest `.env` nicht.
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt      |
 | `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll          |
 | `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird           |
+| `K6_PROMETHEUS_RW`               | `false`                                | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)     |
 | `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                         |
+
+## k6-Remote-Write ist standardmaessig aus
+
+`pnpm spike` und `pnpm spike:report` starten k6 **ohne** `--out experimental-prometheus-rw`.
+Grund: der Report liest gar keine k6-Serien aus Prometheus — alle Queries in
+`load-tests/report-queries.json` gehen gegen `job="api"` bzw. `job="worker"`. Das
+Remote-Write diente nur dem Live-Blick in Grafana, trieb aber in Baseline B durch
+die `{endpoint,status}`-Tags pro Iteration `hts-prometheus` auf 5,5 GiB, bis es mit
+`503 Service Unavailable` antwortete — und nahm damit genau die Daten mit, die der
+Report braucht (`apiUp`/`workerUp` wurden `null`, beide Peak-Throughput-Queries
+unauswertbar).
+
+Fuer einen kleinen Debug-Lauf, bei dem man die k6-Metriken live in Grafana sehen
+will, explizit aktivieren:
+
+```bash
+K6_PROMETHEUS_RW=true pnpm spike
+```
+
+## Sold-Out vs. Stall
+
+Ein Plateau des Completion-Counters ist **kein** Beweis fuer einen Ausverkauf. Die
+Orchestrierung prueft daher zusaetzlich den Rest-Bestand:
+
+- `available == 0` → echter Ausverkauf (`stopReason: "sold-out"`)
+- `available > 0` → **Stall** (`stopReason: "stalled"`), z. B. durch
+  Host-Contention unter Generator-Saturation
+- Bestand nicht lesbar → bleibt `stalled`, nie ein behaupteter Ausverkauf
+
+Beide Faelle beenden die Sustain-Stage (die restliche Zeit misst nichts), aber der
+Grund landet in `k6/phase-a-meta.json` (`stopReason`, `availableAtStop`) und wird
+im Log als Warnung ausgegeben. Baseline B stoppte so bei 888 s von 990 s mit
+**89.359 noch verfuegbaren Tickets** — und beantwortete damit nicht, wie lange ein
+1M-Ausverkauf dauert.

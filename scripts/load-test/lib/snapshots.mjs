@@ -77,6 +77,25 @@ const infoField = (info, field) => {
 };
 
 /**
+ * Single live read of the remaining-inventory counter. Used by the reactive
+ * phase-A monitor to tell a genuine sell-out (`0`) from a completion plateau
+ * caused by host contention — see `lib/processes.mjs`. Returns `null` when the
+ * key is missing or unreadable, so the caller degrades to "unclassified" rather
+ * than asserting a sell-out it cannot prove.
+ *
+ * @param {string} eventId
+ * @returns {number | null}
+ */
+export const readAvailableTickets = (eventId) => {
+  try {
+    const value = redis("GET", `tickets:event:${eventId}:available`);
+    return value === "" ? null : Number(value);
+  } catch {
+    return null;
+  }
+};
+
+/**
  * @param {string} eventId
  * @returns {{ total: number|null, available: number|null, activeReservations: number|null, dbSize: number|null, usedMemoryBytes: number|null }}
  */

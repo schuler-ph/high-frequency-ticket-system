@@ -29,7 +29,11 @@ import {
   REPO_ROOT,
 } from "./lib/config.mjs";
 import { buildManifest, redactConfig } from "./lib/manifest.mjs";
-import { snapshotPostgres, snapshotRedis } from "./lib/snapshots.mjs";
+import {
+  readAvailableTickets,
+  snapshotPostgres,
+  snapshotRedis,
+} from "./lib/snapshots.mjs";
 import { targetUp } from "./lib/prometheus.mjs";
 import { waitForDrain } from "./lib/drain.mjs";
 import { runPhaseAReactive, runPhaseB } from "./lib/processes.mjs";
@@ -130,18 +134,31 @@ const main = async () => {
 
   // 5. Phase A (reactive) + phase B.
   timestamps.workloadStartedAt = nowIso();
-  const phaseAExit = await runPhaseAReactive({
+  const phaseA = await runPhaseAReactive({
     scriptPath: join(REPO_ROOT, "load-tests", "spike-phase-a.js"),
     runId,
     summaryPath: join(runDir, "k6", "phase-a-summary.json"),
     env: k6Env,
     metricsUrl: WORKER_METRICS,
     eventId: EVENT_ID,
+    // Lets the plateau detector tell a real sell-out from host contention.
+    readAvailable: (eventId) => readAvailableTickets(eventId),
   });
+  const phaseAExit = phaseA.exitCode;
   timestamps.phaseAEndedAt = nowIso();
+  if (phaseA.stopReason === "stalled") {
+    console.warn(
+      `[spike:report] Phase A stopped on a completion plateau with ${phaseA.availableAtStop ?? "unknown"} tickets still available — this is NOT a sell-out.`,
+    );
+  }
   writeFileSync(
     join(runDir, "k6", "phase-a-meta.json"),
-    JSON.stringify({ exitCode: phaseAExit, reason: "reactive-phase-a" }) + "\n",
+    JSON.stringify({
+      exitCode: phaseAExit,
+      reason: "reactive-phase-a",
+      stopReason: phaseA.stopReason,
+      availableAtStop: phaseA.availableAtStop,
+    }) + "\n",
   );
 
   const phaseBExit = await runPhaseB({

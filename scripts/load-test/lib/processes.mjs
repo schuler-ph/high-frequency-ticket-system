@@ -16,12 +16,26 @@ import { setTimeout as sleep } from "node:timers/promises";
 const K6_THRESHOLD_FAILED_EXIT_CODE = 99;
 
 /**
+ * Build the k6 argv for one phase (pure, so the remote-write default is
+ * testable without spawning k6).
+ *
+ * `prometheusRw` defaults to **false**: k6's remote-write is not an input to the
+ * report at all — every PromQL query in `load-tests/report-queries.json` targets
+ * `job="api"`/`job="worker"`, never a `k6_*` series. It exists purely to watch
+ * Grafana live during a run, and at capacity volume it is actively harmful: the
+ * per-iteration `{endpoint,status}` tags drove `hts-prometheus` to 5.5 GiB during
+ * Baseline B until it answered `503`, which cost that run its `apiUp`/`workerUp`
+ * health facts and both peak-throughput range queries — i.e. it destroyed the
+ * data the report does need (report §4.1). Opt in with `K6_PROMETHEUS_RW=true`
+ * for a low-volume debugging run.
+ *
  * @param {string} scriptPath
- * @param {{ runId: string, summaryPath: string, env: NodeJS.ProcessEnv, prometheusRw?: boolean }} opts
+ * @param {{ runId: string, summaryPath: string, prometheusRw?: boolean }} opts
+ * @returns {string[]}
  */
-export const spawnK6 = (
+export const buildK6Args = (
   scriptPath,
-  { runId, summaryPath, env, prometheusRw = true },
+  { runId, summaryPath, prometheusRw = false },
 ) => {
   const args = ["run"];
   if (prometheusRw) args.push("--out", "experimental-prometheus-rw");
@@ -32,6 +46,23 @@ export const spawnK6 = (
     `test_run_id=${runId}`,
     scriptPath,
   );
+  return args;
+};
+
+/**
+ * @param {string} scriptPath
+ * @param {{ runId: string, summaryPath: string, env: NodeJS.ProcessEnv, prometheusRw?: boolean }} opts
+ */
+export const spawnK6 = (
+  scriptPath,
+  {
+    runId,
+    summaryPath,
+    env,
+    prometheusRw = env?.K6_PROMETHEUS_RW === "true",
+  },
+) => {
+  const args = buildK6Args(scriptPath, { runId, summaryPath, prometheusRw });
   const child = spawn("k6", args, { stdio: "inherit", env });
   const exitPromise = new Promise((resolve) => {
     child.on("exit", (code) => resolve(code ?? 0));
@@ -59,15 +90,45 @@ export const fetchCompletedCount = async (
 };
 
 /**
+ * Classify a completion plateau against remaining inventory: only an exhausted
+ * `available` counter is a genuine sell-out; a plateau with stock left is a stall
+ * (host contention, generator saturation, wedged consumer).
+ *
+ * @param {number} available
+ * @returns {"sold-out" | "stalled"}
+ */
+export const classifyPlateau = (available) =>
+  available === 0 ? "sold-out" : "stalled";
+
+/**
  * Poll the worker completion counter until it plateaus RELATIVE to the first
  * observed value (self-healing against the process-lifetime counter carryover;
  * see run-spike correction #235), or until the child exits on its own.
  *
- * @returns {Promise<boolean>} true when sell-out was detected.
+ * A plateau alone does NOT mean sold out. Under generator saturation the host is
+ * contended enough that three consecutive polls (~9s) can pass with no new
+ * completion while inventory remains: Baseline B stopped phase A at 888s of 990s
+ * with 89 359 tickets still available, so that run never answered how long a 1M
+ * sell-out takes (report §4.5). When `readAvailable` is supplied the plateau is
+ * therefore classified — `available === 0` is a real sell-out, anything else is a
+ * stall. Both stop the phase (burning the remaining 15min safety net measures
+ * nothing), but the reason is reported so the analysis cannot mistake a stall for
+ * a completed sale.
+ *
+ * @param {Promise<number>} exitPromise
+ * @param {{ metricsUrl: string, eventId: string, pollIntervalMs?: number, confirmPolls?: number, readAvailable?: (eventId: string) => Promise<number | null>, fetchImpl?: typeof fetch }} opts
+ * @returns {Promise<{ stopped: boolean, reason: "sold-out" | "stalled" | "k6-exited", available: number | null, completed: number | null }>}
  */
 export const pollUntilSoldOut = async (
   exitPromise,
-  { metricsUrl, eventId, pollIntervalMs = 3000, confirmPolls = 3 },
+  {
+    metricsUrl,
+    eventId,
+    pollIntervalMs = 3000,
+    confirmPolls = 3,
+    readAvailable,
+    fetchImpl = fetch,
+  },
 ) => {
   let childExited = false;
   exitPromise.then(() => {
@@ -83,7 +144,7 @@ export const pollUntilSoldOut = async (
     if (childExited) break;
     let completed;
     try {
-      completed = await fetchCompletedCount(metricsUrl, eventId);
+      completed = await fetchCompletedCount(metricsUrl, eventId, fetchImpl);
     } catch {
       continue;
     }
@@ -99,17 +160,40 @@ export const pollUntilSoldOut = async (
       stalls = 0;
     }
     last = completed;
-    if (stalls >= confirmPolls) return true;
+
+    if (stalls >= confirmPolls) {
+      let available = null;
+      if (readAvailable) {
+        try {
+          available = await readAvailable(eventId);
+        } catch {
+          available = null;
+        }
+      }
+      return {
+        stopped: true,
+        // Without an inventory reading the plateau stays unclassified rather
+        // than being asserted as a sell-out.
+        reason: available === null ? "stalled" : classifyPlateau(available),
+        available,
+        completed,
+      };
+    }
   }
-  return false;
+
+  return { stopped: false, reason: "k6-exited", available: null, completed: last };
 };
 
 export const isExpectedK6Exit = (code) =>
   code === 0 || code === K6_THRESHOLD_FAILED_EXIT_CODE;
 
 /**
- * Run phase A reactively; graceful SIGINT on sell-out. Returns the k6 exit code
- * (or null if it had to be SIGKILLed).
+ * Run phase A reactively; graceful SIGINT once the completion counter plateaus.
+ *
+ * @returns {Promise<{ exitCode: number | null, stopReason: "sold-out" | "stalled" | "k6-exited", availableAtStop: number | null }>}
+ *   `exitCode` is null only when k6 had to be SIGKILLed. `stopReason`
+ *   distinguishes a real sell-out from a plateau with inventory left, so the
+ *   report never presents a stalled run as a completed sale (report §4.5).
  */
 export const runPhaseAReactive = async ({
   scriptPath,
@@ -120,6 +204,7 @@ export const runPhaseAReactive = async ({
   eventId,
   pollIntervalMs,
   confirmPolls,
+  readAvailable,
   gracefulStopTimeoutMs = 40_000,
 }) => {
   const { child, exitPromise } = spawnK6(scriptPath, {
@@ -127,21 +212,22 @@ export const runPhaseAReactive = async ({
     summaryPath,
     env,
   });
-  const soldOut = await pollUntilSoldOut(exitPromise, {
+  const plateau = await pollUntilSoldOut(exitPromise, {
     metricsUrl,
     eventId,
     pollIntervalMs,
     confirmPolls,
+    readAvailable,
   });
 
-  if (!soldOut) {
+  if (!plateau.stopped) {
     const exitCode = await exitPromise;
     if (!isExpectedK6Exit(exitCode)) {
       throw new Error(
         `Phase A (k6) exited with operational error ${exitCode}.`,
       );
     }
-    return exitCode;
+    return { exitCode, stopReason: "k6-exited", availableAtStop: null };
   }
 
   child.kill("SIGINT");
@@ -152,9 +238,17 @@ export const runPhaseAReactive = async ({
   if (race.status === "timeout") {
     child.kill("SIGKILL");
     await exitPromise;
-    return null;
+    return {
+      exitCode: null,
+      stopReason: plateau.reason,
+      availableAtStop: plateau.available,
+    };
   }
-  return race.code;
+  return {
+    exitCode: race.code,
+    stopReason: plateau.reason,
+    availableAtStop: plateau.available,
+  };
 };
 
 /** Run phase B to completion; returns the k6 exit code. */
