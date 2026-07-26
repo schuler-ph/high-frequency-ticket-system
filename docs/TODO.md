@@ -147,11 +147,11 @@ Die konkreten offenen Tasks fuer Stage 2–4 liegen im **Backlog** direkt nach P
 - [x] Initialisiere k6 Lasttest-Skript (`spike.js`) mit Basis-Struktur.
 - [x] Definiere Ramp-Up Szenario im Skript (1k → 10k → 50k RPS, Sustained, Cool-Down).
 - [x] Implementiere HTTP-Requests im k6-Skript (Availability checken, Tickets kaufen).
-- [x] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks (`docs/LOAD-TEST-REPORT-2026-07-14.md`; Baseline A: 11,7k Peak-RPS, 68,24 % dropped iterations, 420.951 accepted = completed nach Drain, ~406 s mittlere E2E-Latenz).
+- [x] Führe lokalen Lasttest gegen Docker-Setup aus und dokumentiere erste Bottlenecks (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`; Baseline A: 11,7k Peak-RPS, 68,24 % dropped iterations, 420.951 accepted = completed nach Drain, ~406 s mittlere E2E-Latenz).
 - [x] Erzeuge Screenshots der Dashboards unter extremer Last fuer die README.
 - [x] Sale-Unlock-Gate: `tickets:event:{eventId}:opensAt`-Redis-Key im atomaren Reserve-Script, `TooEarlyError` (HTTP 425), `SALE_OPENS_IN_SECONDS` im Seed-Skript (ADR-024) — Reaktion auf Baseline A, in der der Verkauf ab `t=0` offen war statt einen echten Sale-Start abzubilden.
 - [x] Restrukturiere den lokalen Lasttest auf reaktive Sold-Out-Erkennung statt fixer Phasen-Timer: `spike-phase-a.js` (Warm-Up/Ramp-Up/Sustain) + `spike-phase-b.js` (Cool-Down), orchestriert durch `scripts/local/run-spike.mjs` (pollt Availability, stoppt Phase A per SIGINT bei bestaetigtem Sold-Out) (ADR-025) — behebt, dass Baseline A mitten im Peak statt am beabsichtigten Sold-Out-Uebergang endete.
-- [x] Dokumentiere die automatisierbare Evidence-/Report-Pipeline inkl. verwendeter Prometheus-, PostgreSQL- und Redis-Abfragen, Validitaetsregeln, Artefaktvertrag und schrittweisem Implementierungsplan (`docs/LOAD-TEST-REPORT-AUTOMATION.md`).
+- [x] Dokumentiere die automatisierbare Evidence-/Report-Pipeline inkl. verwendeter Prometheus-, PostgreSQL- und Redis-Abfragen, Validitaetsregeln, Artefaktvertrag und schrittweisem Implementierungsplan (`docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md`).
 
 ## Phase 4.5: Monitoring & Observability
 
@@ -172,7 +172,7 @@ Die konkreten offenen Tasks fuer Stage 2–4 liegen im **Backlog** direkt nach P
 - [x] Erweitere `order_e2e_latency_seconds` ueber den 30-s-Bucket hinaus und benenne die rollende Completion-Rate als Throughput-Verhaeltnis; entferne die irrefuehrende Legendensumme der kumulativen Counts. — Buckets auf `[…,30,60,120,180,300,450,600]` erweitert (Baseline A ~406 s klippte bei 30 s); Panel „Completion Rate (5m)“ → „Worker/API Throughput Ratio (5m)“ (kein `max:1`-Clip mehr, Schwellen < 1 / ≥ 1); Legenden-`sum` auf den kumulativen Order-Lifecycle-/Worker-Reliability-Panels durch `last` ersetzt (ADR-023-Nachtrag).
 - [x] Fuege `redis_exporter` sowie CPU/Event-Loop-, PostgreSQL-Pool-Wait-, Query-Latency- und Lock-Wait-Metriken fuer belastbare Bottleneck-Zuordnung hinzu. — `redis_exporter`-Container + Prometheus-Job; Worker exponiert `db_pool_connections` (inkl. Pool-Wait via `waiting`), `db_query_duration_seconds` (Timing am DI-Seam, nicht via `pool.query`-Patch) und `db_locks_waiting` (Sampler aus `pg_stat_activity`); CPU/Event-Loop kamen bereits aus `collectDefaultMetrics` und sind jetzt im neuen Dashboard „DB & Runtime“ sichtbar. Ende-zu-Ende gegen die laufende Infra verifiziert (ADR-026).
 
-## Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`)
+## Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`)
 
 Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3/4) — umgesetzt:
 
@@ -186,7 +186,7 @@ Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3
 
 Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 
-- [x] Lokalen Lasttest als Baseline ausfuehren und Vorher-Zahlen fuer #5/#7 dokumentieren (`docs/LOAD-TEST-REPORT-2026-07-14.md`).
+- [x] Lokalen Lasttest als Baseline ausfuehren und Vorher-Zahlen fuer #5/#7 dokumentieren (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`).
 - [x] #5 (durch Baseline A praezisiert): Accepted-but-not-finalized Reservations als ZSet/Ledger (`tickets:event:{eventId}:reservations`, Score = Erstellungszeit, kein TTL) statt Keyspace-SCAN; Entfernung nur durch Worker-Finalisierung (`ZREM` im Finalize-Script) / Kompensation. Reconcile zaehlt via `ZCARD` (O(1)) statt SCAN; Ablauf ist nur ein Stale-Kandidat (`ZCOUNT` → `reservation_ledger_stale`-Gauge, Schwellwert `RESERVATION_STALE_SECONDS`) fuer den Reaper (Phase 6), **keine** automatische Rueckbuchung. Behebt das Baseline-A-Oversell-Risiko (temporaer -314k Drift bei 120-s-TTL vs. ~406-s-E2E). Neuer ADR-026, ADR-022/023-Status aktualisiert; Lua gegen `hts-redis` verifiziert. Regressionstest: Reconcile bucht bei alten/stale Reservierungen kein Inventar zurueck.
 
 ## Phase 4.7: Checkout & Payment-Simulation (Web + API)
