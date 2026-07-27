@@ -71,7 +71,8 @@ Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.
 - **DB- & Runtime-Metriken:** Der Worker exponiert PostgreSQL-Bottleneck-Signale (`db_pool_connections` inkl. Pool-Wait, `db_query_duration_seconds`, `db_locks_waiting`) via `prom-client`; Prozess-CPU und Event-Loop-Lag kommen aus den `prom-client`-Default-Metriken. Dienen der belastbaren Engpass-Zuordnung im Lasttest (Dashboard „DB & Runtime“).
 - **Grafana:** Visualisierungs-Tool, das sich mit Prometheus verbindet und Live-Dashboards baut (Linien-Charts, Heatmaps, Gauges). Die Dashboards werden als JSON im Repo versioniert.
 - **k6:** Open-Source Lasttest-Tool von Grafana Labs. Simuliert tausende parallele User via JavaScript-Skripte. Exportiert Ergebnisse direkt an Prometheus → Live-Visualisierung in Grafana während des Tests.
-- **README-Beweise:** Screenshots der Grafana-Dashboards unter Last als Nachweis der Skalierbarkeit.
+- **grafana-image-renderer:** Rendert Grafana-Panels serverseitig als PNG (Container `hts-grafana-renderer`, Host-Port `10010`; Grafana kennt ihn über `GF_RENDERING_SERVER_URL`). `pnpm spike:graphs` exportiert damit alle Panels aller Dashboards für ein exaktes Zeitfenster ins Run-Verzeichnis — `spike:report` ruft das am Ende automatisch auf (ADR-030).
+- **README-Beweise:** Grafana-Panels unter Last als Nachweis der Skalierbarkeit — erhoben per `spike:graphs`, nicht per Hand-Screenshot.
 
 ## Architectural Rules
 

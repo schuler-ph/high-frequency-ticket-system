@@ -353,3 +353,10 @@ Leitfehler: mehrere Panels lasen `orders_accepted_total` als „publiziert" — 
 - [x] **`order-completion-latency`: Panel-Titel seit ADR-028 falsch** — gemessen wird Publish→Persist, nicht `/buy`→completed. → [Details](TODO-ARCHIVE.md#order-completion-latency-panel-titel-seit-adr-028-falsch)
 - [x] **`redis-performance`: „Memory Usage" plottete `redis_memory_max_bytes`** (ohne `maxmemory` konstant 0, sah wie ein Defekt aus) → Serie entfernt, bewusst kein `maxmemory`. → [Details](TODO-ARCHIVE.md#redis-performance-memory-usage-plottet-konstante-null)
 - [x] **`db-runtime`: Pool Wait/Lock Waits waren Momentaufnahmen** und zeigten nach dem Lauf 0 → `max_over_time([$__range])`; echter Peak 3.578 wartende Acquirer. → [Details](TODO-ARCHIVE.md#db-runtime-pool-wait-und-lock-waits-als-momentaufnahme)
+
+## Backlog: Belegerhebung & Entwickler-Werkzeug (entdeckt 2026-07-27)
+
+Kleinteilige Verbesserungen am Lasttest-Werkzeug, die beim Fahren der Baseline-D-Vorbereitung aufgefallen sind.
+
+- [x] **Grafana-Panels automatisch als PNG exportieren:** Hand-Screenshots waren unvollstaendig und im Zeitraum nicht reproduzierbar; `hts-grafana-renderer` liefert jetzt alle 48 Panels mit Titel und Legende ins Run-Verzeichnis. → ADR-030, [RUNBOOK §5](../RUNBOOK.md)
+- [x] **Web im Lasttest-Stack mitstarten:** der `LT Stack`-Button liess das Frontend aus, obwohl es zum Beobachten laeuft; neuer Task `loadtest:web` (Dev-Modus, :10001), `loadtest:stack down` raeumt den Port mit auf. → [RUNBOOK §3](../RUNBOOK.md)

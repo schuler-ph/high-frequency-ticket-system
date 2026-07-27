@@ -85,8 +85,25 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      # Serverseitiges Rendern von Panels als PNG (`pnpm spike:graphs`, ADR-030).
+      # Die Callback-URL ist die Adresse, unter der der Renderer Grafana im
+      # Compose-Netz erreicht — nicht localhost, das waere der Renderer selbst.
+      GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
     depends_on:
       - prometheus
+    restart: unless-stopped
+
+  renderer:
+    image: grafana/grafana-image-renderer:3.12.9
+    container_name: hts-grafana-renderer
+    ports:
+      - "10010:8081"
+    environment:
+      # Ein Lasttest-Dashboard hat viele Serien; der Default-Timeout (30s) reicht
+      # bei kaltem Chromium-Start nicht immer.
+      RENDERING_TIMEOUT: "60"
+      ENABLE_METRICS: "true"
     restart: unless-stopped
 
 volumes:

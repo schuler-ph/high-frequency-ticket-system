@@ -131,10 +131,20 @@
       "problemMatcher": []
     },
     {
+      "label": "loadtest:web",
+      "detail": "Web im Dev-Modus (:10001) mit Hot-Reload, eigenes Terminal. Bewusst Dev statt Build: das Frontend ist am Lasttest nicht beteiligt, dient nur zur Beobachtung. Laeuft dauerhaft — Terminal MUSS offen bleiben.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter web run dev",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
       "label": "loadtest:services",
-      "detail": "Startet API und Worker parallel, jeweils im eigenen Terminal. Laeuft absichtlich dauerhaft (Server enden nie) und steht deshalb als LETZTER Schritt einer Sequenz.",
+      "detail": "Startet API, Worker und Web (Dev) parallel, jeweils im eigenen Terminal. Laeuft absichtlich dauerhaft (Server enden nie) und steht deshalb als LETZTER Schritt einer Sequenz.",
       "dependsOrder": "parallel",
-      "dependsOn": ["loadtest:api", "loadtest:worker"],
+      "dependsOn": ["loadtest:api", "loadtest:worker", "loadtest:web"],
       "problemMatcher": []
     },
     {
@@ -160,16 +170,16 @@
     },
     {
       "label": "loadtest:stack up",
-      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
+      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker + Web (Dev, je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "stack:seed", "loadtest:services"],
       "problemMatcher": []
     },
     {
       "label": "loadtest:stack down",
-      "detail": "RUNBOOK §3 — beendet ALLE Listener auf 10002/10003 nach PORT (pkill trifft nur den pnpm-Wrapper, der node-Prozess haelt den Port weiter), mit SIGKILL-Eskalation und Endkontrolle.",
+      "detail": "RUNBOOK §3 — beendet ALLE Listener auf 10001/10002/10003 nach PORT (pkill trifft nur den pnpm-Wrapper, der node-Prozess haelt den Port weiter), mit SIGKILL-Eskalation und Endkontrolle.",
       "type": "shell",
-      "command": "for p in 10002 10003; do for attempt in 1 2 3; do PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); [ -z \"$PIDS\" ] && break; echo \"Port $p: SIGTERM an $(echo $PIDS | tr '\\n' ' ')\"; kill $PIDS 2>/dev/null; sleep 2; done; PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"Port $p: SIGKILL an $(echo $PIDS | tr '\\n' ' ')\"; kill -9 $PIDS 2>/dev/null; sleep 1; fi; if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"Port $p ist NOCH belegt\"; else echo \"Port $p frei\"; fi; done",
+      "command": "for p in 10001 10002 10003; do for attempt in 1 2 3; do PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); [ -z \"$PIDS\" ] && break; echo \"Port $p: SIGTERM an $(echo $PIDS | tr '\\n' ' ')\"; kill $PIDS 2>/dev/null; sleep 2; done; PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"Port $p: SIGKILL an $(echo $PIDS | tr '\\n' ' ')\"; kill -9 $PIDS 2>/dev/null; sleep 1; fi; if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"Port $p ist NOCH belegt\"; else echo \"Port $p frei\"; fi; done",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []
@@ -225,6 +235,15 @@
       "problemMatcher": []
     },
     {
+      "label": "loadtest:export-graphs",
+      "detail": "RUNBOOK §5 — alle Grafana-Panels aller Dashboards als PNG (mit Titel und Legende) fuer einen Zeitraum ins Run-Verzeichnis. Leer lassen = Fenster des letzten Runs aus dessen manifest.json. Braucht den Container hts-grafana-renderer.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && RANGE='${input:graphRange}' && if [ -z \"$RANGE\" ]; then pnpm run spike:graphs; else pnpm run spike:graphs -- --range \"$RANGE\"; fi",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
       "label": "db:schema apply",
       "detail": "RUNBOOK §7 — db:push gegen die Ziel-DB, danach Guardrails. Handgeschriebenes SQL läuft stattdessen über `pnpm db:apply-sql`.",
       "type": "shell",
@@ -260,6 +279,12 @@
       "id": "runDir",
       "type": "promptString",
       "description": "Run-Verzeichnis (z. B. artifacts/load-tests/2026-07-26T13-13-41-929Z-eb62aca)"
+    },
+    {
+      "id": "graphRange",
+      "type": "promptString",
+      "description": "Zeitraum als JSON der Grafana-Zeitauswahl — leer = Fenster des letzten Runs",
+      "default": "{\"from\":\"2026-07-27 16:19:00\",\"to\":\"2026-07-27 16:31:00\"}"
     },
     {
       "id": "baselineDir",

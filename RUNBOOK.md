@@ -70,13 +70,15 @@ Für belastbare Messungen dürfen API und Worker **nicht** im Dev-Modus laufen: 
 
 `start:loadtest` baut einmal und startet `fastify start` ohne `-P`, mit `NODE_ENV=production`, `LOG_LEVEL=warn` und `DISABLE_REQUEST_LOGGING=true`.
 
+Das **Web** startet dagegen bewusst im Dev-Modus (`next dev`, :10001): es liegt nicht im Lastpfad — k6 spricht ausschließlich die API an — und dient nur zur Beobachtung während des Laufs, wo Hot-Reload nützlicher ist als ein Produktions-Build.
+
 ```mermaid
 flowchart TD
     A([Start]) --> B{"docker inspect<br/>hts-postgres hts-redis hts-pubsub"}
     B -->|nicht alle true| C["docker compose up -d"]
     B -->|alle true| D
     C --> D["<b>pnpm seed</b><br/><i>legt Topic + Subscription an</i>"]
-    D --> E["API + Worker parallel starten<br/><i>je eigenes Terminal, laufen dauerhaft</i>"]
+    D --> E["API + Worker + Web parallel starten<br/><i>je eigenes Terminal, laufen dauerhaft</i>"]
     E --> F(["Stack läuft<br/><i>Terminals offen lassen!</i>"])
 
     F --> G["stack:wait-ready<br/>curl :10002 + :10003<br/><i>Timeout 240s</i>"]
@@ -93,8 +95,9 @@ flowchart TD
 pnpm seed                                   # ZUERST — sonst scheitert der Worker
 pnpm --filter api    run start:loadtest     # :10002 — eigenes Terminal, offen lassen
 pnpm --filter worker run start:loadtest     # :10003 — eigenes Terminal, offen lassen
+pnpm --filter web    run dev                # :10001 — Dev-Modus, nur zur Beobachtung
 
-# in einem dritten Terminal:
+# in einem weiteren Terminal:
 until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
@@ -112,7 +115,7 @@ Deshalb endet `loadtest:stack up` mit den Services, und die Bereitschaft prüft 
 
 > **Nicht per `nohup` abkoppeln.** Naheliegend wäre, die Services via `( nohup … & )` zu starten, damit die Sequenz weiterläuft. Das funktioniert hier **nicht**: VS Code beendet beim Wiederverwenden des Terminals die **Prozessgruppe** des Task-Shells, und `nohup` schützt nur gegen `SIGHUP`, nicht gegen ein `kill` an die Gruppe. Beobachtet: beide Logdateien blieben 0 Byte — die Prozesse starben, bevor sie das erste pnpm-Banner schreiben konnten.
 
-Wer nur **einen** Service braucht, startet `loadtest:api` bzw. `loadtest:worker` direkt.
+Wer nur **einen** Service braucht, startet `loadtest:api`, `loadtest:worker` bzw. `loadtest:web` direkt.
 
 ### Vier Fallen, die hier real aufgetreten sind
 
@@ -149,7 +152,7 @@ flowchart LR
 ### Herunterfahren
 
 ```bash
-for p in 10002 10003; do
+for p in 10001 10002 10003; do
   for attempt in 1 2 3; do
     PIDS=$(lsof -nP -tiTCP:$p -sTCP:LISTEN 2>/dev/null)
     [ -z "$PIDS" ] && break
@@ -256,6 +259,25 @@ pnpm spike:report:test                                       # Unit-/Golden-Test
 Bestehende Baselines: `docs/reports/baseline-a-2026-07-14/`, `docs/reports/baseline-b-2026-07-26/`
 
 **Tasks:** `loadtest:analyze` und `loadtest:compare` (fragen nach den Verzeichnissen) · **Button:** `Analyze`
+
+### Grafana-Panels als PNG exportieren (statt Screenshots)
+
+Grafana rendert Panels serverseitig — der Container `hts-grafana-renderer` liefert `GET /render/d-solo/<uid>/<slug>?panelId=…` als PNG. `spike:report` ruft das am Ende jedes Laufs automatisch auf: **alle** Panels **aller** Dashboards, jeweils mit Titel und Legende, für das Fenster `workloadStartedAt − 60 s … drainEndedAt + 30 s`, nach `artifacts/load-tests/<run-id>/grafana/` plus `index.md` als Galerie (ADR-030).
+
+```bash
+pnpm spike:graphs                       # letzter Run, Fenster aus dessen manifest.json
+pnpm spike:graphs -- --run <run-id>      # anderer Run, ebenfalls aus dem Manifest
+pnpm spike:graphs -- --range '{"from":"2026-07-27 16:19:00","to":"2026-07-27 16:31:00"}'
+pnpm spike:graphs -- --from now-30m --to now --out /tmp/graphs
+EXPORT_GRAPHS=0 pnpm spike:report        # Export im Lauf abschalten
+```
+
+- **Zeitangaben ohne Zone** werden in `--tz` gelesen (Default `Europe/Vienna`) — genau das Format, das die Grafana-Zeitauswahl ausgibt. Sie als UTC zu lesen hätte jedes Bild still um den lokalen Offset verschoben.
+- **`--range`** nimmt den JSON-Block der Zeitauswahl unverändert; `now-…` und Epoch-Millisekunden gehen ebenfalls.
+- Weitere Knöpfe: `--width` (1200), `--height` (500), `--scale` (2), `--theme` (`dark`), `--concurrency` (3), `--url` (`http://localhost:10008`). Gauges bekommen automatisch eine schmalere, flachere Fläche — sie haben keine Zeitachse und keine Legende.
+- Der Export im Lauf ist **best effort**: fehlt der Renderer, warnt `spike:report` und der Lauf bleibt gültig — die Zahlen liegen ohnehin als Rohartefakte auf der Platte. Nachholen: `pnpm spike:graphs`.
+
+**Task:** `loadtest:export-graphs` (fragt nach dem Zeitraum)
 
 ---
 

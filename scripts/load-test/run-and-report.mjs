@@ -39,6 +39,7 @@ import { targetUp } from "./lib/prometheus.mjs";
 import { waitForDrain } from "./lib/drain.mjs";
 import { runPhaseAReactive, runPhaseB } from "./lib/processes.mjs";
 import { parseOpenMetrics, sumSamples } from "./lib/openmetrics.mjs";
+import { exportDashboards } from "./lib/grafana.mjs";
 import { analyzeAndWrite } from "./analyze-run.mjs";
 
 const EVENT_ID = process.env.EVENT_ID ?? "00000000-0000-4000-8000-000000000000";
@@ -48,6 +49,9 @@ const WORKER_METRICS =
   process.env.WORKER_METRICS_URL ?? "http://localhost:10003/metrics";
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL ?? "http://localhost:10007";
 const SALE_OPENS_IN_SECONDS = process.env.SALE_OPENS_IN_SECONDS ?? "60";
+/** Vorlauf/Nachlauf der exportierten Panels: Ruhelinie vor, Leerlaufen nach dem Ansturm. */
+const GRAPH_PAD_BEFORE_MS = 60_000;
+const GRAPH_PAD_AFTER_MS = 30_000;
 
 const nowIso = () => new Date().toISOString();
 const stamp = () => nowIso().replace(/[:.]/g, "-");
@@ -266,6 +270,38 @@ const main = async () => {
 
   // 9. Deterministic analysis + report.
   const { derived } = analyzeAndWrite(runDir, policy);
+
+  // 9b. Grafana panels as PNG for exactly this run's window (ADR-030).
+  // Best-effort on purpose: the numeric evidence is already on disk, and a
+  // missing renderer container must not turn a valid run into a failed one.
+  if (process.env.EXPORT_GRAPHS !== "0") {
+    const from = Date.parse(timestamps.workloadStartedAt) - GRAPH_PAD_BEFORE_MS;
+    const to =
+      Date.parse(timestamps.drainEndedAt ?? timestamps.workloadEndedAt) +
+      GRAPH_PAD_AFTER_MS;
+    console.log("[spike:report] Exporting Grafana panels...");
+    try {
+      const graphs = await exportDashboards({
+        outDir: join(runDir, "grafana"),
+        from: String(from),
+        to: String(to),
+        log: (message) => console.log(message),
+      });
+      console.log(
+        `[spike:report] Grafana: ${graphs.written}/${graphs.total} panels -> ${graphs.outDir}`,
+      );
+      for (const f of graphs.failed) {
+        console.warn(`[spike:report]   panel failed: ${f.dashboard} / ${f.panel}: ${f.error}`);
+      }
+    } catch (error) {
+      console.warn(
+        `[spike:report] Grafana export skipped: ${error instanceof Error ? error.message : error}`,
+      );
+      console.warn(
+        "[spike:report]   Renderer running? `docker compose up -d renderer` (hts-grafana-renderer). Nachtraeglich: `pnpm spike:graphs`.",
+      );
+    }
+  }
 
   console.log(`[spike:report] Artifacts: ${runDir}`);
   console.log(

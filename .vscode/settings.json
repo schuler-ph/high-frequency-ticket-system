@@ -68,7 +68,7 @@
       {
         "name": "$(rocket) LT Stack",
         "color": "#98C379",
-        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Seed → API + Worker, je eigenes Terminal). Die Service-Terminals müssen offen bleiben.",
+        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Seed → API + Worker + Web im Dev-Modus, je eigenes Terminal). Die Service-Terminals müssen offen bleiben.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:stack up"]
@@ -76,7 +76,7 @@
       {
         "name": "$(debug-stop) LT Stop",
         "color": "#E06C75",
-        "tooltip": "RUNBOOK §3: Prozesse auf Port 10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
+        "tooltip": "RUNBOOK §3: Prozesse auf Port 10001/10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:stack down"]

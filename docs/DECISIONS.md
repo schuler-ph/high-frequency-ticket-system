@@ -713,3 +713,30 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `docs/TODO-ARCHIVE.md` (neu, wortgleiche Originale der gekuerzten Eintraege)
   - `docs/TODO.md` (49 Eintraege und 6 Absaetze gekuerzt, 4 tote Pfade korrigiert)
   - Doku-Lockstep: `.github/copilot-instructions.md` (= `CLAUDE.md`) und `.agents/rules/rules.md`
+
+---
+
+## ADR-030: Grafana-Panel-Export als PNG (grafana-image-renderer) statt Hand-Screenshots
+
+- **Datum:** 2026-07-27
+- **Kontext:** Die visuelle Evidenz eines Lasttests entstand per Hand: Grafana oeffnen, Zeitraum setzen, acht Dashboards durchklicken, ~48 Panels einzeln abfotografieren. Das ist teuer (Minuten pro Lauf), unvollstaendig (in der Praxis wurden 3-4 „interessante" Panels gesichert, der Rest ging verloren) und **nicht reproduzierbar**: der Zeitraum wurde per Maus gezogen, zwei Laeufe waren damit nie auf demselben Fenster verglichen. `docs/REQUIREMENTS.md` verlangt aber „Screenshots der Grafana-Dashboards unter Last als Nachweis der Skalierbarkeit" — die Beweiskette endete genau dort, wo sie manuell wurde, obwohl die numerische Erhebung (`spike:report`) laengst deterministisch ist.
+- **Entscheidung:** Grafana rendert die Panels selbst. Der Container `hts-grafana-renderer` (`grafana/grafana-image-renderer:3.12.9`, Host-Port `10010`) wird in `docker-compose.yml` aufgenommen, Grafana kennt ihn ueber `GF_RENDERING_SERVER_URL`/`GF_RENDERING_CALLBACK_URL`. `scripts/load-test/lib/grafana.mjs` listet die provisionierten Dashboards ueber die Grafana-API, sammelt deren Graph-Panels und holt jedes einzeln als PNG von `/render/d-solo/<uid>/<slug>?panelId=…`. Ergebnis pro Lauf: `artifacts/load-tests/<run-id>/grafana/<dashboard>/<panelId>-<panel>.png` plus `index.md` als Galerie. `spike:report` ruft das als Schritt 9b automatisch auf (Fenster `workloadStartedAt − 60 s … drainEndedAt + 30 s`), `pnpm spike:graphs` macht dasselbe nachtraeglich fuer einen beliebigen Zeitraum.
+- **Begruendung:**
+  - **`d-solo` je Panel statt ein Bild pro Dashboard:** ein Panel-PNG enthaelt Titel und Legende (inklusive Mean/Max-Spalten) und ist als einzelne Datei in einem Report zitierbar. Ein Dashboard-Screenshot skaliert die Panels so weit herunter, dass Legenden unlesbar werden — genau die Zahlen, die man zitieren will.
+  - **Zeitfenster aus dem Manifest:** der Lauf kennt seinen eigenen Zeitraum bereits (`manifest.json → timestamps`). Ihn abzuleiten statt zu tippen macht die Bilder zu Artefakten des Laufs statt zu Interpretationen davon. Der Puffer ist Absicht: 60 s Vorlauf zeigt die Ruhelinie, 30 s Nachlauf das Leerlaufen der Queue.
+  - **Wall-Clock-Zeiten in der Zeitzone lesen, nicht als UTC:** `--from "2026-07-27 16:19:00"` ist genau das Format, das die Grafana-Zeitauswahl ausgibt. Als UTC gelesen waere jedes Bild still um zwei Stunden verschoben und haette trotzdem plausibel ausgesehen — der teuerste Fehlermodus. Der Offset kommt aus `Intl` (zwei Durchgaenge), nicht aus einer festen `+02:00`-Annahme, damit ein Lauf ueber die Zeitumstellung korrekt bleibt.
+  - **`var-datasource` explizit setzen:** die Dashboards waehlen ihre Datenquelle ueber eine `datasource`-Template-Variable, deren uid beim Provisionieren generiert wird. Ohne den Parameter rendert Grafana 48 technisch einwandfreie „No data"-Bilder.
+  - **Best effort im Lauf:** ein fehlender Renderer darf einen gueltigen Lauf nicht ungueltig machen. Die Zahlen liegen zu diesem Zeitpunkt vollstaendig auf der Platte; der Export warnt und ist per `pnpm spike:graphs` nachholbar. Umgekehrt setzt das Standalone-CLI bei fehlgeschlagenen Panels Exit 1 — dort ist der Export der Zweck des Aufrufs.
+- **Alternativen (verworfen):**
+  - **Bei Hand-Screenshots bleiben:** kostet pro Lauf Minuten, liefert eine Auswahl statt einer Erhebung und macht zwei Laeufe unvergleichbar.
+  - **Grafana-Snapshot-API (`/api/snapshots`):** haette interaktive Snapshots erzeugt statt Dateien. Sie leben in der Grafana-Datenbank (Volume `grafana_data`), nicht im Run-Verzeichnis — die Evidenz waere an eine laufende Instanz gebunden statt an das Artefakt-Verzeichnis, das laut RUNBOOK §5 die Schnittstelle ist.
+  - **Eigenes Playwright/Puppeteer-Skript:** haette eine zweite Browser-Automatisierung (plus Chromium-Download) ins Repo geholt, um nachzubauen, was der Renderer als offizieller Grafana-Baustein liefert — inklusive Auth, Kiosk-Modus und Warten auf fertige Panels.
+  - **Ganze Dashboards per `/render/d/<uid>`:** ein Bild statt acht Ordner, aber unlesbare Legenden und kein zitierbares Einzel-Panel.
+  - **Panels aus den Dashboard-JSONs im Repo lesen statt aus der API:** haette den Renderer-Aufruf ohne HTTP-Umweg parametrisiert, aber die generierte Datasource-uid nicht gekannt und UI-Aenderungen an provisionierten Dashboards (`allowUiUpdates: true`) verpasst.
+- **Trade-off / bewusst offen:** Der Export kostet ~35 s und ~5 MB pro Lauf (48 PNGs bei `scale: 2`). Das ist gegenueber der Laufzeit eines Lasttests vernachlaessigbar, und `artifacts/` ist gitignoriert — wer Bilder in einen Report unter `docs/reports/` hebt, kopiert sie bewusst dorthin. Text-Panels („Setup Required") werden uebersprungen, weil sie als leerer Kasten rendern; sie tragen keine Messung. Die Bilder sind **nicht** byte-identisch reproduzierbar (Chromium-Rendering, Font-Hinting) — die Idempotenz-Anforderung gilt weiter fuer `derived.json`/`report.md`, nicht fuer die PNGs.
+- **Umsetzung:**
+  - `scripts/load-test/lib/grafana.mjs` (neu), `scripts/load-test/export-grafana.mjs` (neu, CLI), `scripts/load-test/test/grafana.test.mjs` (neu, 10 Tests auf den reinen Teil)
+  - `scripts/load-test/run-and-report.mjs` (Schritt 9b, abschaltbar per `EXPORT_GRAPHS=0`), `package.json` (`spike:graphs`)
+  - `docker-compose.yml` (Service `renderer`, Grafana-Rendering-Env)
+  - `.vscode/tasks.json` (`loadtest:export-graphs` mit Zeitraum-Prompt)
+  - Doku: `RUNBOOK.md` §5, `docs/REQUIREMENTS.md` (Monitoring-Stack)

@@ -22,6 +22,11 @@ pnpm spike:analyze -- artifacts/load-tests/<run-id>
 # state, and candidate validity are compatible. Exits non-zero when not.
 pnpm spike:compare -- <baseline-derived.json|dir> <candidate-derived.json|dir>
 
+# Export every Grafana panel (title + legend) as PNG for a time window.
+# Runs automatically at the end of `spike:report`; needs the renderer container.
+pnpm spike:graphs                                   # last run, window from its manifest
+pnpm spike:graphs -- --range '{"from":"2026-07-27 16:19:00","to":"2026-07-27 16:31:00"}'
+
 # Pure unit + golden-file tests (no stack needed; also run in CI).
 pnpm spike:report:test
 ```
@@ -45,6 +50,8 @@ pnpm spike:report:test
 | `lib/prometheus.mjs`      | Prometheus instant query + target health.                             |
 | `lib/drain.mjs`           | Drain monitor (`pending = Δpublished − Δcompleted − Δfailed`).        |
 | `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop.                           |
+| `lib/grafana.mjs`         | Panel discovery + `/render/d-solo` PNG export (ADR-030).              |
+| `export-grafana.mjs`      | CLI around it: time window from flags or a run's manifest.            |
 | `test/`                   | Unit tests + anonymized Baseline-A fixture and approved golden files. |
 
 Policy/queries are versioned in [`load-tests/report-policy.json`](../../load-tests/report-policy.json)
