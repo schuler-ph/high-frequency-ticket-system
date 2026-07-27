@@ -2,7 +2,8 @@ import * as assert from "node:assert";
 import { test } from "node:test";
 import { ticketRedisKeys } from "@repo/types/redis-keys";
 import {
-  calculateAvailableTickets,
+  calculateExpectedAvailable,
+  clampForRedisWrite,
   countActiveReservations,
   countStaleReservations,
   reconcileTicketAvailability,
@@ -70,9 +71,14 @@ function createRedisMock(config: {
   };
 }
 
-void test("reconcile calculates available tickets and clamps the result at zero", () => {
-  assert.equal(calculateAvailableTickets(100, 80, 10), 10);
-  assert.equal(calculateAvailableTickets(100, 95, 10), 0);
+void test("expected available is deliberately unclamped; clamping happens at the Redis write", () => {
+  assert.equal(calculateExpectedAvailable(100, 80, 10), 10);
+  // Ueberzeichnung MUSS sichtbar bleiben (Baseline C: der geklammerte Wert
+  // machte den Drift-Gauge fuer genau diesen Zustand blind, Report §5)...
+  assert.equal(calculateExpectedAvailable(100, 95, 10), -5);
+  // ...aber nach Redis darf nie ein negativer Bestand geschrieben werden.
+  assert.equal(clampForRedisWrite(-5), 0);
+  assert.equal(clampForRedisWrite(10), 10);
 });
 
 void test("countActiveReservations counts the ledger ZSet cardinality in one call", async () => {
@@ -336,4 +342,104 @@ void test("reconcile calls onEventReconciled with Redis and computed available c
     { eventId, redisAvailable: 60, computedAvailable: 54 },
   ]);
   assert.deepEqual(redis.getCalls, [keys.available]);
+});
+
+// --- Regressionen fuer den Baseline-C-Befund (Report §5) --------------------
+
+void test("reconcile reads the ledger BEFORE the authoritative DB snapshot", async () => {
+  // Die Reihenfolge traegt die Korrektheit (Fehlerrichtung): eine Order, die
+  // zwischen den Reads finalisiert, muss DOPPELT zaehlen (konservativ), nie
+  // GAR NICHT (Phantom-Inventar).
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const callSequence: string[] = [];
+
+  const redis = createRedisMock({
+    zcard: { [keys.reservations]: 1 },
+    get: { [keys.available]: "54" },
+  });
+  const originalZcard = redis.zcard.bind(redis);
+  redis.zcard = async (key) => {
+    callSequence.push("ledger");
+    return originalZcard(key);
+  };
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => {
+      callSequence.push("db");
+      return [{ eventId, totalCapacity: 100, soldCount: 45 }];
+    },
+    redis,
+  });
+
+  // Vorab-Snapshot (nur Ids) -> Ledger -> massgeblicher DB-Snapshot.
+  assert.deepEqual(callSequence, ["db", "ledger", "db"]);
+});
+
+void test("an order finalizing between the reads REMOVES inventory instead of inventing it", async () => {
+  // Exakt das Baseline-C-Rennen: Order X ist beim Ledger-Read noch gehalten
+  // (ZCARD zaehlt sie) und beim massgeblichen DB-Read schon verkauft
+  // (soldCount enthaelt sie) -> X zaehlt doppelt -> expected 100-46-1 = 53.
+  // Redis kennt den wahren Stand 54. Die Korrektur muss ein Ticket ENTFERNEN
+  // (INCRBY -1) und nicht wie beim alten DB-zuerst-Read eines ERFINDEN
+  // (INCRBY +1) -- so entstanden die 389 Phantom-Ansprueche.
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock({
+    zcard: { [keys.reservations]: 1 }, // X noch im Ledger (Zeitpunkt t1)
+    get: { [keys.available]: "54" },
+  });
+
+  let dbReads = 0;
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => {
+      dbReads += 1;
+      // t0 (Vorab-Read, wird verworfen): X noch nicht verkauft.
+      // t2 (massgeblich): X inzwischen finalisiert.
+      const soldCount = dbReads === 1 ? 45 : 46;
+      return [{ eventId, totalCapacity: 100, soldCount }];
+    },
+    redis,
+  });
+
+  assert.deepEqual(
+    redis.incrbyCalls,
+    [{ key: keys.available, increment: -1 }],
+    "must correct conservatively (remove), never invent inventory",
+  );
+});
+
+void test("overclaim is reported unclamped to the metric while the Redis write stays clamped", async () => {
+  // Ausverkaufs-Endzustand von Baseline C im Kleinen: verkauft + gehalten
+  // uebersteigt die Kapazitaet um 5. Der Gauge-Input (computedAvailable) muss
+  // -5 sehen (Drift = 0 - (-5) = +5 sichtbar); nach Redis darf trotzdem kein
+  // negativer Bestand geschrieben werden.
+  const eventId = "d18f2ce4-5f31-4ec1-bfd6-b3525fd4676b";
+  const keys = ticketRedisKeys(eventId);
+  const redis = createRedisMock({
+    zcard: { [keys.reservations]: 10 },
+    get: { [keys.available]: "0" },
+  });
+
+  const reconciledEvents: Array<{
+    redisAvailable: number;
+    computedAvailable: number;
+  }> = [];
+
+  await reconcileTicketAvailability({
+    getEventInventorySnapshots: async () => [
+      { eventId, totalCapacity: 100, soldCount: 95 },
+    ],
+    redis,
+    onEventReconciled: (_eid, redisAvailable, computedAvailable) => {
+      reconciledEvents.push({ redisAvailable, computedAvailable });
+    },
+  });
+
+  assert.deepEqual(reconciledEvents, [
+    { redisAvailable: 0, computedAvailable: -5 },
+  ]);
+  // Zielwert der Korrektur ist der GEKLAMMERTE Wert (0): Redis steht schon
+  // auf 0, also keine Korrektur -- insbesondere kein Druecken unter 0.
+  assert.deepEqual(redis.incrbyCalls, []);
 });
