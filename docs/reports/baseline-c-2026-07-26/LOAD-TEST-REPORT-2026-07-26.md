@@ -166,6 +166,8 @@ Theoretische Decke = 20 / 6,1 ms = 3.300/s      ->  exakt der beobachtete Peak
 
 Die beobachtete Worker-Decke ist also **rechnerisch identisch** mit der Pool-Groesse geteilt durch die Servicezeit. Damit ist der Pool als bindende Restriktion belegt, nicht nur plausibel.
 
+> **Nachtrag 2026-07-27:** Der wahre Pool-Wait-Peak lag noch hoeher. `max_over_time(db_pool_connections{state="waiting"}[20m])` ueber die Rohdaten liefert **3.578** wartende Acquirer — die im Dashboard ablesbaren 1.070 waren durch das Downsampling der Panel-Aufloesung untertrieben (genau der Grund, warum die Gauges im Dashboard-Audit auf `max_over_time` umgestellt wurden). Der Befund wird dadurch staerker, nicht schwaecher.
+
 Hochrechnung bei gleicher Servicezeit: `POOL_MAX=50` → ~8.250/s, `=100` → ~16.500/s. Der naechste Lauf sollte diesen Knopf drehen, **bevor** ueber Architekturaenderungen (Batching) nachgedacht wird — solange Postgres 6 ms braucht und 0 Lock-Waits meldet, ist nicht die Datenbank das Problem, sondern der Zugang zu ihr.
 
 ---

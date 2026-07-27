@@ -1,7 +1,9 @@
 {
   "__inputs": [],
   "__requires": [],
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -9,18 +11,39 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
           "unit": "ops"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
-      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
         {
           "expr": "sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)",
@@ -36,31 +59,62 @@
           "expr": "sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)",
           "legendFormat": "Compensations / s",
           "refId": "C"
+        },
+        {
+          "expr": "sum(rate(worker_duplicate_deliveries_total{job=\"worker\"}[1m])) or vector(0)",
+          "legendFormat": "Absorbed Duplicates / s",
+          "refId": "D"
         }
       ],
       "title": "Worker Reliability Events (rate per second)",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 20 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
             ]
           },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "id": 2,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "orientation": "horizontal",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
       "targets": [
         {
           "expr": "sum(increase(worker_redeliveries_total{job=\"worker\"}[5m])) or vector(0)",
@@ -76,52 +130,99 @@
           "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[5m])) or vector(0)",
           "legendFormat": "Compensations (5m)",
           "refId": "C"
+        },
+        {
+          "expr": "sum(increase(worker_duplicate_deliveries_total{job=\"worker\"}[5m])) or vector(0)",
+          "legendFormat": "Absorbed Duplicates (5m)",
+          "refId": "D"
         }
       ],
       "title": "Reliability Event Counts (last 5 minutes)",
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
           "unit": "percentunit"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "id": 3,
-      "options": { "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "last"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
         {
-          "expr": "(sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
+          "expr": "(sum(rate(worker_redeliveries_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(payments_confirmed_total{job=\"api\"}[1m])) > 0)",
           "legendFormat": "Redelivery Rate",
           "refId": "A"
         },
         {
-          "expr": "(sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(orders_accepted_total{job=\"api\"}[1m])) > 0)",
+          "expr": "(sum(rate(worker_compensations_total{job=\"worker\"}[1m])) or vector(0)) / (sum(rate(payments_confirmed_total{job=\"api\"}[1m])) > 0)",
           "legendFormat": "Compensation Rate",
           "refId": "B"
         }
       ],
-      "title": "Redelivery & Compensation Rate (vs. accepted orders)",
+      "title": "Redelivery & Compensation Rate (vs. published orders)",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
           "unit": "ops"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
       "id": 4,
-      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
         {
           "expr": "sum by (event_id) (rate(worker_redeliveries_total{job=\"worker\"}[1m]))",
@@ -138,18 +239,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "id": 5,
-      "options": { "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
         {
           "expr": "sum(increase(worker_redeliveries_total{job=\"worker\"}[$__range]))",
@@ -165,6 +287,11 @@
           "expr": "sum(increase(worker_compensations_total{job=\"worker\"}[$__range]))",
           "legendFormat": "Total Compensations",
           "refId": "C"
+        },
+        {
+          "expr": "sum(increase(worker_duplicate_deliveries_total{job=\"worker\"}[$__range]))",
+          "legendFormat": "Total Absorbed Duplicates",
+          "refId": "D"
         }
       ],
       "title": "Cumulative Reliability Events (Dashboard Time Range)",
@@ -188,7 +315,10 @@
       }
     ]
   },
-  "time": { "from": "now-15m", "to": "now" },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Worker Reliability",
