@@ -8,7 +8,12 @@ export const options = {
       startRate: 1000,
       timeUnit: "1s",
       preAllocatedVUs: 200,
-      maxVUs: 5000,
+      // VU-Budget muss die Zielrate auch bei steigender Latenz decken:
+      // benoetigte VUs = Rate x Iterationsdauer. Baseline C lief mit 5.000 in
+      // den Deckel, als die Latenz im Ausverkaufs-Crunch auf p95 ~874 ms stieg
+      // (benoetigt ~8.700) -> 21,85 % dropped iterations, Lauf invalid.
+      // 10.000 deckt die 10k-Zielrate bis ~1 s Iterationsdauer.
+      maxVUs: 10000,
       stages: [
         // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
         // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
