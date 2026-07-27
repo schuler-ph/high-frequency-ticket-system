@@ -35,6 +35,8 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 | ADR-025 Reaktive Sold-Out-Orchestrierung im Lasttest       | Fertig           | Phase 4: k6 Phase-A/B-Split + Node-Orchestrator (`scripts/local/run-spike.mjs`)                                                                                                              |
 | ADR-026 Redis-Exporter + DB-/Runtime-Bottleneck-Metriken   | Fertig           | Phase 4.5: `redis_exporter`-Container, Worker-DB-Pool-/Query-/Lock-Metriken, Dashboard „DB & Runtime“                                                                                        |
 | ADR-027 Reservation-Ledger (ZSet) statt Keyspace-SCAN      | Fertig           | Phase 4.6 (#5): akzeptierte Reservierungen im TTL-losen ZSet-Ledger, Reconcile via `ZCARD`/`ZCOUNT`, Ablauf = Stale-Kandidat statt Rueckbuchung (behebt Baseline-A-Oversell)                 |
+| ADR-028 Reserve→Pay→Publish-Split                          | Fertig           | Phase 4.7: `/buy` reserviert nur, `/pay` published, `/cancel` gibt frei; Payment-Latenz lebt im Frontend statt im Worker-`sleep`                                                             |
+| ADR-029 Doku-Routing — TODO.md als Index                   | Fertig           | Doku-Hygiene (ausserhalb der Phasenliste): Zeichenbudget je Todo, `docs/notes/`, `docs/TODO-ARCHIVE.md`, erzwungen von `pnpm run debug:docs`                                                 |
 
 ### Status-Definitionen
 
@@ -121,7 +123,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 ### Update 2026-07-14: Idempotenz-Schicht = DB-Transaktion; `processing`-Lock entfernt
 
-- **Kontext:** Die `buy_ticket`-SQL-Function (Migration 0008) ist eine einzelne Transaktion mit `INSERT INTO orders … ON CONFLICT (id) DO NOTHING`, die bei Duplikaten das existierende Ticket zurueckliefert — sie ist damit bereits vollstaendig idempotent und nebenlaeufigkeitssicher. Der Redis-`processing`-Lock duplizierte diese Garantie: Sein einziger Effekt war, dass parallele Doppel-Zustellungen sofort ge-NACKt wurden und heiss rotierten, statt harmlos in den `ON CONFLICT`-Pfad zu laufen (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`, Befund D1 / Massnahme 4).
+- **Kontext:** Die `buy_ticket`-SQL-Function (Migration 0008) ist eine einzelne Transaktion mit `INSERT INTO orders … ON CONFLICT (id) DO NOTHING`, die bei Duplikaten das existierende Ticket zurueckliefert — sie ist damit bereits vollstaendig idempotent und nebenlaeufigkeitssicher. Der Redis-`processing`-Lock duplizierte diese Garantie: Sein einziger Effekt war, dass parallele Doppel-Zustellungen sofort ge-NACKt wurden und heiss rotierten, statt harmlos in den `ON CONFLICT`-Pfad zu laufen (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`, Befund D1 / Massnahme 4).
 - **Entscheidung:** Der `processing`-Lock entfaellt ersatzlos (Key-Familie, SET-NX-Erwerb, Release im `finally`, Lock-Conflict-NACK-Pfad, `processing_lock_conflicts_total`-Metrik samt Dashboard-Panels, `REDIS_WORKER_PROCESSING_LOCK_TTL_SECONDS`). Die Idempotenz-Garantie traegt explizit die DB-Transaktion. Der `processed`-Marker **bleibt** als reine Redis-Optimierung: Redeliveries werden weiterhin sofort ge-ACKt und sparen den 1-s-Payment-Sleep plus DB-Roundtrip.
 - **Begruendung:** Das Learning "Idempotenz via `orderId`" wird nicht verletzt, sondern in die Schicht verlagert, die es laengst implementiert. Parallele Doppel-Zustellungen (selten) serialisieren an der Row-Lock der ersten `INSERT` und landen im Conflict-Pfad — Ergebnis: beide Zustellungen werden als `completed` ge-ACKt, kein doppelter `sold_count`, kein NACK-Hot-Loop. Weniger Zustaende, weniger Fehlerpfade, 1 Redis-Roundtrip weniger vor jedem DB-Write.
 - **Umsetzung:**
@@ -176,7 +178,7 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
 
 ### Update 2026-07-12: Reserve+Reservation+Pending als ein atomares Lua-Script (EVALSHA)
 
-- **Kontext:** Der Buy-Hot-Path bezahlte drei sequenzielle Redis-Roundtrips (EVAL Check+DECR, SET Reservation-Key, SET Pending-Order) und brauchte einen mehrstufigen manuellen Rollback fuer den Zwischenzustand "Reservation gesetzt, Pending-Write fehlgeschlagen". `redis.eval()` uebertrug zudem den Script-Text bei jedem Request neu (vgl. `docs/ANALYSIS-STANDARD-FLOW.md`, Massnahme 1).
+- **Kontext:** Der Buy-Hot-Path bezahlte drei sequenzielle Redis-Roundtrips (EVAL Check+DECR, SET Reservation-Key, SET Pending-Order) und brauchte einen mehrstufigen manuellen Rollback fuer den Zwischenzustand "Reservation gesetzt, Pending-Write fehlgeschlagen". `redis.eval()` uebertrug zudem den Script-Text bei jedem Request neu (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`, Massnahme 1).
 - **Entscheidung:** Check+DECR, Reservation-Key und Pending-Order-Key laufen in **einem** Lua-Script, registriert via ioredis `defineCommand` (EVALSHA mit automatischem Fallback). Der einzige verbleibende Fehlerpfad (Pub/Sub-Publish fehlgeschlagen) wird durch ein ebenso atomares Gegen-Script kompensiert: `DEL reservation` → `INCR available` nur bei tatsaechlich geloeschter Reservation → `DEL` Pending-Order.
 - **Begruendung:** 3→1 Roundtrip pro Kauf im API-Hot-Path, keine partiellen Zwischenzustaende und kein mehrstufiger Rollback-Code mehr; das Gegen-Script ist idempotent (kein Double-Increment bei Wiederholung). Die Semantik aus dem ADR-017-Update 2026-04-22 (Inventory-Rollback garantiert, Pending-Cleanup darf es nicht blockieren) bleibt erhalten und wird stärker: alles ist ein atomarer Schritt.
 - **Cluster-Caveat:** Das Script mischt Hash-Slots (`tickets:event:…` und `orders:…`) — zulaessig auf nicht-geclustertem Memorystore/Redis. Falls Redis Cluster je ein Thema wird, sind Hash-Tags einzuplanen und dieses ADR zu aktualisieren.
@@ -679,3 +681,35 @@ Dieses Kapitel verknüpft jede ADR mit dem aktuellen Umsetzungsstatus und der St
   - `packages/env/src/index.ts` (Flow-Control-Kommentar), `monitoring/grafana/.../order-lifecycle.json` (Funnel)
   - Tests: `apps/api/test/routes/orders.pay.test.ts`, `orders.cancel.test.ts`, `tickets.buy.test.ts`, `tests/e2e/*`
   - Doku-Lockstep: ADR-013 (Mock Worker→Frontend), ADR-023 (queuedAt-Semantik), `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/TODO.md`
+
+---
+
+## ADR-029: Doku-Routing — TODO.md ist ein Index, kein Protokoll
+
+- **Datum:** 2026-07-26
+- **Kontext:** `docs/TODO.md` ist als Single Source of Truth fuer den Fortschritt deklariert und laut `CLAUDE.md` von jedem Agenten **zuerst** zu lesen. Die Datei war auf 70 KB gewachsen, bei nur 324 Zeilen — Todos hatten sich seit Projektstart 4,2× vermehrt, die Dateigroesse aber **20×** (3,5 KB → 70 KB, Knick zwischen 2026-07-14 und 07-19). Ursache war ein einzelnes Muster, keine allgemeine Geschwaetzigkeit: der Umsetzungsbericht nach dem Gedankenstrich (`- [x] <Aufgabe> — Umgesetzt: <mehrere hundert Woerter>`). 39 Zeilen mit diesem Nachtrag lagen bei ⌀ **1.009** Zeichen (laengste 2.506), die uebrigen 146 bei ⌀ **142** — rund 20 % der Eintraege hielten ~79 % der Bytes. Praktische Folge: jeder Agent zahlte 70 KB Kontext, nur um „was ist als Naechstes dran?" zu beantworten, und ein Mensch konnte die Datei nicht mehr ueberfliegen. Der Roadmap-Kopf raeumte das selbst ein („nicht mehr strikt von oben nach unten abzuarbeiten").
+- **Entscheidung:** TODO.md wird ein Index. Ein Todo ist eine Zeile mit hartem Budget von **300 Zeichen**; Details werden nach Inhaltstyp geroutet:
+  - Begruendung, Abwaegung, verworfene Alternative → `docs/DECISIONS.md` (neuer ADR oder `### Update YYYY-MM-DD` unter dem bestehenden)
+  - Messwerte, Lauf-Ergebnisse, Benchmarks → `docs/reports/<thema>/`
+  - Welche Dateien und Tests angefasst wurden → git-Commit-Body
+  - Laufende Notizen, Recherche, Zwischenstaende → **neu:** `docs/notes/<thema>.md`
+  - Wortgleiche Original-Todos aus der Kuerzung → **neu:** `docs/TODO-ARCHIVE.md`
+
+  Erzwungen wird das von `scripts/debug/check-docs.mjs` (`pnpm run debug:docs`, Teil von `debug:all`): Zeichenbudget je Todo und je Prosa-Absatz, Aufloesbarkeit aller Backtick-Repo-Pfade und Markdown-Links in `docs/`, Existenz der Anker-Ueberschriften, plus 40-KB-Backstop fuer TODO.md.
+
+  Die append-forward-Regel bleibt, bekommt aber eine Klausel: Kuerzen eines `[x]`-Todos ist erlaubt, **wenn** der Originaltext wortgleich nach `docs/TODO-ARCHIVE.md` wandert und das Todo dorthin verlinkt. Es geht nie Text verloren, nur der Ort aendert sich.
+
+- **Begruendung:** Drei der vier Inhaltstypen hatten laengst ein Zuhause (`DECISIONS.md` inklusive Nachtrags-Konvention, `docs/reports/`, git) — es fehlte nur die Regel, sie zu benutzen. Wirklich neu ist allein `docs/notes/`, und genau dessen Fehlen erklaert das Wachstum: laengere Ueberlegungen ohne Entscheidungscharakter hatten keinen Ort und landeten deshalb im Todo. Eine reine Textregel haette nicht getragen — die Explosion entstand ohne dass jemand eine Regel brach. Deshalb der maschinelle Check im bestehenden `debug:*`-Muster statt einer Konvention, an die sich alle erinnern muessen.
+- **Alternativen (verworfen):**
+  - **Nur ab jetzt, Historie unangetastet:** haette die 70 KB und die Unlesbarkeit eingefroren; das Problem waere nur nicht groesser geworden.
+  - **Archiv-Split ohne Kuerzen** (abgeschlossene Phasen komplett nach `TODO-ARCHIVE.md`, TODO.md behaelt nur offene Arbeit): haette die append-forward-Regel buchstabengetreu gewahrt, aber den Fortschritt der fertigen Phasen aus der Uebersicht genommen — genau das Signal, das die Datei liefern soll.
+  - **Alle Nachtraege nach `docs/notes/`:** einfacher zu merken, haette aber Entscheidungen ausserhalb von `DECISIONS.md` abgelegt und damit dessen Anspruch auf Vollstaendigkeit gebrochen.
+  - **Gar kein Nachtrag** („steht im git log"): am schlanksten, haette aber die Abwaegungen („bewusst anders geloest als vorgeschlagen") als lesbare Doku verloren.
+  - **husky pre-commit statt `debug:all`:** haette jeden Commit verlangsamt; `pre-commit` macht bewusst nur `pnpm run format`, und ueber `debug:all` laeuft der Check ohnehin in `verify:quick`, `verify:all` und CI.
+- **Trade-off / bewusst offen:** Der Check kennt zwei Abschwaechungen. Historische Datei-Erwaehnungen in ADRs („der bisherige `load-tests/spike.js`") stehen auf einer expliziten Allowlist im Skript, weil ein ADR-Kontext legitim ueber entfernte Dateien spricht. Und Links auf **gitignorierte** Ziele werden nur gewarnt statt geblockt — `docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md` verlinkt seine Rohartefakte, die das breite `artifacts/`-Pattern in `.gitignore` mitfaengt. Ob diese Evidenz ins Repo gehoert, ist eine eigene Entscheidung und bleibt offen.
+- **Umsetzung:**
+  - `scripts/debug/check-docs.mjs` (neu), `package.json` (`debug:docs`, in `debug:all`)
+  - `docs/notes/README.md` (neu, Abgrenzung der Ablageorte)
+  - `docs/TODO-ARCHIVE.md` (neu, wortgleiche Originale der gekuerzten Eintraege)
+  - `docs/TODO.md` (49 Eintraege und 6 Absaetze gekuerzt, 4 tote Pfade korrigiert)
+  - Doku-Lockstep: `.github/copilot-instructions.md` (= `CLAUDE.md`) und `.agents/rules/rules.md`
