@@ -19,11 +19,13 @@ Rohartefakte landen unter `artifacts/load-tests/<run-id>/` (gitignored); ein gep
 
 - **[Baseline A vom 2026-07-14](../docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md)** — erster lokaler Spike-Lauf. Messkonfiguration, Befund, Grenzen der Aussagekraft und ein einklappbarer Anhang mit den Grafana-Screenshots. Belegt keine 50k RPS: Der lokale k6-Runner verwarf 68,24 % der geplanten Iterationen.
 - **[Baseline B vom 2026-07-26](../docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach dem Reserve/Pay-Split (ADR-028) und der Hot-Row-Entfernung, und erster End-to-End-Lauf von `pnpm spike:report`. Belegt ebenfalls **keine** 50k RPS (67,66 % dropped iterations, `maxVUs`-Deckel erreicht, Generator co-lokalisiert), zeigt aber fachliche Korrektheit unter ~14 min Dauerlast: 867.575 persistierte Orders, 0 Nachrichtenverlust, exakte Inventar-Erhaltung, 0 Oversell, 0 Drift. E2E-Mittel 406 s → 7,52 s gegenueber Baseline A. Die `system=fail`- und Drain-Timeout-Signale des Laufs sind Defekte der Messkette (siehe Report §4) und als Todos erfasst.
+- **[Baseline C vom 2026-07-26 (Abend)](../docs/reports/baseline-c-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach den Messketten-Fixes und der erste, der **tatsaechlich ausverkauft** ist (`available = 0`). Belegt weiterhin keine 50k RPS (21,85 % dropped — das k6-VU-Budget reichte nicht, als die Latenz stieg), dafuer 957.053 persistierte Orders in 6,4 min bei 0 Fehlern, E2E-Mittel 0,24 s und sauberem Drain (15 s). Lokalisiert den naechsten Engpass praezise: der **DB-Connection-Pool** (1.070 wartende Acquirer bei Pool 20, 0 Lock-Waits). Zwei neue Defekte: Reconcile erfindet Phantom-Inventar (389 Ansprueche ueber Kapazitaet) und der Drift-Gauge ist dafuer blind.
 
-> Vor dem naechsten Kapazitaetslauf (Baseline C) zuerst den Abschnitt
-> „Backlog: Baseline-B-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten —
-> die dort gelisteten P0-Defekte machen sonst auch den naechsten Lauf nicht
-> auswertbar.
+> Vor dem naechsten Kapazitaetslauf (Baseline D) zuerst den Abschnitt
+> „Backlog: Baseline-C-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten.
+> Die P0-Defekte aus dem B-Nachlauf sind erledigt (Baseline C belegt das); offen
+> sind jetzt das Phantom-Inventar im Reconcile, der blinde Drift-Gauge und der
+> DB-Pool als Engpass.
 
 ## Voraussetzungen
 
