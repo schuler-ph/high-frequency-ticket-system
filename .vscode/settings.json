@@ -74,14 +74,6 @@
         "args": ["loadtest:stack up"]
       },
       {
-        "name": "$(pulse) LT Ready",
-        "color": "#98C379",
-        "tooltip": "RUNBOOK §3: Prüft, ob API (10002) und Worker (10003) antworten. 'Spike Report' macht das automatisch vorweg.",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["stack:wait-ready"]
-      },
-      {
         "name": "$(debug-stop) LT Stop",
         "color": "#E06C75",
         "tooltip": "RUNBOOK §3: Prozesse auf Port 10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
@@ -96,6 +88,14 @@
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report"]
+      },
+      {
+        "name": "$(watch) Spike Report Wait",
+        "color": "#FF8C00",
+        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung im realism-Profil (LOAD_PROFILE=realism) — Denkzeit 2–8 s zwischen Reserve und Payment → artifacts/load-tests/<run-id>/",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:run+report realism"]
       },
       {
         "name": "$(graph) Analyze",

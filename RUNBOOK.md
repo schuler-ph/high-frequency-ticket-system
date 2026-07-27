@@ -79,7 +79,7 @@ flowchart TD
     D --> E["API + Worker parallel starten<br/><i>je eigenes Terminal, laufen dauerhaft</i>"]
     E --> F(["Stack läuft<br/><i>Terminals offen lassen!</i>"])
 
-    F --> G["<b>LT Ready</b> / stack:wait-ready<br/>curl :10002 + :10003<br/><i>Timeout 240s</i>"]
+    F --> G["stack:wait-ready<br/>curl :10002 + :10003<br/><i>Timeout 240s</i>"]
     G --> H{bereit?}
     H -->|ja| I(["bereit für §4"])
     H -->|nein| J["nennt den Port ohne Listener<br/>Exit 1"]
@@ -99,7 +99,7 @@ until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Buttons:** `LT Stack`, `LT Ready`
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` (für `stack:wait-ready` gibt es keinen eigenen Button mehr — die `Spike Report`-Buttons prüfen die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar)
 
 ### Warum der Readiness-Check ein eigener Schritt ist (Falle 4)
 
@@ -215,7 +215,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 > **k6-Remote-Write ist standardmäßig aus.** Der Report liest keine k6-Serien aus Prometheus — alle Queries gehen gegen `job="api"`/`job="worker"`. Das Remote-Write diente nur dem Live-Blick, trieb Prometheus aber auf 5,5 GiB bis zum `503` und nahm dabei genau die Daten mit, die der Report braucht.
 
-**Task:** `loadtest:run+report` (prüft zuerst die Bereitschaft) · **Button:** `Spike Report`
+**Tasks:** `loadtest:run+report` (capacity, prüft zuerst die Bereitschaft) und `loadtest:run+report realism` (identisch, aber mit `LOAD_PROFILE=realism`) · **Buttons:** `Spike Report`, `Spike Report Wait`
 
 ---
 

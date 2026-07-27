@@ -160,7 +160,7 @@
     },
     {
       "label": "loadtest:stack up",
-      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' (Button 'LT Ready') — 'loadtest:run+report' macht das automatisch.",
+      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker (je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "stack:seed", "loadtest:services"],
       "problemMatcher": []
@@ -188,6 +188,22 @@
       "detail": "RUNBOOK §4 — prueft zuerst die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report"],
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:report realism",
+      "detail": "Wie 'loadtest:report', aber mit LOAD_PROFILE=realism: der k6-Funnel legt zwischen Reserve und Pay eine randomisierte Denkzeit (THINK_TIME_MIN..MAX, Default 2-8s) ein — Karteneingabe/3DS. Misst gleichzeitig gehaltene Ledger-Reservierungen + Redis-Memory statt roher Kapazitaet und braucht deutlich mehr VUs. Normalerweise ueber 'loadtest:run+report realism' aufrufen.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && LOAD_PROFILE=realism pnpm run spike:report",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:run+report realism",
+      "detail": "RUNBOOK §4 — voller Lauf mit Belegerhebung im realism-Profil (Denkzeit im Payment-Funnel), inkl. Readiness-Check vorweg. Laufzeit: viele Minuten, laenger als das capacity-Profil.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["stack:wait-ready", "loadtest:report realism"],
       "problemMatcher": []
     },
     {
