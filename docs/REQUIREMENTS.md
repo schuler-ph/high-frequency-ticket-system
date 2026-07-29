@@ -28,7 +28,7 @@ Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simul
 - **Configuration Management:** `@t3-oss/env-core` + Zod
 - **Schema Validation & DTOs:** Zod
 - **Message Broker:** Google Cloud Pub/Sub
-- **Caching:** Cloud Memorystore (Redis)
+- **Inventory & Caching:** Cloud Memorystore (Redis); waehrend des Sales autoritative Quelle fuer `available` und aktive Reservierungen
 - **Infrastructure as Code:** Terraform
 - **Deployment:** Docker & Google Kubernetes Engine (GKE)
 - **Load Testing:** k6
@@ -80,5 +80,6 @@ Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.
 2.  **Read-Heavy Optimization:** Die API liest ausschließlich aus Redis-Read-Modellen (aktuell Ticket-Verfügbarkeiten, spaeter auch Order-Status) und niemals direkt aus PostgreSQL.
 3.  **Type Safety:** Zod-Schemas generieren die Request-Typen. Drizzle generiert die Datenbank-Typen. Keine doppelten manuellen Typ-Deklarationen.
 4.  **Database Agnosticism:** Die Datenbankschicht muss so in Drizzle abstrahiert werden, dass ein späterer Wechsel von Cloud SQL zu Cloud Spanner mit minimalem Refactoring möglich ist.
-5.  **DB Write Encapsulation:** Der Worker nutzt die PostgreSQL-Function `buy_ticket(...)` fuer Ticket-Writes (Order direkt als `completed` + Ticket-INSERT). Seit Backlog #7 aktualisiert die Function `sold_count` **nicht** mehr (Hot-Row entfernt); der Verkaufsstand wird im Reconcile-Loop via `COUNT(tickets)` aggregiert und als Snapshot nach `events.sold_count` zurueckgeschrieben (ADR-011-Nachtrag).
+5.  **DB Write Encapsulation:** Der Worker nutzt `buy_ticket(...)` fuer Order- und Ticket-Writes. `sold_count` bleibt aus dem Hot-Path entfernt und wird in Phase 4.9 durch einen separaten, instrumentierten Projector aus `COUNT(tickets)` materialisiert; die Projektion schreibt nie nach Redis und traegt nicht die Admission.
 6.  **DTO Contract Discipline (inkl. Tests):** Payload-Typen für API/Worker und Test-Fixtures dürfen nicht lokal nachgebaut werden. Verwende immer die zentralen DTO-Typen oder Schemas aus `packages/types` (z.B. `BuyTicketRequest` oder `buyTicketRequestSchema`).
+7.  **Redis-authoritatives Inventory (Phase 4.9):** Im laufenden Sale veraendern nur atomare Reserve-/Release-/Finalize-Skripte das Inventar. Cross-System-Audits sind read-only; verwaiste Ansprueche werden per `orderId` durch den Reaper statt durch Summenkorrektur freigegeben (ADR-031).

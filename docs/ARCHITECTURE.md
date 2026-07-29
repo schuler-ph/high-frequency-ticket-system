@@ -209,7 +209,58 @@ Beispiel im Worker-Flow:
 3. API antwortet HTTP 200 { available: 843291, total: 1000000 }
    → Kein DB-Zugriff, Sub-Millisekunden Antwortzeit
 
-## Reconcile-Loop: Design & Betriebsmodell
+## Phase-4.9-Zielbild: Inventory Maintenance ohne Live-Korrektur (geplant)
+
+ADR-031 loest den schreibenden Cross-System-Reconcile ab. Die atomaren Redis-Skripte bleiben die einzigen Writer des Verkaufsinventars; Maintenance-Komponenten beobachten oder bearbeiten konkrete Ansprueche, aber leiten keinen neuen `available`-Stand aus zeitversetzten Summen ab.
+
+```mermaid
+flowchart LR
+    Seed["Reset / Seed<br/>vor Sale"]
+    API["API Lua<br/>Reserve / Cancel / Rollback"]
+    Worker["Worker Lua<br/>Finalize / Compensation"]
+    Redis[("Redis Inventory<br/>available + reservation ledger")]
+    DB[("PostgreSQL<br/>tickets = durable sold truth")]
+    Projector["Sold-count Projector<br/>COUNT(tickets) → events.sold_count"]
+    Auditor["Inventory Auditor<br/>read-only metrics"]
+    Reaper["Pending Reaper<br/>orderId + deadline + state"]
+    Prometheus[("Prometheus")]
+
+    Seed --> Redis
+    API --> Redis
+    Worker --> Redis
+    Worker --> DB
+    DB --> Projector
+    Projector --> DB
+    DB --> Auditor
+    Redis --> Auditor
+    Auditor --> Prometheus
+    Redis --> Reaper
+    Reaper -->|"nur expired pending:<br/>ZREM + INCR atomar"| Redis
+```
+
+### Inventory Auditor
+
+Der Auditor misst read-only `capacity`, `available`, `COUNT(tickets)`, aktive und stale Reservierungen sowie `available + sold + active - capacity`. Unter paralleler Last ist dieser Cross-System-Wert ein Diagnose-Snapshot; nach abgeschlossenem Drain ist `0` eine harte Capacity-Invariante. Fehlende Redis-Keys erzeugen einen Fehler beziehungsweise Alarm und niemals eine Runtime-Initialisierung.
+
+### Sold-count Projector
+
+Der Projector materialisiert `COUNT(tickets)` nach `events.sold_count` mit genau einer gruppierten Aggregation pro Zyklus. Er schreibt nicht nach Redis und liegt nicht auf dem Kauf-Hot-Path. Default-Intervall ist zunaechst 60 s; Query-Dauer und Pool-Wait werden gemessen. Falls die Aggregation den Kapazitaetslauf nachweislich beeinflusst, pausiert nur die Projektion waehrend des Profils und laeuft nach dem Drain — Admission und Korrektheit haengen nicht an `events.sold_count`.
+
+### Pending Reaper und TTL-Semantik
+
+Der ZSet-Score traegt eine millisekundengenaue Eligibility Deadline. Der Reaper darf nie vorher freigeben und prueft danach den konkreten Checkout-Zustand. Nur `pending` wird atomar per `ZREM reservation + INCR available` freigegeben; `POST /pay` claimt zuvor atomar `pending → publishing`. `publishing|paid` bleibt allein aufgrund von Alter unangetastet.
+
+TTL ist nur Speicher-Cleanup fuer Read-Models, kein fachlicher Release-Trigger: Redis-Expiry ist kein exakt terminierter Callback, kann keine Cross-Key-Kompensation ausfuehren und unterscheidet nicht zwischen `pending`, gerade publiziert und finalisiert. Der Pending-State bleibt deshalb mindestens bis zur Reaper-Entscheidung erhalten.
+
+### Observability-Zuordnung
+
+- `Inventory Integrity` (Umbau von `Reservation & Consistency`): Capacity-Komponenten/-Delta, Auditor-Health, Ledger active/stale, Reaper-Kandidaten/-Releases/-Skips/-Fehler und aeltester Pending-Anspruch.
+- `DB & Runtime`: Projector-Query-/Run-Dauer, Fehler, letzter Erfolg und Pool-Wait.
+- Lasttest-Report: `available + dbTickets + activeReservations == totalCapacity` ist nach Drain ein verpflichtendes System-Gate.
+
+Vollstaendiger Redis-Datenverlust, Redis-HA und dessen Recovery sind bewusst nicht Teil von Phase 4.9. Der lokale Spike-Test initialisiert den Zustand weiterhin vor dem Sale ueber Reset/Seed.
+
+## Aktueller Reconcile-Loop: wird in Phase 4.9 entfernt
 
 Der Worker fuehrt nach dem einmaligen Startup-Reconcile einen periodischen Reconcile-Loop aus, der Redis-Counter kontinuierlich gegen PostgreSQL korrigiert (vgl. Kubernetes Controller Pattern: desired state vs. current state). Dies kompensiert Drift durch Race Conditions und Worker-Restarts. Aktive Reservierungen zaehlt der Loop seit ADR-026 als `ZCARD tickets:event:{eventId}:reservations` (O(1)) statt ueber einen Keyspace-`SCAN` — der Ledger-Eintrag hat keine TTL, sodass lange Warteschlangen-Latenz keine noch offene Reservierung "ablaufen" laesst und kein Inventar faelschlich zurueckgebucht wird.
 
@@ -234,15 +285,13 @@ Boot → runStartupReconcile() → scheduleNextReconcile(intervalMs)
 
 Umschaltung: `WORKER_RECONCILE_MODE=peak|normal` (Default: `normal`). Gestoppt via Fastify `onClose`-Hook.
 
-### Deployment-Modell & Eskalationspfad
+### Historisches Deployment-Modell
 
-**Phase 3.5–4 – Singleton-Deployment:**
-Der Worker laeuft als `replicas: 1`. Kubernetes garantiert exklusiven Reconcile-Betrieb ohne Leader-Election-Code (ADR-022).
-
-**Phase 5 – HA-Eskalation (bei horizontaler Worker-Skalierung):**
-
-- Option A: Leader Election via Kubernetes Lease API (`coordination.k8s.io/v1`) – dieselbe Mechanik, die `kube-controller-manager` in HA-Setups nutzt.
-- Option B: Dedizierter `apps/reconciler`-Service als eigener Singleton – klarste Separation of Concerns.
+Der aktuelle Worker läuft als `replicas: 1`; dadurch liefen bisher keine
+Reconcile-Aufrufe parallel. Mit ADR-031 entfallen schreibende Reconcile-Läufe
+vollständig. Mehrere Auditor- oder Projector-Instanzen wären höchstens
+ineffizient: Sie dürfen die Live-Verfügbarkeit nicht korrigieren und erzeugen
+daher kein Reconcile-HA-Problem.
 
 ---
 

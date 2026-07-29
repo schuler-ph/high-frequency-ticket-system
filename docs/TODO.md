@@ -8,8 +8,9 @@ Die Phasen unten sind historisch gewachsen und **nicht** mehr strikt von oben na
 2. **Stage 2 — DB-Hot-Row (Backlog #7):** `sold_count`-Hot-Row-UPDATE entfernen. Nach dem Sleep-Removal der naechste echte Limiter — vor jeder "echten" Baseline.
 3. **Stage 3 — Pre-Baseline-Cleanups (Backlog):** #9-Provisioning, Lua-vs-Redis-Test, OpenAPI-Schemas (inkl. `/pay`+`/cancel`), k6-Metriken. Guenstig, gebuendelt vor dem Kapazitaetslauf.
 4. **Stage 4 — Echter Kapazitaetsnachweis (Backlog):** Report-Automation-MVP, verteilter Runner, Baseline B, Dashboard-Screenshots. Erst jetzt misst der Lauf echte Infra-Kapazitaet.
-5. **Stage 5 — Cloud-Deployment (Phase 5):** Terraform, Dockerfiles, k8s, Sale-Unlock-Zeitquelle, Reconcile-HA.
-6. **Stage 6 — Resilience & Optional (Phase 6):** DLQ, Idempotency-Keys, Rate-Limiting, Reaper, Chaos, Runbooks, SLOs.
+5. **Stage 5 — Inventory-Integritaet (Phase 4.9):** schreibenden Reconcile entfernen; Auditor, Sold-count Projector, Capacity-Invariante und Pending-Reaper.
+6. **Stage 6 — Cloud-Deployment (Phase 5):** Terraform, Dockerfiles, k8s und Sale-Unlock-Zeitquelle.
+7. **Stage 7 — Resilience & Optional (Phase 6):** DLQ, Idempotency-Keys, Rate-Limiting, Chaos, Runbooks und SLOs.
 
 Die konkreten offenen Tasks fuer Stage 2–4 liegen im **Backlog** direkt nach Phase 4.7 (aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 dorthin verschoben, damit diese Phasen als abgeschlossen lesbar bleiben — siehe append-forward-Regel in CLAUDE.md).
 
@@ -254,6 +255,20 @@ Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (n
 - [ ] Füge analog ein Panel „POST /cancel Latency (p50 / p95 / p99)" fuer `route="/api/orders/:orderId/cancel"` hinzu.
 - [ ] Verifiziere nach dem Import in Grafana, dass die neuen Serien unter Last (`pnpm spike`) tatsaechlich Daten liefern und die `route`-Label-Werte exakt den Fastify-Templates entsprechen (kein Fallback auf Roh-URL — siehe `apps/api/src/plugins/metrics.ts`).
 
+## Phase 4.9: Redis-authoritatives Inventory
+
+Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte verändert. Reconcile wird durch Audit, Projektion und sichere Freigabe ersetzt. → ADR-031, [Plan](notes/phase-4-9-inventory-integrity.md)
+
+- [ ] **Capacity-Invariante:** `available + dbTickets + activeReservations == totalCapacity` in Analyzer, Verdict und Tests.
+- [ ] **Inventory Auditor:** Drift-/Ledger-Metriken nur lesen; keine Korrektur oder Key-Initialisierung.
+- [ ] **Sold-count Projector:** ein `COUNT(tickets)` je 60-s-Zyklus materialisieren und Laufzeit messen; keine Redis-Writes.
+- [ ] **Reconcile entfernen:** Startup, Scheduler und `WORKER_RECONCILE_*`; Seed initialisiert den lokalen Test.
+- [ ] **Checkout-State:** `pending → publishing` vor Publish atomar claimen; nie `publishing|paid` altersbedingt freigeben.
+- [ ] **Pending-Reaper:** nur fälliges `pending` atomar und idempotent freigeben; TTL dient nur dem Cleanup.
+- [ ] **Inventory-Integrity-Dashboard:** Capacity-Delta, Auditor, Reaper und ältesten Pending-Anspruch anzeigen.
+- [ ] **DB-Dashboard:** Projector-Dauer, Fehler, letzter Erfolg und Pool-Wait; Einfluss unter Last messen.
+- [ ] **Abschluss-Lasttest:** Invariante nach Drain null; keine Korrektur- oder Double-Release-Races.
+
 ## Phase 5: Cloud Deployment (GCP)
 
 - [ ] Erstelle Terraform-Skripte für VPC, Cloud SQL, Memorystore und GKE.
@@ -261,14 +276,6 @@ Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (n
 - [ ] Schreibe Kubernetes Deployment/Service/Ingress Manifeste.
 - [ ] Führe Cloud-Lasttest aus und sammle Metriken für die README.
 - [ ] **Sale-Unlock-Zeitquelle bei `API replicas > 1` (ADR-024):** das Gate vergleicht gegen `Date.now()` der API, nicht gegen `redis.call("TIME")` — der Unlock ist nur so praezise wie die Pod-Uhren. → [Details](TODO-ARCHIVE.md#sale-unlock-zeitquelle-bei-mehreren-api-replicas)
-
-### Phase 5: Reconcile-Loop HA-Eskalation (bei `replicas > 1`)
-
-Wenn der Worker horizontal skaliert wird, darf nur ein Pod reconcilieren. Zwei Optionen (ADR-022):
-
-- [ ] **Option A – K8s Lease API:** Leader Election via `coordination.k8s.io/v1 Lease`-Objekt implementieren. Nur der Leader-Pod startet den Reconcile-Loop; alle anderen ueberspringen ihn. (Dieselbe Mechanik wie `kube-controller-manager` in HA-Setups.)
-- [ ] **Option B – Dedizierter Reconciler-Service:** `apps/reconciler` als eigenstaendigen Singleton-Service auslagern. Laeuft als `replicas: 1`, voellig unabhaengig vom Worker-Scaling. Klare Separation of Concerns, erhoehte Deployment-Komplexitaet.
-- [ ] Entscheidung zwischen Option A und B treffen, sobald Worker-Skalierung konkret geplant ist, und ADR-022 aktualisieren.
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 
@@ -282,7 +289,6 @@ Wenn der Worker horizontal skaliert wird, darf nur ein Pod reconcilieren. Zwei O
 - [ ] Konfiguriere `maxDeliveryAttempts` + Dead-Letter Topic pro Subscription, um Retry-Stuerme zu begrenzen.
 - [ ] Definiere klare Poison-Message-Policy (ACK+DLQ vs. NACK) fuer invalides JSON, Schema-Fehler und unbekannte Event-Versionen.
 - [ ] Implementiere Worker-Graceful-Shutdown mit Drain-Verhalten (in-flight Messages abschliessen; Processing-Locks existieren seit dem ADR-004-Update 2026-07-14 nicht mehr).
-- [ ] **Reaper-Job fuer stale `pending` Orders und Ledger-Reservationen:** Kandidaten via `ZRANGEBYSCORE` auf dem Ledger; Rueckgewinnung nur nach Order-/Queue-Recovery, nicht allein wegen Alter. → [Details](TODO-ARCHIVE.md#reaper-job-fuer-stale-pending-orders-und-ledger-reservationen)
 - [ ] Erstelle Replay-Tooling fuer DLQ-Nachrichten (selektiver Replay nach Fehlerklasse, Dry-Run-Modus).
 - [ ] Definiere SLOs + Alerting fuer Resilience-Signale (NACK-Rate, Redelivery-Rate, DLQ-Groesse, stuck pending orders).
 - [ ] Dokumentiere Incident-Runbook fuer Queue-Backlog, Redis-Ausfall und DB-Partial-Outage (Detection, Mitigation, Recovery).
