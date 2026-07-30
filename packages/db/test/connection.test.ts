@@ -141,7 +141,7 @@ void describe("database integration", () => {
 
     // Backlog #7: buy_ticket beruehrt sold_count NICHT mehr (Hot-Row entfernt).
     // Der Verkaufsstand lebt in der tickets-Tabelle und wird erst im
-    // Reconcile-Loop nach events.sold_count aggregiert.
+    // Sold-count Projector nach events.sold_count aggregiert.
     const [eventAfter] = await db
       .select({ soldCount: events.soldCount })
       .from(events)

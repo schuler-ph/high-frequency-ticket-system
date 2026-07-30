@@ -14,15 +14,23 @@ import {
   type BuyTicketMessageHandlerDeps,
   type BuyTicketOutcome,
 } from "../lib/handle-buy-ticket-message.ts";
+import { auditTicketInventory } from "../lib/inventory-auditor.ts";
 import { registerWorkerRedisScripts } from "../lib/redis-scripts.ts";
-import { reconcileTicketAvailability } from "../lib/reconcile-ticket-availability.ts";
+import { projectSoldCounts } from "../lib/sold-count-projector.ts";
 import {
+  inventoryAuditDurationSeconds,
+  inventoryAuditLastSuccessTimestampSeconds,
+  inventoryAuditRunsTotal,
+  inventoryCapacityDeltaTickets,
   ordersCompletedTotal,
   ordersFailedTotal,
   orderE2eLatencySeconds,
   redisDbDriftTickets,
   reservationLedgerActive,
   reservationLedgerStale,
+  soldCountProjectorDurationSeconds,
+  soldCountProjectorLastSuccessTimestampSeconds,
+  soldCountProjectorRunsTotal,
   timeDbQuery,
   workerCompensationsTotal,
   workerDuplicateDeliveriesTotal,
@@ -34,7 +42,7 @@ import type {} from "../plugins/pubsub.ts";
 
 type TicketRedisClient = Pick<
   RedisClient,
-  "get" | "mset" | "incrby" | "zcard" | "zcount" | "defineCommand"
+  "get" | "zcard" | "zcount" | "defineCommand"
 >;
 
 type PubSubListenerRouteDeps = {
@@ -42,21 +50,23 @@ type PubSubListenerRouteDeps = {
   listEventInventorySnapshots: typeof listEventInventorySnapshots;
   persistEventSoldCounts: typeof persistEventSoldCounts;
   markOrderFailed: typeof markOrderFailed;
-  reconcileTicketAvailability: typeof reconcileTicketAvailability;
+  auditTicketInventory: typeof auditTicketInventory;
+  projectSoldCounts: typeof projectSoldCounts;
 };
 
 const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
   executeBuyTicket: (payload) =>
     timeDbQuery("buy_ticket", () => executeBuyTicket(payload)),
   listEventInventorySnapshots: () =>
-    timeDbQuery("list_event_inventory", () => listEventInventorySnapshots()),
+    timeDbQuery("project_sold_counts", () => listEventInventorySnapshots()),
   persistEventSoldCounts: (snapshots) =>
     timeDbQuery("persist_sold_counts", () => persistEventSoldCounts(snapshots)),
   markOrderFailed: (orderId, failureReason) =>
     timeDbQuery("mark_order_failed", () =>
       markOrderFailed(orderId, failureReason),
     ),
-  reconcileTicketAvailability,
+  auditTicketInventory,
+  projectSoldCounts,
 };
 
 const observeE2eLatency = (
@@ -135,39 +145,113 @@ export const applyBuyTicketOutcome = (
   }
 };
 
-const getReconcileIntervalMs = (): number => {
-  const seconds =
-    env.WORKER_RECONCILE_MODE === "peak"
-      ? env.WORKER_RECONCILE_INTERVAL_PEAK_SECONDS
-      : env.WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS;
-  return seconds * 1000;
-};
+type InventoryCycleResult =
+  | { status: "fulfilled" }
+  | { status: "rejected"; reason: unknown };
 
-const runStartupReconcile = async (
+/**
+ * Runs one inventory observation cycle from exactly one grouped ticket
+ * snapshot. Projector and auditor are independent after that read: a failed
+ * read-model write never prevents the read-only audit, and neither failure can
+ * mutate or reconstruct Redis inventory (ADR-031).
+ */
+const runInventoryCycle = async (
   deps: Pick<
     PubSubListenerRouteDeps,
     | "listEventInventorySnapshots"
     | "persistEventSoldCounts"
-    | "reconcileTicketAvailability"
+    | "auditTicketInventory"
+    | "projectSoldCounts"
   > & {
-    redis: Pick<RedisClient, "get" | "mset" | "incrby" | "zcard" | "zcount">;
+    redis: Pick<RedisClient, "get" | "zcard" | "zcount">;
+    now?: () => number;
   },
-): Promise<void> => {
-  await deps.reconcileTicketAvailability({
-    getEventInventorySnapshots: deps.listEventInventorySnapshots,
-    persistSoldCounts: deps.persistEventSoldCounts,
-    redis: deps.redis,
-    staleReservationThresholdMs: env.RESERVATION_STALE_SECONDS * 1000,
-    onEventReconciled: (eventId, redisAvailable, computedAvailable) =>
-      redisDbDriftTickets.set(
-        { event_id: eventId },
-        redisAvailable - computedAvailable,
-      ),
-    onReservationLedgerMeasured: (eventId, active, stale) => {
-      reservationLedgerActive.set({ event_id: eventId }, active);
-      reservationLedgerStale.set({ event_id: eventId }, stale);
-    },
-  });
+): Promise<{
+  projector: InventoryCycleResult;
+  auditor: InventoryCycleResult;
+}> => {
+  const now = deps.now ?? Date.now;
+  let snapshots: Awaited<
+    ReturnType<PubSubListenerRouteDeps["listEventInventorySnapshots"]>
+  >;
+
+  try {
+    snapshots = await deps.listEventInventorySnapshots();
+  } catch (error: unknown) {
+    soldCountProjectorRunsTotal.inc({ result: "error" });
+    inventoryAuditRunsTotal.inc({ result: "error" });
+    throw error;
+  }
+
+  const projector = (async (): Promise<void> => {
+    const end = soldCountProjectorDurationSeconds.startTimer();
+    try {
+      await deps.projectSoldCounts({
+        snapshots,
+        persistSoldCounts: deps.persistEventSoldCounts,
+      });
+      soldCountProjectorRunsTotal.inc({ result: "success" });
+      soldCountProjectorLastSuccessTimestampSeconds.set(now() / 1000);
+    } catch (error: unknown) {
+      soldCountProjectorRunsTotal.inc({ result: "error" });
+      throw error;
+    } finally {
+      end();
+    }
+  })();
+
+  const auditor = (async (): Promise<void> => {
+    const end = inventoryAuditDurationSeconds.startTimer();
+    try {
+      await deps.auditTicketInventory({
+        snapshots,
+        redis: deps.redis,
+        staleScoreCeiling: now() - env.RESERVATION_STALE_SECONDS * 1000,
+        onEventAudited: (audit) => {
+          inventoryCapacityDeltaTickets.set(
+            { event_id: audit.eventId },
+            audit.capacityDelta,
+          );
+          // Transitional alias for existing reports/dashboards (ADR-031).
+          redisDbDriftTickets.set(
+            { event_id: audit.eventId },
+            audit.capacityDelta,
+          );
+          reservationLedgerActive.set(
+            { event_id: audit.eventId },
+            audit.activeReservations,
+          );
+          reservationLedgerStale.set(
+            { event_id: audit.eventId },
+            audit.staleReservations,
+          );
+        },
+      });
+      inventoryAuditRunsTotal.inc({ result: "success" });
+      inventoryAuditLastSuccessTimestampSeconds.set(now() / 1000);
+    } catch (error: unknown) {
+      inventoryAuditRunsTotal.inc({ result: "error" });
+      throw error;
+    } finally {
+      end();
+    }
+  })();
+
+  const [projectorResult, auditorResult] = await Promise.allSettled([
+    projector,
+    auditor,
+  ]);
+
+  return {
+    projector:
+      projectorResult.status === "fulfilled"
+        ? { status: "fulfilled" }
+        : { status: "rejected", reason: projectorResult.reason },
+    auditor:
+      auditorResult.status === "fulfilled"
+        ? { status: "fulfilled" }
+        : { status: "rejected", reason: auditorResult.reason },
+  };
 };
 
 const createPubSubListenerRoutes = (
@@ -218,41 +302,56 @@ const createPubSubListenerRoutes = (
       applyBuyTicketOutcome(message, outcome);
     });
 
-    let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;
+    let inventoryCycleTimeout: ReturnType<typeof setTimeout> | undefined;
+    let closing = false;
 
-    const scheduleNextReconcile = (): void => {
-      reconcileTimeout = setTimeout(() => {
-        runStartupReconcile({
-          listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
-          persistEventSoldCounts: routeDeps.persistEventSoldCounts,
-          reconcileTicketAvailability: routeDeps.reconcileTicketAvailability,
-          redis,
-        })
-          .catch((err: unknown) => {
-            fastify.log.error({ err }, "Periodic reconcile failed");
-          })
-          .finally(() => {
-            scheduleNextReconcile();
-          });
-      }, getReconcileIntervalMs());
-      reconcileTimeout.unref();
-    };
-
-    fastify.addHook("onReady", async () => {
-      await runStartupReconcile({
+    const runAndScheduleInventoryCycle = (): void => {
+      void runInventoryCycle({
         listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
         persistEventSoldCounts: routeDeps.persistEventSoldCounts,
-        reconcileTicketAvailability: routeDeps.reconcileTicketAvailability,
+        auditTicketInventory: routeDeps.auditTicketInventory,
+        projectSoldCounts: routeDeps.projectSoldCounts,
         redis,
-      });
+      })
+        .then((result) => {
+          if (result.projector.status === "rejected") {
+            fastify.log.error(
+              { err: result.projector.reason },
+              "Sold-count projection failed",
+            );
+          }
+          if (result.auditor.status === "rejected") {
+            fastify.log.error(
+              { err: result.auditor.reason },
+              "Inventory audit failed",
+            );
+          }
+        })
+        .catch((err: unknown) => {
+          fastify.log.error({ err }, "Inventory snapshot aggregation failed");
+        })
+        .finally(() => {
+          if (!closing) {
+            inventoryCycleTimeout = setTimeout(
+              runAndScheduleInventoryCycle,
+              env.WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS * 1000,
+            );
+            inventoryCycleTimeout.unref();
+          }
+        });
+    };
 
-      scheduleNextReconcile();
+    fastify.addHook("onReady", () => {
+      // Auditor/projector are observability/read-model concerns. Their startup
+      // failure must never stop the message consumer.
       fastify.pubsubSubscriber.start();
+      runAndScheduleInventoryCycle();
     });
 
-    fastify.addHook("onClose", async () => {
-      if (reconcileTimeout !== undefined) {
-        clearTimeout(reconcileTimeout);
+    fastify.addHook("onClose", () => {
+      closing = true;
+      if (inventoryCycleTimeout !== undefined) {
+        clearTimeout(inventoryCycleTimeout);
       }
     });
   };
@@ -267,5 +366,5 @@ export type { BuyTicketMessageHandlerDeps };
 export {
   createPubSubListenerRoutes,
   handleBuyTicketMessage,
-  runStartupReconcile,
+  runInventoryCycle,
 };

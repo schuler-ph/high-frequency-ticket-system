@@ -24,7 +24,7 @@ export const serviceConfigInfo = new Gauge({
     "disable_request_logging",
     "pubsub_flow_control_max_messages",
     "database_pool_max",
-    "worker_reconcile_mode",
+    "worker_inventory_cycle_interval_seconds",
   ] as const,
   registers: [workerRegistry],
 });
@@ -39,7 +39,9 @@ serviceConfigInfo.set(
       env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES,
     ),
     database_pool_max: String(env.DATABASE_POOL_MAX),
-    worker_reconcile_mode: env.WORKER_RECONCILE_MODE,
+    worker_inventory_cycle_interval_seconds: String(
+      env.WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS,
+    ),
   },
   1,
 );
@@ -93,7 +95,14 @@ export const workerDuplicateDeliveriesTotal = new Counter({
 
 export const redisDbDriftTickets = new Gauge({
   name: "redis_db_drift_tickets",
-  help: "Redis available counter minus DB-computed availability per event (0 = consistent)",
+  help: "Compatibility alias for inventory_capacity_delta_tickets (0 = every seat is accounted for)",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const inventoryCapacityDeltaTickets = new Gauge({
+  name: "inventory_capacity_delta_tickets",
+  help: "Available plus sold plus active reservations minus total capacity per event",
   labelNames: ["event_id"] as const,
   registers: [workerRegistry],
 });
@@ -109,6 +118,46 @@ export const reservationLedgerStale = new Gauge({
   name: "reservation_ledger_stale",
   help: "Ledger reservations older than the stale threshold per event — reaper candidates, never auto-released",
   labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const inventoryAuditRunsTotal = new Counter({
+  name: "inventory_audit_runs_total",
+  help: "Read-only inventory audit runs by result",
+  labelNames: ["result"] as const,
+  registers: [workerRegistry],
+});
+
+export const inventoryAuditDurationSeconds = new Histogram({
+  name: "inventory_audit_duration_seconds",
+  help: "Duration of read-only inventory audit runs",
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [workerRegistry],
+});
+
+export const inventoryAuditLastSuccessTimestampSeconds = new Gauge({
+  name: "inventory_audit_last_success_timestamp_seconds",
+  help: "Unix timestamp of the last successful inventory audit",
+  registers: [workerRegistry],
+});
+
+export const soldCountProjectorRunsTotal = new Counter({
+  name: "sold_count_projector_runs_total",
+  help: "Sold-count projector runs by result",
+  labelNames: ["result"] as const,
+  registers: [workerRegistry],
+});
+
+export const soldCountProjectorDurationSeconds = new Histogram({
+  name: "sold_count_projector_duration_seconds",
+  help: "Duration of sold-count projection write-back runs",
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [workerRegistry],
+});
+
+export const soldCountProjectorLastSuccessTimestampSeconds = new Gauge({
+  name: "sold_count_projector_last_success_timestamp_seconds",
+  help: "Unix timestamp of the last successful sold-count projection",
   registers: [workerRegistry],
 });
 

@@ -17,6 +17,7 @@ import {
   applyBuyTicketOutcome,
   buyTicketOutcomePolicy,
   createPubSubListenerRoutes,
+  runInventoryCycle,
 } from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
@@ -67,6 +68,14 @@ function createValidPayload(): BuyTicketEvent {
     firstName: "Max",
     lastName: "Mustermann",
     queuedAt: Date.now(),
+  };
+}
+
+function fastifyRedisReadStub() {
+  return {
+    get: async () => null,
+    zcard: async () => 0,
+    zcount: async () => 0,
   };
 }
 
@@ -182,9 +191,8 @@ void test("applyBuyTicketOutcome ACKs exactly once for ack-outcomes and NACKs ot
 
 // --- Listener-Verdrahtung ---
 
-void test("pubsub-listener reconciles ticket availability once before starting the subscriber", async () => {
+void test("pubsub-listener starts the subscriber before its first inventory cycle", async () => {
   const startupOrder: string[] = [];
-  let reconcileCalls = 0;
   let inventoryReads = 0;
   const { fastify, getRegisteredMessageHandler, startCalls } =
     createRouteTestFastify();
@@ -197,10 +205,12 @@ void test("pubsub-listener reconciles ticket availability once before starting t
     },
     persistEventSoldCounts: async () => undefined,
     markOrderFailed: async () => "updated",
-    reconcileTicketAvailability: async ({ getEventInventorySnapshots }) => {
-      reconcileCalls += 1;
-      startupOrder.push("reconcile");
-      await getEventInventorySnapshots();
+    projectSoldCounts: async () => {
+      startupOrder.push("project");
+    },
+    auditTicketInventory: async () => {
+      startupOrder.push("audit");
+      return [];
     },
   });
 
@@ -213,11 +223,41 @@ void test("pubsub-listener reconciles ticket availability once before starting t
   assert.equal(typeof getRegisteredMessageHandler(), "function");
 
   await fastify.runHook("onReady");
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
 
-  assert.equal(reconcileCalls, 1);
   assert.equal(inventoryReads, 1);
-  assert.deepEqual(startupOrder, ["reconcile", "start"]);
+  assert.deepEqual(startupOrder, ["start", "project", "audit"]);
   assert.equal(startCalls.length, 1);
+
+  await fastify.runHook("onClose");
+});
+
+void test("a failing projector does not prevent the read-only audit", async () => {
+  const calls: string[] = [];
+
+  const result = await runInventoryCycle({
+    listEventInventorySnapshots: async () => {
+      calls.push("snapshot");
+      return [];
+    },
+    persistEventSoldCounts: async () => undefined,
+    projectSoldCounts: async () => {
+      calls.push("project");
+      throw new Error("projection failed");
+    },
+    auditTicketInventory: async () => {
+      calls.push("audit");
+      return [];
+    },
+    redis: fastifyRedisReadStub(),
+    now: () => 1_000,
+  });
+
+  assert.deepEqual(calls, ["snapshot", "project", "audit"]);
+  assert.equal(result.projector.status, "rejected");
+  assert.equal(result.auditor.status, "fulfilled");
 });
 
 void test("pubsub-listener message handler applies the outcome policy (completed → ACK)", async () => {
@@ -228,7 +268,8 @@ void test("pubsub-listener message handler applies the outcome policy (completed
     listEventInventorySnapshots: async () => [],
     persistEventSoldCounts: async () => undefined,
     markOrderFailed: async () => "updated",
-    reconcileTicketAvailability: async () => undefined,
+    projectSoldCounts: async () => undefined,
+    auditTicketInventory: async () => [],
   });
 
   await route(fastify as never, {} as never);

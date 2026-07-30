@@ -29,9 +29,10 @@ export async function executeBuyTicket(
  * `events.sold_count`-Spalte. Seit Backlog #7 aktualisiert `buy_ticket` die
  * Spalte nicht mehr (Hot-Row entfernt) — die durable Wahrheit ueber verkaufte
  * Tickets ist die `tickets`-Tabelle. Diese Aggregation laeuft nur im
- * Reconcile-Loop (alle 10–60 s), nie auf dem Write-Hot-Path, und nimmt daher
- * keinen Row-Lock der `events`-Row. `reconcileTicketAvailability` schreibt den
- * Wert anschliessend via `persistEventSoldCounts` als Snapshot zurueck.
+ * Inventory-Zyklus (Default: alle 60 s), nie auf dem Write-Hot-Path, und nimmt
+ * daher keinen Row-Lock der `events`-Row. Der Sold-count Projector schreibt den
+ * Wert anschliessend via `persistEventSoldCounts` als Snapshot zurueck; der
+ * read-only Auditor teilt denselben Snapshot (ADR-031).
  */
 export async function listEventInventorySnapshots(): Promise<
   EventInventorySnapshot[]
@@ -50,7 +51,7 @@ export async function listEventInventorySnapshots(): Promise<
 }
 
 /**
- * Schreibt die im Reconcile aggregierten Verkaufsstaende als durable Snapshot
+ * Schreibt die vom Projector aggregierten Verkaufsstaende als durable Snapshot
  * nach `events.sold_count` zurueck. Reine Materialisierung fuer direkte Reads
  * (z. B. Sold-Out-Erkennung im Lasttest); die Verfuegbarkeitsrechnung selbst
  * nutzt bereits den frischen `COUNT(tickets)`-Wert aus dem Snapshot. Nur der

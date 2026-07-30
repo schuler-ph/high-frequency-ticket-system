@@ -260,9 +260,9 @@ Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (n
 Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte verändert. Reconcile wird durch Audit, Projektion und sichere Freigabe ersetzt. → ADR-031, [Plan](notes/phase-4-9-inventory-integrity.md)
 
 - [x] **Capacity-Invariante:** die alten Flow-Invarianten waren fuer Ueberzeichnung blind; `available + dbTickets + activeReservations == totalCapacity` ist jetzt eigener Check und macht den reproduzierten `+124`-Zustand zu `system=fail`. → ADR-031
-- [ ] **Inventory Auditor:** Drift-/Ledger-Metriken nur lesen; keine Korrektur oder Key-Initialisierung.
-- [ ] **Sold-count Projector:** ein `COUNT(tickets)` je 60-s-Zyklus materialisieren und Laufzeit messen; keine Redis-Writes.
-- [ ] **Reconcile entfernen:** Startup, Scheduler und `WORKER_RECONCILE_*`; Seed initialisiert den lokalen Test.
+- [x] **Inventory Auditor:** misst Capacity-Delta und Ledger per `GET`/`ZCARD`/`ZCOUNT`; fehlende Keys sind Fehler, niemals Initialisierung oder Korrektur.
+- [x] **Sold-count Projector:** Auditor und Projektion teilen genau einen `COUNT(tickets)`-Snapshot je 60-s-Zyklus; Laufzeit/Fehler/letzter Erfolg sind instrumentiert, Redis ist keine Dependency.
+- [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
 - [ ] **Checkout-State:** `pending → publishing` vor Publish atomar claimen; nie `publishing|paid` altersbedingt freigeben.
 - [ ] **Pending-Reaper:** nur fälliges `pending` atomar und idempotent freigeben; TTL dient nur dem Cleanup.
 - [ ] **Inventory-Integrity-Dashboard:** Capacity-Delta, Auditor, Reaper und ältesten Pending-Anspruch anzeigen.

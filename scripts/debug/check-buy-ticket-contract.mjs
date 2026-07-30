@@ -78,12 +78,12 @@ if (!latest.content.includes("VALUES (p_order_id, p_event_id, 'completed')")) {
 }
 
 // Backlog #7: der sold_count-Hot-Row-UPDATE muss weg sein — der Verkaufsstand
-// wird ausschliesslich im Reconcile-Loop aggregiert (COUNT(tickets)). Geprueft
+// wird ausschliesslich im Sold-count Projector aggregiert (COUNT(tickets)). Geprueft
 // wird das konkrete Increment-Statement, nicht blosse Erwaehnungen in
 // Kommentaren.
 if (/sold_count\s*=\s*sold_count/.test(latest.content)) {
   fail(
-    `Latest buy_ticket function migration (${latest.fileName}) still increments sold_count — the hot-row UPDATE must be removed (aggregation moved to reconcile).`,
+    `Latest buy_ticket function migration (${latest.fileName}) still increments sold_count — the hot-row UPDATE must be removed (aggregation moved to the projector).`,
   );
 }
 

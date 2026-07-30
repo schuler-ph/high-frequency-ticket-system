@@ -52,13 +52,11 @@ export const env = createEnv({
       .int()
       .positive()
       .default(86400),
-    WORKER_RECONCILE_MODE: z.enum(["peak", "normal"]).default("normal"),
-    WORKER_RECONCILE_INTERVAL_PEAK_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(10),
-    WORKER_RECONCILE_INTERVAL_NORMAL_SECONDS: z.coerce
+    // Read-only inventory cycle (ADR-031): one grouped ticket count is shared
+    // by the sold-count projector and inventory auditor. There is deliberately
+    // no peak mode — increasing the sampling frequency cannot improve
+    // correctness and only adds DB load during the sale.
+    WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS: z.coerce
       .number()
       .int()
       .positive()
