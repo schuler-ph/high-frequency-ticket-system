@@ -207,6 +207,13 @@
     "min": 0,
     "final": 0
   },
+  "inventory": {
+    "capacity": 1000,
+    "available": 0,
+    "dbTickets": 1000,
+    "activeReservations": 0,
+    "capacityDelta": 0
+  },
   "invariants": [
     {
       "id": "published == completed + failed",
@@ -231,6 +238,12 @@
       "ok": true,
       "expected": 0,
       "actual": 0
+    },
+    {
+      "id": "available + dbTickets + activeReservations == totalCapacity",
+      "ok": true,
+      "expected": 1000,
+      "actual": 1000
     }
   ],
   "validity": {

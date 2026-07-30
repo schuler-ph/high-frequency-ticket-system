@@ -64,11 +64,13 @@
 | dbOrders == completed + failed | 1 000 | 1 000 | ✅ |
 | dbTickets == completed | 1 000 | 1 000 | ✅ |
 | pendingOrders == 0 | 0 | 0 | ✅ |
+| available + dbTickets + activeReservations == totalCapacity | 1 000 | 1 000 | ✅ |
 
 ## 9. Redis / PostgreSQL Consistency
 
 - **Drift (final):** 0
 - **Drift (min):** 0
+- **Capacity accounting:** available 0 + tickets 1 000 + active 0 vs. capacity 1 000 → delta 0 (positive = oversell)
 - **Redis:** available 0, active reservations 0, keys 42, used memory 1 048 576 bytes
 - **PostgreSQL:** orders 1 000, tickets 1 000, pending 0, sold_count 1 000
 

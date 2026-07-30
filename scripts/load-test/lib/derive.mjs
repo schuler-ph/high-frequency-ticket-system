@@ -157,6 +157,33 @@ export const drift = ({
 }) => redisAvailable - (capacity - soldCount - activeReservations);
 
 /**
+ * Signed capacity delta over the three places an inventory claim can live
+ * (ADR-031): free in Redis, sold in PostgreSQL, or held as an active
+ * reservation. `0` means every one of the `capacity` claims is accounted for
+ * exactly once.
+ *
+ * Positive = MORE claims exist than were ever sold — the oversell signal. That
+ * is the state the writing reconcile produced: run
+ * `2026-07-27T14-18-37-924Z-b776eb5` ended at `0 + 956 750 + 43 374 = 1 000 124`
+ * against a capacity of 1 000 000, because a positive delta correction released
+ * a reservation that was still held.
+ *
+ * Deliberately uses `dbTickets` (`COUNT(tickets)`), not `events.sold_count`:
+ * the column is a periodically materialised projection and may lag, while the
+ * rows are the durable truth about sold tickets. That is the difference to
+ * {@link drift}, which keeps reading the projected column (ADR-023).
+ *
+ * @param {{ redisAvailable: number, dbTickets: number, activeReservations: number, capacity: number }} input
+ * @returns {number}
+ */
+export const capacityDelta = ({
+  redisAvailable,
+  dbTickets,
+  activeReservations,
+  capacity,
+}) => redisAvailable + dbTickets + activeReservations - capacity;
+
+/**
  * Evaluate the final correctness invariants at completed drain. Each invariant
  * is only asserted when its operands are available; missing operands produce an
  * `inconclusive` invariant rather than a false failure.
@@ -170,6 +197,13 @@ export const drift = ({
  * Baseline B look like it had lost 92 539 orders when nothing was lost at all
  * (docs/reports/baseline-b-2026-07-26, report §4.4).
  *
+ * The capacity invariant (ADR-031) is the one that judges the inventory itself
+ * rather than the message flow: after a completed drain every seat is either
+ * free, sold, or held, so `available + dbTickets + activeReservations` must
+ * equal `totalCapacity` exactly. A transient cross-system snapshot during live
+ * traffic can legitimately be off, which is why this is only asserted on the
+ * post-drain snapshot — but there it is a hard `system=fail`, not a warning.
+ *
  * @param {{
  *   published: number | null,
  *   completed: number | null,
@@ -177,12 +211,24 @@ export const drift = ({
  *   dbOrders: number | null,
  *   dbTickets: number | null,
  *   pendingOrders: number | null,
+ *   capacity?: number | null,
+ *   redisAvailable?: number | null,
+ *   activeReservations?: number | null,
  * }} facts
  * @returns {Array<{ id: string, ok: boolean | null, expected: number | null, actual: number | null }>}
  */
 export const evaluateInvariants = (facts) => {
-  const { published, completed, failed, dbOrders, dbTickets, pendingOrders } =
-    facts;
+  const {
+    published,
+    completed,
+    failed,
+    dbOrders,
+    dbTickets,
+    pendingOrders,
+    capacity = null,
+    redisAvailable = null,
+    activeReservations = null,
+  } = facts;
 
   const check = (id, expected, actual) => {
     if (
@@ -209,10 +255,25 @@ export const evaluateInvariants = (facts) => {
       ? completed + failed
       : null;
 
+  const claimedSeats =
+    redisAvailable !== null &&
+    redisAvailable !== undefined &&
+    dbTickets !== null &&
+    dbTickets !== undefined &&
+    activeReservations !== null &&
+    activeReservations !== undefined
+      ? redisAvailable + dbTickets + activeReservations
+      : null;
+
   return [
     check("published == completed + failed", published, finalized),
     check("dbOrders == completed + failed", dbOrders, finalized),
     check("dbTickets == completed", dbTickets, completed ?? null),
     check("pendingOrders == 0", 0, pendingOrders ?? null),
+    check(
+      "available + dbTickets + activeReservations == totalCapacity",
+      capacity ?? null,
+      claimedSeats,
+    ),
   ];
 };

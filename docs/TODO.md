@@ -259,7 +259,7 @@ Aus den abgeschlossenen Phasen 4 / 4.5 / 4.6 hierher verschobene offene Tasks (n
 
 Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte verändert. Reconcile wird durch Audit, Projektion und sichere Freigabe ersetzt. → ADR-031, [Plan](notes/phase-4-9-inventory-integrity.md)
 
-- [ ] **Capacity-Invariante:** `available + dbTickets + activeReservations == totalCapacity` in Analyzer, Verdict und Tests.
+- [x] **Capacity-Invariante:** die alten Flow-Invarianten waren fuer Ueberzeichnung blind; `available + dbTickets + activeReservations == totalCapacity` ist jetzt eigener Check und macht den reproduzierten `+124`-Zustand zu `system=fail`. → ADR-031
 - [ ] **Inventory Auditor:** Drift-/Ledger-Metriken nur lesen; keine Korrektur oder Key-Initialisierung.
 - [ ] **Sold-count Projector:** ein `COUNT(tickets)` je 60-s-Zyklus materialisieren und Laufzeit messen; keine Redis-Writes.
 - [ ] **Reconcile entfernen:** Startup, Scheduler und `WORKER_RECONCILE_*`; Seed initialisiert den lokalen Test.

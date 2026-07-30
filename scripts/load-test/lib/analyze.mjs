@@ -13,6 +13,7 @@ import {
   histogramSaturation,
   quantileFromBuckets,
   drift as driftIdentity,
+  capacityDelta as capacityDeltaIdentity,
   evaluateInvariants,
 } from "./derive.mjs";
 import { benchmarkValidity, systemResult } from "./validate.mjs";
@@ -263,9 +264,10 @@ export const deriveReport = (input) => {
       }
     : null;
 
-  // --- Drift ---
+  // --- Drift & capacity accounting ---
   const capacity = stateAfter?.postgres?.capacity ?? null;
   const soldCount = stateAfter?.postgres?.soldCount ?? null;
+  const dbTickets = stateAfter?.postgres?.tickets ?? null;
   const activeReservations = stateAfter?.redis?.activeReservations ?? null;
   const redisAvailable = stateAfter?.redis?.available ?? null;
   const driftFinal =
@@ -281,6 +283,33 @@ export const deriveReport = (input) => {
         })
       : null;
   const driftMin = drain?.driftMin ?? driftFinal;
+
+  // Capacity accounting from the authoritative ticket rows (ADR-031). Kept
+  // separate from `drift`, which reads the projected `events.sold_count`.
+  const inventory =
+    capacity !== null &&
+    dbTickets !== null &&
+    activeReservations !== null &&
+    redisAvailable !== null
+      ? {
+          capacity,
+          available: redisAvailable,
+          dbTickets,
+          activeReservations,
+          capacityDelta: capacityDeltaIdentity({
+            redisAvailable,
+            dbTickets,
+            activeReservations,
+            capacity,
+          }),
+        }
+      : {
+          capacity,
+          available: redisAvailable,
+          dbTickets,
+          activeReservations,
+          capacityDelta: null,
+        };
 
   // --- Invariants ---
   // Which counter represents "published" depends on the architecture that
@@ -301,8 +330,11 @@ export const deriveReport = (input) => {
     completed: counters.ordersCompleted.value,
     failed: counters.ordersFailed.value,
     dbOrders: stateAfter?.postgres?.orders ?? null,
-    dbTickets: stateAfter?.postgres?.tickets ?? null,
+    dbTickets,
     pendingOrders: stateAfter?.postgres?.pendingOrders ?? null,
+    capacity,
+    redisAvailable,
+    activeReservations,
   });
 
   // --- Validity verdicts ---
@@ -366,6 +398,7 @@ export const deriveReport = (input) => {
       redis: stateAfter?.redis ?? null,
     },
     drift: { min: driftMin, final: driftFinal },
+    inventory,
     invariants,
     validity: { benchmark, system },
     recommendations,

@@ -62,8 +62,8 @@ test("a counter absent from a captured snapshot counts as zero, not unknown", ()
       worker: "orders_completed_total 10\n",
     },
     stateAfter: {
-      postgres: { orders: 10, tickets: 10, pendingOrders: 0 },
-      redis: {},
+      postgres: { orders: 10, tickets: 10, pendingOrders: 0, capacity: 10 },
+      redis: { available: 0, activeReservations: 0 },
     },
     drain: { status: "complete" },
     policy,
@@ -110,8 +110,13 @@ test("pre-ADR-028 runs fall back to the reserve count as published", () => {
       worker: "orders_completed_total 1000\n",
     },
     stateAfter: {
-      postgres: { orders: 1000, tickets: 1000, pendingOrders: 0 },
-      redis: {},
+      postgres: {
+        orders: 1000,
+        tickets: 1000,
+        pendingOrders: 0,
+        capacity: 1000,
+      },
+      redis: { available: 0, activeReservations: 0 },
     },
     drain: { status: "complete" },
     policy,
@@ -172,12 +177,55 @@ test("deriveReport is pure over in-memory fixtures (no run dir needed)", () => {
       worker: "orders_completed_total 0\norders_failed_total 0\n",
     },
     stateAfter: {
-      postgres: { orders: 5, tickets: 5, pendingOrders: 0 },
-      redis: {},
+      postgres: { orders: 5, tickets: 5, pendingOrders: 0, capacity: 5 },
+      redis: { available: 0, activeReservations: 0 },
     },
     drain: { status: "complete" },
     policy,
   });
   assert.equal(derived.counters.ordersAccepted.value, 5);
   assert.equal(derived.validity.system.verdict, "pass");
+});
+
+// End-to-end counterpart to the derive-level regression: a run that ends with
+// more claims than seats must not be reported as a functionally successful run,
+// even though every flow invariant holds and the drain completed (ADR-031).
+test("a run ending with claims over capacity is system=fail, not pass", () => {
+  const derived = deriveReport({
+    manifest: { runId: "oversell-124" },
+    phaseA: {
+      metrics: { iterations: { count: 956_750 }, dropped_iterations: {} },
+    },
+    metricsBefore: {
+      api: "orders_accepted_total 0\npayments_confirmed_total 0\n",
+      worker: "orders_completed_total 0\n",
+    },
+    metricsAfter: {
+      api: "orders_accepted_total 1000124\npayments_confirmed_total 956750\n",
+      worker: "orders_completed_total 956750\n",
+    },
+    stateAfter: {
+      postgres: {
+        capacity: 1_000_000,
+        soldCount: 956_750,
+        orders: 956_750,
+        tickets: 956_750,
+        pendingOrders: 0,
+      },
+      redis: { available: 0, activeReservations: 43_374 },
+    },
+    drain: { status: "complete" },
+    policy,
+  });
+
+  assert.equal(derived.inventory.capacityDelta, 124);
+  assert.equal(derived.validity.system.verdict, "fail");
+  assert.ok(
+    derived.validity.system.reasons.some((r) => r.includes("totalCapacity")),
+    `expected the capacity invariant in the reasons: ${derived.validity.system.reasons.join("; ")}`,
+  );
+  assert.ok(
+    derived.recommendations.some((r) => r.id === "invariant-failed"),
+    "a violated invariant after a completed drain must raise the rule",
+  );
 });

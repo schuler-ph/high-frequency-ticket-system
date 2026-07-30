@@ -8,6 +8,7 @@ import {
   histogramSaturation,
   quantileFromBuckets,
   drift,
+  capacityDelta,
   evaluateInvariants,
 } from "../lib/derive.mjs";
 
@@ -116,6 +117,10 @@ test("evaluateInvariants passes when every source converges", () => {
     dbOrders: 100,
     dbTickets: 90,
     pendingOrders: 0,
+    // 10 free + 90 sold + 0 held == 100 seats.
+    capacity: 100,
+    redisAvailable: 10,
+    activeReservations: 0,
   });
   assert.ok(inv.every((i) => i.ok === true));
 });
@@ -158,9 +163,79 @@ test("evaluateInvariants ignores unpublished reservations (abandonment profile)"
     dbOrders: 88,
     dbTickets: 88,
     pendingOrders: 0,
+    // The 12 abandoned reservations were released, so their seats are free again.
+    capacity: 100,
+    redisAvailable: 12,
+    activeReservations: 0,
   });
   assert.ok(
     inv.every((i) => i.ok === true),
     "a correct run with 12% abandonment must not fail any invariant",
   );
+});
+
+test("capacityDelta is zero when every seat is accounted for exactly once", () => {
+  assert.equal(
+    capacityDelta({
+      redisAvailable: 100,
+      dbTickets: 850,
+      activeReservations: 50,
+      capacity: 1000,
+    }),
+    0,
+  );
+  // Positive = more claims than seats (oversell), negative = seats lost.
+  assert.equal(
+    capacityDelta({
+      redisAvailable: 0,
+      dbTickets: 956_750,
+      activeReservations: 43_374,
+      capacity: 1_000_000,
+    }),
+    124,
+  );
+});
+
+// Regression for the state that motivated ADR-031: run
+// `2026-07-27T14-18-37-924Z-b776eb5` finished with 124 claims over capacity
+// because the writing reconcile released reservations that were still held. The
+// old invariant set could not see it — `dbTickets == completed` and
+// `pendingOrders == 0` both hold in that state, so the run was reported as
+// functionally correct.
+test("the capacity invariant fails on the reproduced +124 oversell state", () => {
+  const facts = {
+    published: 956_750,
+    completed: 956_750,
+    failed: 0,
+    dbOrders: 956_750,
+    dbTickets: 956_750,
+    pendingOrders: 0,
+    capacity: 1_000_000,
+    redisAvailable: 0,
+    activeReservations: 43_374,
+  };
+  const inv = evaluateInvariants(facts);
+  const capacityCheck = inv.find((i) => i.id.startsWith("available +"));
+
+  assert.equal(capacityCheck.ok, false);
+  assert.equal(capacityCheck.expected, 1_000_000);
+  assert.equal(capacityCheck.actual, 1_000_124);
+  // Every flow invariant still holds — this is exactly why the run looked fine.
+  assert.ok(
+    inv.filter((i) => i !== capacityCheck).every((i) => i.ok === true),
+    "the flow invariants must be blind to the oversell; only capacity catches it",
+  );
+});
+
+test("the capacity invariant is unevaluable without the Redis operands", () => {
+  const inv = evaluateInvariants({
+    published: 10,
+    completed: 10,
+    failed: 0,
+    dbOrders: 10,
+    dbTickets: 10,
+    pendingOrders: 0,
+  });
+  const capacityCheck = inv.find((i) => i.id.startsWith("available +"));
+  assert.equal(capacityCheck.ok, null);
 });

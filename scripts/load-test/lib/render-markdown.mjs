@@ -199,6 +199,12 @@ export const renderReport = (derived) => {
   push("## 9. Redis / PostgreSQL Consistency", "");
   push(`- **Drift (final):** ${fmtInt(derived.drift.final)}`);
   push(`- **Drift (min):** ${fmtInt(derived.drift.min)}`);
+  if (derived.inventory) {
+    const inv = derived.inventory;
+    push(
+      `- **Capacity accounting:** available ${fmtInt(inv.available)} + tickets ${fmtInt(inv.dbTickets)} + active ${fmtInt(inv.activeReservations)} vs. capacity ${fmtInt(inv.capacity)} → delta ${fmtInt(inv.capacityDelta)} (positive = oversell)`,
+    );
+  }
   if (derived.state.redis) {
     push(
       `- **Redis:** available ${fmtInt(derived.state.redis.available)}, active reservations ${fmtInt(derived.state.redis.activeReservations)}, keys ${fmtInt(derived.state.redis.dbSize)}, used memory ${fmtInt(derived.state.redis.usedMemoryBytes)} bytes`,
