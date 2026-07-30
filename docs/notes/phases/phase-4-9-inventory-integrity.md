@@ -179,6 +179,27 @@ Jeder Schritt bleibt ein eigener reviewbarer Commit:
 6. `Inventory Integrity` und `DB & Runtime` Dashboards aktualisieren.
 7. Vollstaendigen lokalen Lasttest fahren; Erfolg verlangt Capacity-Invariante null nach Drain und keine schreibende Inventory-Korrektur.
 
+## Umsetzungsstand (2026-07-30)
+
+Die Schritte 1–6 der Implementierungsreihenfolge sind umgesetzt. Der Ist-Zustand
+steht in [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md#inventory-wartung), die
+Entscheidung samt Nachtrag in
+[ADR-031](../../decisions/ADR-031-redis-authoritatives-inventory-auditor-und-reaper-statt-schreibendem-reconcile.md).
+
+| Schritt | Ergebnis                                                                                                                      |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1       | Capacity-Invariante ist ein eigener Lasttest-Verdict-Check; der reproduzierte `+124`-Zustand ergibt `system=fail`.            |
+| 2       | Read-only Inventory-Auditor und Sold-count Projector sind getrennte Komponenten mit einem geteilten Count-Snapshot.           |
+| 3       | Schreibender Reconcile, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhängig. |
+| 4       | Pay claimt `pending → publishing` atomar und markiert nach Publish `paid`; Cancel und Rollback sind zustandsgebunden.         |
+| 5       | Pending-Reaper gibt nur fälliges `pending` per exakter Deadline frei; Metriken und echte Redis-Race-Tests liegen vor.         |
+| 6       | `Inventory Integrity` zeigt Delta, Invariante, Auditor und Reaper; `DB & Runtime` zeigt Projector- und Pool-Signale.          |
+
+Abgesichert durch Unit-, Integrations-, Redis-Race- und E2E-Tests. Offen bleibt
+Schritt 7: der vollständige Abschluss-Lasttest und die Messung des
+Projector-Einflusses unter Last. Beides läuft nur nach ausdrücklicher Freigabe
+für genau diesen Lauf und ist in `docs/TODO.md` Phase 4.9 als Todo geführt.
+
 ## Bewusst nicht Teil von Phase 4.9
 
 - Redis-HA, Redis-Persistenz und Wiederherstellung nach vollstaendigem Datenverlust,

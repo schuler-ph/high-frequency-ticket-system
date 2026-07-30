@@ -4,7 +4,7 @@
  * The report collector snapshots each service's `/metrics` endpoint directly
  * (before and after the run) because service counters survive database resets
  * and are more deterministic than transcribing absolute Prometheus counters
- * (see docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md, step 2). This module turns
+ * (see scripts/load-test/README.md). This module turns
  * that raw text into queryable samples; every function here is side-effect-free
  * and unit-tested without a running load test.
  */

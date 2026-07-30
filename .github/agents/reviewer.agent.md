@@ -10,14 +10,11 @@ You are the reviewer agent for this workspace. Your job is to review the current
 
 ## Required Context
 
-Before forming review conclusions, read these files:
-
-- docs/TODO.md
-- docs/REQUIREMENTS.md
-- docs/DECISIONS.md
-- docs/ARCHITECTURE.md
-
-Use that context to detect architecture drift and repository rule violations before commenting on implementation details.
+Start with the diff, affected code, and local READMEs. Use `docs/DOCS.md` as
+the router. Read only relevant sections from TODO, requirements, and
+architecture; locate decisions through `docs/DECISIONS.md` and open only
+matching files under `docs/decisions/`. Use that targeted context to detect
+architecture drift and repository rule violations.
 
 ## Constraints
 
@@ -36,7 +33,7 @@ Use that context to detect architecture drift and repository rule violations bef
 
 ## Review Workflow
 
-1. Read the required project docs before inspecting the change set.
+1. Load task-relevant project context while inspecting the change set.
 2. Inspect the current changes and the smallest amount of surrounding context needed to judge correctness.
 3. Identify findings first, ordered by severity.
 4. Check for behavior regressions, missing validation, async workflow violations, architecture drift, and missing or weak tests.

@@ -1,371 +1,94 @@
 # High-Frequency Ticket System
 
-<img width="2186" height="978" alt="grafik" src="https://github.com/user-attachments/assets/69bb2946-6907-4539-ad7f-a5230c6aea76" />
+<img alt="Frequency Festival Ticket Shop" src="https://github.com/user-attachments/assets/69bb2946-6907-4539-ad7f-a5230c6aea76" />
 
-Asynchrones, hochskalierbares Ticket-System fuer den Verkauf von Frequency Festival Tickets in St. Poelten.
+Ein produktionsnahes Lern- und Referenzsystem für stark konzentrierte
+Ticketverkäufe. Es verbindet einen Next.js-Shop mit Fastify, Redis, Google
+Cloud Pub/Sub, PostgreSQL, Lasttests und Observability in einem
+pnpm-Turborepo.
 
-Das Projekt ist als produktionsnahes End-to-End System umgesetzt: API Gateway, Worker, Queueing, Cache-First Reads, relationale Persistenz, Lasttests und Observability.
+## Was das Projekt zeigt
 
-## Produktziel
-
-Das System verarbeitet extreme Lastspitzen zum Verkaufsstart, ohne die Datenbank zu ueberfahren.
-
-- API antwortet schnell mit `202 Accepted` statt synchronen Blockaden
-- Ticket-Verfuegbarkeit kommt exklusiv aus Redis (Read-Optimierung)
-- Alle Writes laufen asynchron ueber Pub/Sub in den Worker
-- DB-Konsistenz bleibt durch atomare Write-Logik erhalten
-
-## Kernfunktionen
-
-- Ticket kaufen ueber `POST /api/tickets/:eventId/buy`
-- Verfuegbarkeit lesen ueber `GET /api/tickets/:eventId/availability`
-- Ticket-Pool resetten (Testbetrieb) ueber `POST /api/tickets/:eventId/reset`
-- Health-Endpunkte fuer API und Worker
-- Event-spezifische Redis-Keys fuer saubere Multi-Event-Isolation
-- Reservierungslogik mit atomarem Redis-Check-and-Decrement
-
-## Architektur auf einen Blick
-
-```mermaid
-flowchart TD
-	User([NUTZER / BROWSER])
-
-	Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX - Ticket-Shop<br/>Tailwind CSS"]
-
-	subgraph API [Fastify API Gateway apps-api]
-		API_metrics["/metrics<br/>(Prometheus)"]
-		API_avail["GET /availability<br/>-> Redis Read"]
-		API_buy["POST /tickets/buy<br/>-> Pub/Sub Publish"]
-	end
-
-	Prometheus["Prometheus<br/>(Scraping)"]
-	Redis[("Redis Cache<br/>(Memorystore)")]
-	PubSub[["Google Cloud Pub/Sub<br/>(Message Broker)"]]
-
-	Grafana["Grafana Dashboards<br/>- RPS<br/>- Latenz<br/>- Errors<br/>- Queue"]
-
-	Worker["Fastify Worker (apps/worker)<br/>1. Konsumiert BuyTicketEvent aus Pub/Sub<br/>2. Simuliert Payment Provider Latenz (~1s)<br/>3. CALL buy_ticket(...) in Postgres<br/>4. (Optional) Redis Counter Reconciliation"]
-
-	subgraph DB [PostgreSQL Cloud SQL]
-		events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
-		tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- first_name<br/>- last_name<br/>- status")]
-	end
-
-	User --> Frontend
-	Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP GET /api/tickets/:eventId/availability"| API
-
-	API_metrics --> Prometheus
-	API_avail --> Redis
-	API_buy --> PubSub
-
-	Prometheus --> Grafana
-
-	Worker -->|Cache Update| Redis
-	PubSub -->|SUBSCRIBE| Worker
-
-	Worker -->|SQL Function call| DB
-```
-
-## Ticket-Kauf Flow (Happy Path)
-
-1. Nutzer klickt Ticket kaufen im Frontend.
-2. Frontend sendet `POST /api/tickets/{eventId}/buy` mit Personalisierungsdaten.
-3. API prueft atomar in Redis, ob noch Verfuegbarkeit vorhanden ist.
-4. Bei Erfolg published die API an Pub/Sub und antwortet mit `202 Accepted`.
-5. Der Worker konsumiert die Nachricht und simuliert Payment-Latenz.
-6. Der Worker finalisiert den Kauf via SQL-Function in PostgreSQL.
-7. Der Client kann den finalen Status ueber `orderId` pollen.
-
-### Wichtige Architekturregeln
-
-- Fastify only (API und Worker)
-- Keine direkten DB-Writes in der API
-- Redis ist die einzige Read-Quelle fuer Availability
-- DTOs ueber Zod, DB-Typen ueber Drizzle Inference
-- Monorepo mit pnpm Workspaces und Turborepo
-
-Details zu Entscheidungen und Datenfluss:
-
-- `docs/REQUIREMENTS.md`
-- `docs/DECISIONS.md`
-- `docs/ARCHITECTURE.md`
-
-## Tech Stack
-
-- Language: TypeScript (strict)
-- Monorepo: Turborepo + pnpm
-- Frontend: Next.js + Tailwind CSS
-- API/Worker: Fastify
-- Validation: Zod
-- DB: PostgreSQL + Drizzle ORM
-- Cache: Redis
-- Broker: Google Cloud Pub/Sub
-- Infra: Docker Compose (lokal), Terraform + GKE (Cloud)
-- Observability: Prometheus + Grafana
-- Load Testing: k6
-
-## Monorepo Struktur
+Der Checkout trennt Reservierung, simulierte Zahlung und dauerhafte
+Finalisierung:
 
 ```text
-apps/
-	api/      Fastify API Gateway
-	worker/   Fastify Async Worker
-	web/      Next.js Frontend
-packages/
-	db/       Drizzle schema, migrations, DB access
-	env/      Zod-validierte Environment-Variablen
-	types/    Shared DTOs, Fehler, Redis-Key-Utilities
-	ui/       Shared UI Komponenten
-docs/       Architektur, ADRs, Anforderungen, Roadmap
-infra/      Terraform/Kubernetes
-load-tests/ k6 Szenarien
+Browser → Fastify API → Redis-Reservierung
+                    → /pay → Pub/Sub → Worker → PostgreSQL
+Browser ← Order-Status aus Redis
 ```
 
-## Lokales Setup
+Redis schützt den Verkaufs-Hot-Path vor synchronen Datenbankzugriffen. Die API
+schreibt Kaufdaten nie direkt nach PostgreSQL; der Worker persistiert
+asynchron. Das System enthält außerdem reproduzierbare k6-Läufe,
+Prometheus/Grafana-Dashboards und eine automatisierte Report-Pipeline.
 
-> **Reihenfolge der Befehle unklar?** [`RUNBOOK.md`](RUNBOOK.md) zeigt jeden Ablauf
-> (Dev-Stack, Lasttest-Stack, Lauf + Auswertung, Schema-Änderung, Debugging) als
-> Flussdiagramm samt Befehlen — und benennt die Fallen, in die man dabei tappt.
-> Jeder Ablauf hat zusätzlich einen VS-Code-Task und einen Button in der Statusleiste.
+Der verbindliche Ist-Datenfluss steht in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-### Voraussetzungen
+## Quickstart
 
-- Node.js >= 24
-- pnpm >= 10
-- Docker + Docker Compose
-
-### 1. Dependencies installieren
+Voraussetzungen: Node.js ≥ 22 (CI prüft 22 und 24), pnpm 10 sowie Docker mit
+Compose.
 
 ```bash
 pnpm install
-```
-
-### 2. Lokale Infrastruktur starten
-
-```bash
 docker compose up -d
+pnpm seed
+pnpm dev
+pnpm spike
 ```
 
-Startet lokal:
+Danach sind die wichtigsten Oberflächen erreichbar:
 
-- PostgreSQL auf `localhost:10006`
-- Redis auf `localhost:10004`
-- Pub/Sub Emulator auf `localhost:10005`
-- Prometheus auf `localhost:10007`
-- Grafana auf `localhost:10008`
+- Web: [http://localhost:10001](http://localhost:10001)
+- API: [http://localhost:10002](http://localhost:10002)
+- Grafana: [http://localhost:10008](http://localhost:10008)
 
-Vollstaendige Standardport-Liste: siehe `docs/ARCHITECTURE.md#standardports`.
+Die vollständige Startreihenfolge, Standardports und bekannte Fallen stehen im
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
-### 3. Environment konfigurieren
+## Häufige Befehle
 
-Das Projekt validiert Umgebungsvariablen strikt ueber Zod (`packages/env`).
+| Ziel                          | Befehl                |
+| ----------------------------- | --------------------- |
+| lokalen Zustand neu aufsetzen | `pnpm seed`           |
+| Entwicklungsstack starten     | `pnpm dev`            |
+| schnelle Verifikation         | `pnpm verify:quick`   |
+| vollständige Verifikation     | `pnpm verify:all`     |
+| Lasttest mit Report           | `pnpm spike:report`   |
+| Doku-Struktur prüfen          | `pnpm run debug:docs` |
 
-Beispiel fuer `.env` im Repository-Root:
+`pnpm test`, `pnpm dev` und Live-Checks benötigen die laufenden Container
+`hts-postgres`, `hts-redis` und `hts-pubsub`.
 
-```env
-NODE_ENV=development
-LOG_LEVEL=info
+## Repository
 
-REDIS_URL=redis://localhost:10004
-DATABASE_URL=postgresql://postgres:postgres@localhost:10006/high_frequency_tickets
-
-GOOGLE_CLOUD_PROJECT=high-frequency-ticket-system
-PUBSUB_EMULATOR_HOST=localhost:10005
-PUBSUB_TOPIC_BUY_TICKET=buy-ticket
-PUBSUB_SUBSCRIPTION_BUY_TICKET=buy-ticket-sub
+```text
+apps/          Web, API und Worker
+packages/      Datenbank, Umgebungsvariablen, Verträge und UI
+load-tests/    k6-Szenarien und Hilfslogik
+scripts/       lokale Abläufe, Diagnose und Report-Automation
+docs/          Anforderungen, Architektur, Entscheidungen, Pläne und Runbook
+monitoring/    Prometheus- und Grafana-Konfiguration
+tests/         serviceübergreifende End-to-End-Tests
 ```
 
-### 4. Entwicklungsmodus starten
+Lokale Bedienhinweise liegen jeweils in der `README.md` des betroffenen
+Verzeichnisses.
 
-Optional vor dem Start fuer einen reproduzierbaren lokalen Datenzustand:
+## Dokumentation
 
-```bash
-pnpm run local:reset-seed
-```
+[`docs/DOCS.md`](docs/DOCS.md) definiert die Dokumentationsarchitektur und
+welche Quelle wann gelesen wird.
 
-Der Befehl setzt PostgreSQL, Redis und den Pub/Sub Emulator auf einen definierten Seed-Stand zurueck.
-
-### 5. Entwicklungsmodus starten
-
-```bash
-pnpm run dev
-```
-
-Standardports:
-
-- Web: `http://localhost:10001`
-- API: `http://localhost:10002`
-- Worker: `http://localhost:10003`
-- Redis: `localhost:10004`
-- Pub/Sub Emulator: `localhost:10005`
-- PostgreSQL: `localhost:10006`
-- Prometheus: `http://localhost:10007`
-- Grafana: `http://localhost:10008`
-
-Vollstaendige Standardport-Liste inkl. Begruendung: siehe `docs/ARCHITECTURE.md#standardports`.
-
-## API Endpunkte
-
-### Health
-
-```http
-GET /health
-```
-
-Antwort:
-
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-03-18T10:15:30.000Z",
-  "uptime": 1234.56
-}
-```
-
-### Verfuegbarkeit lesen
-
-```http
-GET /api/tickets/:eventId/availability
-```
-
-Antwort:
-
-```json
-{
-  "available": "998742",
-  "total": "1000000"
-}
-```
-
-### Ticket kaufen
-
-```http
-POST /api/tickets/:eventId/buy
-Content-Type: application/json
-```
-
-Request-Body (Beispiel):
-
-```json
-{
-  "firstName": "Max",
-  "lastName": "Mustermann",
-  "email": "max@example.com",
-  "birthDate": "1998-07-14",
-  "street": "Musterstrasse 1",
-  "zipCode": "3100",
-  "city": "St. Poelten",
-  "country": "AT"
-}
-```
-
-Antwort:
-
-```json
-{
-  "message": "Ticket purchase queued",
-  "orderId": "0f98b0f8-5b8f-4c6d-b2d7-3a8bd2ab5d16"
-}
-```
-
-### Ticket-Counter resetten (Testflow)
-
-```http
-POST /api/tickets/:eventId/reset
-```
-
-Antwort:
-
-```json
-{
-  "message": "Tickets reset successfully"
-}
-```
-
-## Quality Gates
-
-Alle lokalen Checks analog zur CI:
-
-```bash
-CI=1 pnpm run format
-CI=1 pnpm run lint
-CI=1 pnpm run check-types
-CI=1 pnpm run test
-```
-
-Service-Build:
-
-```bash
-pnpm --filter api run build
-pnpm --filter worker run build
-pnpm --filter web run build
-```
-
-## Lasttest und Monitoring
-
-Das System ist fuer Lastspitzen im Ticket-Sale konzipiert und auf einen realistischen Verkaufszyklus ausgelegt:
-
-- Warm-up
-- Pre-sale Hype
-- Sale Opening Spike
-- Sustained Peak
-- Sold-out Transition
-- Cool-down
-
-Metriken und Dashboards:
-
-- API Throughput und Latenz (p50/p95/p99)
-- Error Rate (inkl. `409 Sold Out` und `425 Too Early` vor Sale-Unlock)
-- Queue-Verhalten (Backpressure/Throughput)
-- Redis-Counter-Verhalten unter Parallelitaet
-
-```mermaid
-flowchart LR
-	API["Fastify API + Worker"]
-	K6["k6 Lasttest"]
-	Prometheus[("Prometheus")]
-	Grafana["Grafana Panels:<br/>- RPS<br/>- p95<br/>- Errors<br/>- Queue<br/>- Redis"]
-
-	API -->|scrape /metrics<br/>every 5s| Prometheus
-	K6 -->|prometheus remote<br/>write| Prometheus
-	Grafana -->|query| Prometheus
-```
-
-Referenzdokumente:
-
-- `docs/REQUIREMENTS.md`
-- `docs/ARCHITECTURE.md`
-- [Erste lokale Lasttest-Baseline (2026-07-14)](docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md) — dokumentiert den Messaufbau, die Ergebnisse und die zugehoerigen Dashboard-Screenshots. Der Lauf ist kein 50k-RPS-Kapazitaetsnachweis.
-
-## CI/CD
-
-GitHub Actions fuehrt zentral aus:
-
-- Lint
-- Typecheck
-- Build
-
-Zusatzsicherung lokal ueber Husky:
-
-- `pre-commit`: Format
-- `pre-push`: Lint + Typecheck
-
-## Sicherheit und Betriebsverhalten
-
-- Typed Error Handling fuer stabile API-Antworten
-- Keine Preisgabe interner Fehlerdetails in produktionsnahen Faellen
-- Entkoppelter Write-Pfad fuer robuste Lastspitzenverarbeitung
-- Event-spezifische Schluessel verhindern Counter-Kollisionen
-
-## Projektdokumentation
-
-Fuer Architektur- und Entscheidungsdetails:
-
-- `RUNBOOK.md` — Abläufe als Flussdiagramme: welcher Befehl, in welcher Reihenfolge
-- `docs/REQUIREMENTS.md`
-- `docs/DECISIONS.md`
-- `docs/ARCHITECTURE.md`
-- `docs/TODO.md`
+| Frage                                         | Quelle                                         |
+| --------------------------------------------- | ---------------------------------------------- |
+| Was soll das System leisten?                  | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) |
+| Wie funktioniert es aktuell?                  | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Warum wurde etwas so entschieden?             | [`docs/DECISIONS.md`](docs/DECISIONS.md)       |
+| Was ist erledigt oder als Nächstes dran?      | [`docs/TODO.md`](docs/TODO.md)                 |
+| Wie starte, teste oder diagnostiziere ich es? | [`docs/RUNBOOK.md`](docs/RUNBOOK.md)           |
 
 ## Lizenz
 

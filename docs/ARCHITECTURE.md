@@ -1,363 +1,338 @@
-# System Architecture
+# Systemarchitektur
 
-## High-Level Overview
+Diese Datei beschreibt den **aktuellen Ist-Zustand** am Repository-HEAD:
+Komponenten, Datenflüsse, Zuständigkeiten, Invarianten und Skalierungsgrenzen.
+Geplante Änderungen stehen in `docs/TODO.md`, Entscheidungen und historische
+Begründungen im ADR-Index `docs/DECISIONS.md`.
 
-Build- und Typecheck-Jobs im Monorepo laufen in der CLI standardmaessig ueber `tsgo` (TypeScript Native Preview). Das reduziert die Laufzeit fuer Full-Builds und `check-types`; Watch-/Restart-Workflows mit `tsc-watch` werden in einem Folge-Schritt migriert. Eine temporaere Ausnahme bleibt in `apps/web` fuer `check-types` auf `tsc`, weil Side-Effect-CSS-Imports im aktuellen Preview-Stand noch nicht voll kompatibel sind. Shared-Runtime-Pakete fuer Backend-Services (`@repo/env`, `@repo/types`, `@repo/db`) folgen demselben Export-Muster: `types` fuer Editor/Typechecking, `source` fuer source-basierte Tests und `default` fuer gebaute `dist`-Artefakte. Direkte Service-Builds von API und Worker bauen diese Runtime-Abhaengigkeiten vor dem eigenen `tsgo`-Build mit, damit `dist`-Starts nicht implizit auf Workspace-`.ts`-Exporte angewiesen bleiben. Backend-Testlaeufe fuer API, Worker und `@repo/db` laufen paketlokal direkt ueber `node:test` gegen native `.ts`-Quellen mit `--conditions=source`, ohne Shared Runner oder `tsx` im Test-Hot-Path. API- und Worker-Coverage nutzen den nativen Node-Test-Coverage-Pfad, waehrend `@repo/db` fuer Coverage beim stabileren `c8`-Pfad bleibt. Das lokale Root-Kommando `pnpm test` orchestriert diese Paketskripte ueber Turborepo im Stream-Modus mit `--concurrency=1`, weil parallele oder CI-aehnliche Runner-Umgebungen wiederholt 15-Sekunden-Teardown-Ausreisser erzeugten.
-
-```mermaid
-flowchart TD
-    User([NUTZER / BROWSER])
-
-    Frontend["Next.js Frontend (apps/web)<br/>Frequency Festival 20XX – Ticket-Shop<br/>Tailwind CSS"]
-
-    subgraph API [Fastify API Gateway apps-api]
-        API_metrics["/metrics<br/>(Prometheus)"]
-        API_avail["GET /availability<br/>→ Redis Read"]
-        API_buy["POST /tickets/buy<br/>→ Redis Reserve (kein Publish)"]
-        API_pay["POST /orders/:orderId/pay<br/>→ Pub/Sub Publish"]
-        API_cancel["POST /orders/:orderId/cancel<br/>→ Redis Release"]
-        API_orders["GET /orders/:orderId<br/>→ Redis Read"]
-    end
-
-    Prometheus["Prometheus<br/>(Scraping)"]
-    Redis[("Redis Cache<br/>(Memorystore)")]
-    PubSub[["Google Cloud Pub/Sub<br/>(Message Broker)"]]
-
-    Grafana["Grafana Dashboards<br/>- RPS<br/>- Latenz<br/>- E2E-Latenz<br/>- Errors<br/>- Queue<br/>- Redis-DB-Drift"]
-
-    subgraph Worker [Fastify Worker apps-worker]
-        W_consumer["Pub/Sub Konsument<br/>handle-buy-ticket-message.ts"]
-        W_inventory["Inventory-Zyklus (60s)<br/>Sold-count Projector + read-only Auditor"]
-        W_metrics["/metrics<br/>(Prometheus)"]
-    end
-
-    subgraph DB [PostgreSQL Cloud SQL]
-        events[("events<br/>- id<br/>- capacity<br/>- sold_count")]
-        orders[("orders<br/>- id (= orderId)<br/>- event_id<br/>- status<br/>- failure_reason<br/>- created_at<br/>- updated_at")]
-        tickets[("tickets<br/>- id (UUID)<br/>- event_id<br/>- order_id (FK -> orders.id)<br/>- first_name<br/>- last_name<br/>- status")]
-    end
-
-    User --> Frontend
-    Frontend -->|"HTTP POST /api/tickets/:eventId/buy<br/>HTTP POST /api/orders/:orderId/pay<br/>HTTP POST /api/orders/:orderId/cancel<br/>HTTP GET /api/tickets/:eventId/availability<br/>HTTP GET /api/orders/:orderId"| API
-
-    API_metrics --> Prometheus
-    API_avail --> Redis
-    API_buy -->|"reservation + pending order (kein Publish)"| Redis
-    API_pay -->|"BuyTicketEvent {orderId, eventId,<br/>firstName, lastName, queuedAt}"| PubSub
-    API_cancel -->|"release reservation"| Redis
-    API_orders --> Redis
-
-    W_metrics --> Prometheus
-    Prometheus --> Grafana
-
-    W_consumer -->|"completed/failed order + idempotency marker"| Redis
-    PubSub -->|SUBSCRIBE| W_consumer
-    W_inventory -->|"nur GET/ZCARD/ZCOUNT + Audit-Metriken"| Redis
-    W_inventory -->|"ein COUNT(tickets)-Snapshot; Write-back sold_count"| DB
-
-    W_consumer -->|"SELECT buy_ticket(...)"| DB
-```
-
-## Standardports
-
-Alle lokalen Services (Docker Compose + native `pnpm dev`-Prozesse) nutzen einen zusammenhaengenden Port-Block `10001`–`10009`, um Kollisionen mit anderen lokalen Projekten zu vermeiden und die Zuordnung auf einen Blick lesbar zu halten. Quelle der Wahrheit fuer alle Konfigurationsdateien (`docker-compose.yml`, `.env`, `.env.test`, CI, k6, Debug-Skripte).
-
-| Service          | Host-Port | Container-/Prozess-Port   | Betrieben von                         |
-| ---------------- | --------- | ------------------------- | ------------------------------------- |
-| Web (Next.js)    | `10001`   | `10001` (nativer Prozess) | `pnpm --filter web dev`               |
-| API (Fastify)    | `10002`   | `10002` (nativer Prozess) | `pnpm --filter api dev`               |
-| Worker (Fastify) | `10003`   | `10003` (nativer Prozess) | `pnpm --filter worker dev`            |
-| Redis            | `10004`   | `6379`                    | Docker Compose (`hts-redis`)          |
-| Pub/Sub Emulator | `10005`   | `8085`                    | Docker Compose (`hts-pubsub`)         |
-| PostgreSQL       | `10006`   | `5432`                    | Docker Compose (`hts-postgres`)       |
-| Prometheus       | `10007`   | `9090`                    | Docker Compose (`hts-prometheus`)     |
-| Grafana          | `10008`   | `3000`                    | Docker Compose (`hts-grafana`)        |
-| Redis Exporter   | `10009`   | `9121`                    | Docker Compose (`hts-redis-exporter`) |
-
-Wichtig fuer Docker-interne Kommunikation (Container-zu-Container, z.B. Grafana → Prometheus): Es gilt immer der **Container-Port** (rechte Spalte), nicht der Host-Port. Der Grafana-Datasource-Provisioning-Eintrag (`monitoring/grafana/provisioning/datasources/prometheus.yml`) zeigt deshalb auf `http://prometheus:9090`, waehrend Prometheus selbst die App-Metriken von API/Worker ueber `host.docker.internal:10002` bzw. `host.docker.internal:10003` scraped (Host-Ports, da API/Worker als native Prozesse ausserhalb von Docker laufen). Den `redis_exporter` scraped Prometheus dagegen container-intern per Service-Name (`redis_exporter:9121`), da beide im selben Compose-Netzwerk laufen; der Host-Port `10009` dient nur dem manuellen Debugging.
-
-## Pub/Sub-Provisioning (Topic + Subscription)
-
-Das Anlegen von Topic (`buy-ticket`) und Subscription (`buy-ticket-worker`) ist **einmaliges Provisioning**, kein App-Startup-Schritt. Lokal besitzt es `scripts/local/reset-seed.mjs` (`pnpm seed`), das die Emulator-Ressourcen ueber die REST-API des Emulators zuruecksetzt und neu anlegt; in Produktion provisioniert Terraform (ADR-010). Die Fastify-Plugins `apps/api/src/plugins/pubsub.ts` (Publisher) und `apps/worker/src/plugins/pubsub.ts` (Subscriber) sind **reine Runtime-Clients**: sie holen nur einen Topic-/Subscription-Handle und setzen voraus, dass die Ressourcen bereits existieren — kein `exists()`/`createTopic()`/`createSubscription()`-Check und kein Zweiphasen-Start beim Boot mehr. Fehlt die Ressource, scheitert der erste Publish/Subscribe hart (statt sie stillschweigend anzulegen). **Konsequenz:** `pnpm seed` ist lokal eine Boot-Voraussetzung fuer API/Worker (ebenso wie fuer das DB-Schema und die Redis-Counter). Als Test-Doubles injizieren die Plugin-Tests den echten `@google-cloud/pubsub`-Typ (`PubSub`/`Topic`/`Subscription`), nicht mehr handgeschriebene `*Like`-Schattentypen.
-
-## Datenfluss: Ticket-Kauf (Happy Path)
-
-Seit dem Reserve/Pay-Split (ADR-028) ist der Kauf **zwei** synchrone API-Schritte: `buy` reserviert nur, `pay` published. Das Ticket ist waehrend der (frontend-simulierten) Zahlung ueber die Reservierung gehalten; der Worker sieht die Order erst nach bestaetigter Zahlung. Das Backend hat nirgends kuenstliche Latenz.
-
-1. Nutzer klickt "Ticket kaufen" im Frontend
-2. Frontend sendet POST /api/tickets/{eventId}/buy { ...personalisierungsdaten }
-3. API reserviert atomar in **einem** Redis-Roundtrip via Lua-Script (registriert per ioredis `defineCommand`, ausgefuehrt als `EVALSHA`; Quelle: `apps/api/src/lib/redis-scripts.ts`):
-   - Check `tickets:event:{eventId}:opensAt` — ist der Verkaufsstart-Zeitpunkt noch nicht erreicht, bricht das Script ohne jeden Schreibzugriff ab (Sale-Unlock-Gate, siehe ADR-024)
-   - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ebenfalls ohne Schreibzugriff ab
-   - `DECR available`
-   - Ledger-Eintrag `ZADD tickets:event:{eventId}:reservations {deadlineMs} {orderId}` (Score = `now + CHECKOUT_PENDING_TIMEOUT_SECONDS`, Default 900 s). Die Deadline macht eine Reservation nur reaper-faehig; bis zur konkreten Zustandspruefung bleibt sie ein Inventar-Anspruch.
-   - Pending-Status `orders:{orderId}` inkl. Kaeuferdaten (`firstName`/`lastName`) **ohne TTL**. Er bleibt sicher lesbar, bis Pay, Cancel, Worker oder Reaper atomar entscheidet.
-4. ✅ Reserviert → HTTP 202 Accepted (`orderId`). **Es wird noch nichts an Pub/Sub published.**
-   ❌ Zu frueh bei Schritt 3 → HTTP 425 Too Early, es wurden keine Keys geschrieben.
-   ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
-5. Frontend oeffnet das Payment-Modal (simuliertes 3DS, reines UX — kein Server-Sleep) und sendet POST /api/orders/{orderId}/pay { ...fake payment }
-6. API (Pay-Route) validiert das (simulierte) Payment-DTO und claimt den Reservierungs-Record per Lua atomar `pending → publishing` (inkl. `queuedAt = Date.now()`). Nur der Gewinner dieses Claims published den `BuyTicketEvent` an Pub/Sub. Nach bestaetigtem Publish markiert ein zweites zustandsbewusstes Script `publishing → paid`; der Worker ersetzt diesen Zustand spaeter durch sein finales Read-Model. `publishing|paid` werden im oeffentlichen Status weiterhin als `pending` dargestellt, damit Clients bis `completed|failed` weiterpollen.
-   ❌ Publish-Fehler → ein atomares Gegen-Script gibt nur den eigenen `publishing`-Claim frei: `ZREM reservations {orderId}`, `INCR available` nur wenn der Ledger-Eintrag tatsaechlich noch existierte (idempotent, kein Double-Increment), `DEL` Order-State.
-   ↩︎ Bricht der Nutzer das Modal ab / laeuft 3DS aus → POST /api/orders/{orderId}/cancel gibt ausschliesslich `pending` frei. Gewinnt Pay den Race, sieht Cancel den Zustandskonflikt und darf den publizierenden Anspruch nicht freigeben.
-7. Worker konsumiert BuyTicketEvent aus Pub/Sub (reiner Persist-Consumer, **kein** Payment-Sleep mehr — ADR-028)
-8. Worker ruft SQL-Function auf: `buy_ticket(event_id, order_id, first_name, last_name)` (fuegt die Order direkt als `completed` ein und macht den Ticket-INSERT mit `tickets.order_id`). **Kein `sold_count`-UPDATE mehr** — der frueher hier serialisierende Hot-Row-`UPDATE` ist raus (Backlog #7, ADR-011-Nachtrag); der Verkaufsstand wird ausschliesslich vom Sold-count Projector via `COUNT(tickets)` aggregiert.
-   - Die Idempotenz-Garantie traegt die `buy_ticket`-Transaktion selbst (`INSERT … ON CONFLICT DO NOTHING` liefert bei Redelivery das existierende Ticket zurueck, siehe ADR-004). Der Redis-`processed`-Marker ist eine reine Optimierung: Bei bereits verarbeiteter `orderId` wird sofort ACK gesendet (kein zweiter DB-Roundtrip).
-   - Parallele Doppel-Zustellungen derselben `orderId` laufen harmlos in den `ON CONFLICT`-Pfad der DB-Transaktion — ein separater Processing-Lock existiert nicht mehr.
-   - Bei Erfolg finalisiert der Worker atomar: Redis-Order-Key mit finalem Status inkl. Ticket-Referenz + laengerer Final-TTL, `processed`-Marker **und** `ZREM reservations {orderId}` — der Anspruch geht vom Ledger in den verkauften Bestand (`tickets`-Row) ueber und darf nicht doppelt zaehlen. `available` bleibt beim Erfolg dekrementiert (das Ticket ist verkauft).
-   - Bei terminalem Business-Fehler kompensiert der Worker die Reservation in Redis atomar (`ZREM reservations {orderId}` + `INCR available`, nur wenn der Ledger-Eintrag noch existierte — idempotent), setzt vorhandene Orders auf `failed` inkl. `failure_reason`, aktualisiert das Redis-Read-Model und ACKt die Nachricht.
-9. Nutzer pollt GET /api/orders/{orderId} für finalen Status; die API liest dabei ausschließlich den Redis-Status pro `orderId` (`pending` aus der API, `completed|failed` aus dem Worker) aus `orders:{orderId}` und spricht nicht direkt mit PostgreSQL.
-
-## Redis-Key-Lifecycle
-
-Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
-
-| Key-Muster                                    | Zweck                                                                                                                               | TTL (Default)                  | Erstellt von                            | Gelesen / Gelöscht von                                                                    |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                 | unbegrenzt                     | Seed/Reset                              | API (`GET /availability`)                                                                 |
-| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                              | unbegrenzt                     | Seed/Reset, danach atomare Lua-Skripte  | API (Reserve/Release), Worker (Kompensation/Reaper), Auditor (nur Read)                   |
-| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                           | unbegrenzt                     | Seed-Skript                             | API (Lua-Check bei Reservation, ADR-024)                                                  |
-| `tickets:event:{eventId}:reservations` (ZSet) | Aktive Ansprueche; Score = Eligibility Deadline, Member = `orderId`. Die Deadline allein gibt nichts frei.                          | unbegrenzt                     | API (`ZADD` bei `POST /buy`)            | Worker (Finalisierung/Kompensation/Reaper), API (Pay-Rollback/Cancel), Auditor (nur Read) |
-| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut; Idempotenz-Garantie bleibt die DB-Transaktion                                                                  | 86 400 s                       | Worker                                  | Worker                                                                                    |
-| `orders:{orderId}`                            | Interner Checkout-State (`pending → publishing → paid`), danach finales `completed` oder `failed`; oeffentlich bis dahin `pending`. | aktiv ohne TTL; final 86 400 s | API (Checkout), Worker (finaler Status) | API (`GET`, Pay, Cancel), Worker/Reaper; gelöscht bei zustandsbewusstem Release           |
-
-Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
-
-## E2E-Latenz-Messung
-
-Der End-to-End-Zeitstempel wird vollständig entkoppelt via Payload transportiert:
-
-1. **API** setzt `queuedAt: Date.now()` beim Erstellen des `BuyTicketEvent` und published es mit dem Ticket-Kauf-Request an Pub/Sub.
-2. **Worker** empfängt `queuedAt` als Teil des Payloads und berechnet nach Abschluss der Verarbeitung: `duration = (Date.now() - queuedAt) / 1000`.
-3. Ergebnis wird als Prometheus-Histogram erfasst:
-   - Metrik: `order_e2e_latency_seconds`
-   - Labels: `event_id`, `status` (`completed` | `failed`)
-   - Sourcedatei: `apps/worker/src/lib/handle-buy-ticket-message.ts`
-
-Diese Methode erfordert keinen gemeinsamen State zwischen API und Worker — der Zeitstempel reist im Pub/Sub-Payload mit.
-
-## Inventory-Audit-Metriken
-
-Nach jedem read-only Audit berichtet der Worker den aktuellen Cross-System-Snapshot:
-
-- **Metrik:** `inventory_capacity_delta_tickets` (Gauge, Label: `event_id`); `redis_db_drift_tickets` bleibt voruebergehend als kompatibler Alias.
-- **Berechnung:** `available + COUNT(tickets) + active_reservations - total_capacity`.
-- **Wert 0** = jeder Platz ist genau einmal als frei, verkauft oder gehalten bilanziert.
-- **Positiver Wert** = mehr Ansprueche als Kapazitaet (Ueberzeichnungssignal).
-- **Negativer Wert** = Plaetze fehlen in der Bilanz.
-- Einzelne Ausschlaege unter parallelen Redis-/DB-Uebergaengen sind wegen des nicht atomaren Cross-System-Snapshots diagnostisch. Nach abgeschlossenem Drain ist exakt 0 eine harte Invariante.
-- Sourcedateien: `apps/worker/src/lib/inventory-auditor.ts` (Messung), `apps/worker/src/lib/metrics.ts` (Gauges), `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung).
-
-**Warum der Ledger die Baseline-A-Drift (-314k) beseitigt (ADR-026/031):** In Baseline A liefen die per-`orderId`-Reservation-Keys nach 120 s TTL ab, waehrend die Order noch ~406 s in der Queue lag. Der damalige Zaehler sah die abgelaufene Reservierung nicht mehr, `available` blieb aber dekrementiert. Jetzt haben Ledger und aktive Checkout-Zustaende kein TTL. Der Score ist eine Eligibility Deadline; erst ein zustandsbewusstes Lua-Script darf danach genau ein `pending` freigeben.
-
-- **Metrik:** `reservation_ledger_active` (Gauge, Label: `event_id`) — aktive Ansprueche (`ZCARD`)
-- **Metrik:** `reservation_ledger_stale` (Gauge, Label: `event_id`) — kompatibler Name fuer Ansprueche an/nach ihrer Eligibility Deadline.
-
-Auditor und Sold-count Projector teilen denselben gruppierten `COUNT(tickets)`-Snapshot. Der Auditor besitzt nur `GET`/`ZCARD`/`ZCOUNT`; fehlende Inventar-Keys sind ein Fehler und werden niemals aus PostgreSQL rekonstruiert.
-
-## Worker ACK/NACK-Regeln (Stand 2026-07-14)
-
-Der Worker behandelt Pub/Sub-Nachrichten mit folgenden Regeln:
-
-| Fall                                                                                               | Verhalten | Begründung                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Erfolgreiche Verarbeitung (`buy_ticket(...)` erfolgreich, Ledger-Anspruch war noch vorhanden)      | ACK       | Nachricht ist final verarbeitet, keine Redelivery nötig; zählt als Verkauf (`orders_completed_total`)                                                                                            |
-| Nachricht fuer bereits verarbeitete `orderId` (`processed`-Marker vorhanden)                       | ACK       | Idempotenter Kurzschluss ohne erneuten DB-Write                                                                                                                                                  |
-| `buy_ticket(...)` erfolgreich, aber Ledger-Anspruch war schon weg (`ZREM` → 0)                     | ACK       | Parallele Auslieferung derselben Nachricht, per `ON CONFLICT` absorbiert — kein zusätzliches Ticket, zählt daher als `worker_duplicate_deliveries_total` und **nicht** als Verkauf (siehe unten) |
-| Ungültiges JSON im Payload                                                                         | NACK      | Technischer Fehler im Message-Format, Retry/Redelivery möglich                                                                                                                                   |
-| Payload verletzt Zod-Schema                                                                        | NACK      | Nachricht ist im aktuellen Flow nicht verarbeitbar; aktuell als Retry klassifiziert                                                                                                              |
-| Technischer Fehler beim DB-Write                                                                   | NACK      | Transienter Infrastrukturfehler, Redelivery soll erneut versuchen                                                                                                                                |
-| Business-Fehler `P0001` (Event nicht gefunden) + Kompensation erfolgreich/optional bereits erfolgt | ACK       | Terminaler Fachfehler; Reservation wurde freigegeben oder war bereits freigegeben, Order wird wenn vorhanden als `failed` markiert                                                               |
-| Business-Fehler `P0001` (Event nicht gefunden) + Kompensation fehlgeschlagen                       | NACK      | Reservation konnte nicht sicher freigegeben werden; Retry soll Kompensation nachholen                                                                                                            |
-
-Diese Tabelle existiert wörtlich als Code: `handleBuyTicketMessage` berechnet nur einen `BuyTicketOutcome`-Wert (kein ack/nack, keine Metriken im Handler); das Mapping Outcome → ACK/NACK + Prometheus-Counter steht als Tabelle `buyTicketOutcomePolicy` in `apps/worker/src/routes/pubsub-listener.ts`. Neue Fälle sind eine neue Tabellenzeile, kein neuer try/catch-Ast — und ack/nack wird beweisbar genau einmal pro Nachricht aufgerufen.
-
-**Warum zwei Duplikat-Fälle (Nachtrag 2026-07-26):** Der `processed`-Marker greift nur, wenn die erste Auslieferung ihn schon gesetzt hat. Bei **echter Gleichzeitigkeit** passieren beide Auslieferungen den Marker-Check, beide rufen `buy_ticket` auf, und `INSERT … ON CONFLICT DO NOTHING` absorbiert die zweite — fachlich korrekt, aber ohne zusätzliches Ticket. Unterscheidbar sind die Fälle allein am Rückgabewert des Finalize-Scripts: `ZREM` auf dem Reservation-Ledger liefert `1` für die Erst-Finalisierung und `0` für jede weitere. Bis Baseline B wurde dieser Wert verworfen (`return 1`), wodurch `orders_completed_total` Duplikate als Verkäufe zählte — 897.006 gemeldete Completions gegen 867.575 real persistierte Tickets (+3,39 %), was auch die Grafana-Durchsatz-Panels und die Sold-Out-Erkennung verfälschte. Das absorbierte Duplikat wird bewusst **auch nicht** in `order_e2e_latency_seconds` beobachtet (eine zweite Messung derselben Order verzerrt das Histogramm). Die Recovery-Seiteneffekte (Order-Cache, `processed`-Marker) laufen trotzdem, damit ein Absturz zwischen DB-Commit und Finalisierung durch die Redelivery geheilt wird. Details: `docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md` §4.3.
-
-Abgesichert durch Tests in:
-
-- `apps/worker/test/routes/pubsub-listener.test.ts` (Outcome pro Szenario + Policy-Tabellen-Assertion)
-- `apps/worker/test/plugins/pubsub.test.ts`
-
-## Worker-Durchsatz & Backpressure
-
-Zwei explizite Env-Knobs bestimmen die effektive Backpressure des Workers (statt zweier impliziter Library-Defaults):
-
-| Env-Variable                       | Default | Wirkung                                                                                                                                                                                                                                                      |
-| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PUBSUB_FLOW_CONTROL_MAX_MESSAGES` | 500     | Max. gleichzeitig zugestellte Nachrichten pro Worker-Instanz. Seit dem Reserve/Pay-Split (ADR-028, kein 1-s-Sleep mehr) deckelt der Wert die gleichzeitig laufenden Persist-Operationen, nicht eine kuenstliche Sleep-Rate — Backpressure gegen den DB-Pool. |
-| `DATABASE_POOL_MAX`                | 20      | node-postgres Pool-Größe pro Prozess. Jeder Write hält die Connection nur ~5 ms → 20 Connections tragen ~4.000 Writes/s.                                                                                                                                     |
-
-Back-of-envelope fürs Lastziel (~2.100 abgeschlossene Käufe/s): 4–5 Worker-Instanzen mit den Defaults. Beide Werte gehören beim Skalieren gemeinsam angepasst. Ohne den Payment-Sleep ist der Worker nun so schnell wie `buy_ticket` + Redis-Finalisierung. Der frueher vermutete DB-Hot-Row-`UPDATE` (Backlog Stage 2) ist inzwischen entfernt: ein isolierter Micro-Bench zeigte ihn als Limiter (235 tickets/s, 49/50 Pool-Backends im Lock-Wait) und nach der Entfernung ~26k tickets/s bei 0 Lock-Wait-Backends (`docs/reports/hot-row-bench/README.md`). Der naechste Deckel liegt bei Flow-Control / Worker-Concurrency (Baseline B, Stage 4).
-
-## DTO-Vertrag für Code und Tests
-
-Um wiederkehrende Testfehler durch Typ-Drift zu vermeiden, gilt projektweit:
-
-1. Payload-Interfaces für API/Worker niemals lokal duplizieren.
-2. Test-Fixtures für Request-/Event-Payloads immer aus den zentralen DTO-Typen ableiten.
-3. Quelle ist ausschließlich `packages/types` (Typ-Export oder Zod-Schema).
-
-Beispiel im Worker-Flow:
-
-- `apps/worker/src/routes/pubsub-listener.ts` nutzt den zentralen DTO-Typ für den Handler-Contract.
-- `apps/worker/test/routes/pubsub-listener.test.ts` erstellt gültige Payloads über den Shared-Type statt über lokale ad-hoc Objekte.
-
-## Datenfluss: Verfügbarkeits-Check
-
-1. Frontend sendet GET /api/tickets/{eventId}/availability
-2. API liest Redis Key tickets:event:{eventId}:available
-3. API antwortet HTTP 200 { available: 843291, total: 1000000 }
-   → Kein DB-Zugriff, Sub-Millisekunden Antwortzeit
-
-## Phase-4.9-Zielbild: Inventory Maintenance ohne Live-Korrektur (geplant)
-
-ADR-031 loest den schreibenden Cross-System-Reconcile ab. Die atomaren Redis-Skripte bleiben die einzigen Writer des Verkaufsinventars; Maintenance-Komponenten beobachten oder bearbeiten konkrete Ansprueche, aber leiten keinen neuen `available`-Stand aus zeitversetzten Summen ab.
+## Systemgrenzen
 
 ```mermaid
 flowchart LR
-    Seed["Reset / Seed<br/>vor Sale"]
-    API["API Lua<br/>Reserve / Cancel / Rollback"]
-    Worker["Worker Lua<br/>Finalize / Compensation"]
-    Redis[("Redis Inventory<br/>available + reservation ledger")]
-    DB[("PostgreSQL<br/>tickets = durable sold truth")]
-    Projector["Sold-count Projector<br/>COUNT(tickets) → events.sold_count"]
-    Auditor["Inventory Auditor<br/>read-only metrics"]
-    Reaper["Pending Reaper<br/>orderId + deadline + state"]
+    Browser["Browser"]
+    Web["Next.js Web"]
+    API["Fastify API"]
+    Redis[("Redis\nLive-Inventar + Read-Models")]
+    PubSub[("Google Cloud Pub/Sub")]
+    Worker["Fastify Worker"]
+    Postgres[("PostgreSQL\nDurable Orders + Tickets")]
     Prometheus[("Prometheus")]
+    Grafana["Grafana"]
 
-    Seed --> Redis
+    Browser --> Web
+    Web --> API
     API --> Redis
+    API --> PubSub
+    PubSub --> Worker
+    Worker --> Postgres
     Worker --> Redis
-    Worker --> DB
-    DB --> Projector
-    Projector --> DB
-    DB --> Auditor
-    Redis --> Auditor
-    Auditor --> Prometheus
-    Redis --> Reaper
-    Reaper -->|"nur expired pending:<br/>ZREM + INCR atomar"| Redis
+    API --> Prometheus
+    Worker --> Prometheus
+    Prometheus --> Grafana
 ```
 
-### Inventory Auditor
+| Komponente    | Verantwortung                                                                             | Darf nicht                                  |
+| ------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `apps/web`    | Checkout-UX, simulierte 3DS-Verzögerung, Status-Polling                                   | Inventar oder Kaufstatus selbst entscheiden |
+| `apps/api`    | HTTP-Verträge, Redis-Reservierung/Reads, Publish nach Pub/Sub                             | direkt PostgreSQL lesen oder schreiben      |
+| Redis         | Live-Verfügbarkeit, Reservierungs-Ledger, Order-Read-Modelle, kurzlebige Idempotenzmarker | dauerhafte Ticket-Historie ersetzen         |
+| Pub/Sub       | bezahlte Kauf-Intents puffern und mindestens einmal zustellen                             | fachliche Idempotenz garantieren            |
+| `apps/worker` | Events validieren, DB-Write ausführen, Redis finalisieren, kompensieren, auditieren       | Live-Inventar aus DB-Summen korrigieren     |
+| PostgreSQL    | dauerhafte Wahrheit für Events, Orders und verkaufte Tickets                              | den API-Read-Hot-Path bedienen              |
 
-Der Auditor misst read-only `capacity`, `available`, `COUNT(tickets)`, aktive und stale Reservierungen sowie `available + sold + active - capacity`. Unter paralleler Last ist dieser Cross-System-Wert ein Diagnose-Snapshot; nach abgeschlossenem Drain ist `0` eine harte Capacity-Invariante. Fehlende Redis-Keys erzeugen einen Fehler beziehungsweise Alarm und niemals eine Runtime-Initialisierung.
+## Datenbesitz und Invarianten
 
-### Sold-count Projector
+### Live-Inventar
 
-Der Projector materialisiert `COUNT(tickets)` nach `events.sold_count` mit genau einer gruppierten Aggregation pro Zyklus. Er schreibt nicht nach Redis und liegt nicht auf dem Kauf-Hot-Path. Default-Intervall ist zunaechst 60 s; Query-Dauer und Pool-Wait werden gemessen. Falls die Aggregation den Kapazitaetslauf nachweislich beeinflusst, pausiert nur die Projektion waehrend des Profils und laeuft nach dem Drain — Admission und Korrektheit haengen nicht an `events.sold_count`.
+Während eines Verkaufs entscheidet Redis über neue Reservierungen. Das atomare
+Reserve-Script verändert drei zusammengehörige Strukturen:
 
-### Pending Reaper und TTL-Semantik
-
-Der ZSet-Score traegt eine millisekundengenaue Eligibility Deadline. Der Reaper darf nie vorher freigeben und prueft danach den konkreten Checkout-Zustand. Nur `pending` wird atomar per `ZREM reservation + INCR available` freigegeben; `POST /pay` claimt zuvor atomar `pending → publishing`. `publishing|paid` bleibt allein aufgrund von Alter unangetastet.
-
-TTL ist nur Speicher-Cleanup fuer Read-Models, kein fachlicher Release-Trigger: Redis-Expiry ist kein exakt terminierter Callback, kann keine Cross-Key-Kompensation ausfuehren und unterscheidet nicht zwischen `pending`, gerade publiziert und finalisiert. Der Pending-State bleibt deshalb mindestens bis zur Reaper-Entscheidung erhalten.
-
-### Observability-Zuordnung
-
-- `Inventory Integrity` (Umbau von `Reservation & Consistency`): Capacity-Komponenten/-Delta, Auditor-Health, Ledger active/stale, Reaper-Kandidaten/-Releases/-Skips/-Fehler und aeltester Pending-Anspruch.
-- `DB & Runtime`: Projector-Query-/Run-Dauer, Fehler, letzter Erfolg und Pool-Wait.
-- Lasttest-Report: `available + dbTickets + activeReservations == totalCapacity` ist nach Drain ein verpflichtendes System-Gate.
-
-Vollstaendiger Redis-Datenverlust, Redis-HA und dessen Recovery sind bewusst nicht Teil von Phase 4.9. Der lokale Spike-Test initialisiert den Zustand weiterhin vor dem Sale ueber Reset/Seed.
-
-## Read-only Inventory-Zyklus
-
-Der Worker startet den Pub/Sub-Consumer unabhaengig von Auditor, Projector und Reaper. Danach laeuft sofort und anschliessend alle `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS` (Default 60 s) ein nicht ueberlappender Zyklus:
-
-```
-Subscriber starten → COUNT(tickets)-Snapshot
-                              ├─ Sold-count Projector → events.sold_count
-                              ├─ Inventory Auditor → Redis-Reads + Metriken
-                              └─ Pending-Reaper → nur fälliges pending freigeben
-                                               ↓ (nach Abschluss)
-                                    naechsten Zyklus planen
+```text
+available DECR
+reservations ZADD(orderId, score = eligibilityDeadline)
+orders:{orderId} = pending
 ```
 
-`setTimeout` wird erst nach Abschluss erneut geplant, sodass lange DB-Scans nie ueberlappen. Projector, Auditor und Reaper laufen nach dem geteilten Snapshot unabhaengig; ihr Fehler stoppt den Consumer nicht. Der Reaper verarbeitet pro Event hoechstens `WORKER_RESERVATION_REAPER_BATCH_SIZE` (Default 1000) Kandidaten. Nicht freigabefaehige Recovery-Zustaende werden als Skip-Metrik gemeldet und aus dem faelligen Score-Bereich quarantiniert, bleiben aber im Ledger als aktive Ansprueche erhalten. Das alte Startup-Reconcile, alle periodischen Redis-Korrekturen und die `WORKER_RECONCILE_*`-Konfiguration existieren nicht mehr.
+Redis ist während eines laufenden Sales die einzige Inventarautorität. Nur die
+atomaren Reserve-, Release- und Kompensationsskripte verändern `available`; kein
+Beobachter leitet den Stand aus zeitversetzten PostgreSQL-Summen ab.
 
-### Historisches Deployment-Modell
+Nur ein erfolgreich entfernter Ledger-Anspruch darf `available` wieder erhöhen.
+Cancel, Publish-Rollback, Worker-Kompensation und Reaper nutzen deshalb
+idempotente Lua-Gegenskripte mit `ZREM` als Guard. Sie prüfen zusätzlich den
+erwarteten Checkout-Zustand, sodass zwei konkurrierende Pfade denselben Anspruch
+nie doppelt freigeben.
 
-Der aktuelle Worker läuft als `replicas: 1`. Mehrere Auditor- oder
-Projector-Instanzen wären höchstens
-ineffizient: Sie dürfen die Live-Verfügbarkeit nicht korrigieren und erzeugen
-daher kein Reconcile-HA-Problem.
+Der ZSet-Score ist die millisekundengenaue Eligibility Deadline. Sie macht einen
+Anspruch nur reaper-fähig und gibt selbst nichts frei.
 
----
+### Dauerhafter Verkauf
 
-## Load-Test Szenario (k6 Lastkurve)
+PostgreSQL enthält für jeden erfolgreichen Kauf genau eine Order und ein Ticket.
+Die Function `buy_ticket(event_id, order_id, first_name, last_name)` kapselt den
+atomaren Write. `order_id` trägt die DB-Idempotenz bei Pub/Sub-Redelivery.
 
-Der lokale Lasttest (`pnpm spike`) bildet einen echten Ticket-Sale nach: Der Verkauf ist bis zu einem fixen Unlock-Zeitpunkt gesperrt (Sale-Unlock-Gate, ADR-024), und der Uebergang von Sale-Opening zu Sold-Out wird **reaktiv** anhand der tatsaechlichen Verfuegbarkeit erkannt statt anhand einer festen Zeitspanne (ADR-025) — die urspruengliche Version dieses Tests sold sich mitten im Peak aus, ohne dass die Lastkurve darauf reagierte.
+`events.sold_count` ist ein periodisch materialisiertes Read-Model aus
+`COUNT(tickets)`. Es liegt nicht im Kauf-Hot-Path und trägt nicht den
+Oversell-Schutz.
 
-```
-  RPS
-5k ┤                  ┌─────────────────────────·······┐
-   │                  │   Sale Opening +               │
-   │                  │   Sustained (bis Sold-Out)      │
-   │                  │                                 │
-1k ┤─────────┬────────┘                                 └──────┐
-   │ Warm-Up │ Ramp-Up                                   Cool   │
-   │(gesperrt)                                           Down   │
- 0 ┼─────────┬────────┬───────────────·· (reaktiv) ··────┬──────┬──
-   0        45s      1m30s      Sold-Out (variabel)      +1min
-```
+### Read-Modelle
 
-**Ablauf (orchestriert durch `scripts/local/run-spike.mjs`, siehe ADR-025):**
+Die API liest Verfügbarkeit und Order-Status ausschließlich aus Redis.
+PostgreSQL ist deshalb unabhängig von HTTP-Read-Spikes skalierbar. Der Worker
+überschreibt das Checkout-Read-Model nach Verarbeitung mit `completed` oder
+`failed`.
 
-1. `pnpm seed` mit `SALE_OPENS_IN_SECONDS=60` (Default) — Redis/PostgreSQL/Pub/Sub werden zurueckgesetzt, `opensAt` wird auf `jetzt + 60s` gesetzt.
-2. **Phase A** (`load-tests/spike-phase-a.js`): Warm-Up 1.000 RPS flat/45s (Sale ist noch gesperrt, Kaufversuche liefern HTTP 425) → Ramp-Up 1.000→5.000 RPS/45s (Unlock faellt typischerweise in dieses Fenster) → Sustain 5.000 RPS bis Sold-Out.
-3. Die Orchestrierung pollt den monotonen Worker-Counter `orders_completed_total` (`/metrics`) alle 3s; sobald die Zahl abgeschlossener Orders fuer drei aufeinanderfolgende Polls stagniert (Plateau, Guard: erst ab `completed > 0`), wird Phase A per `SIGINT` (graceful k6 stop) beendet. Der fruehere `available`-Trigger ist hinfaellig, seit Cancels/Abandons `available` oszillieren lassen (Cancel macht `INCR available`).
-4. **Phase B** (`load-tests/spike-phase-b.js`): Cool-Down 1.000 RPS flat/1min.
+`orders:{orderId}` trägt intern mehr Zustände als der öffentliche Vertrag:
+`pending → publishing → paid` beschreibt den laufenden Checkout, bevor der Worker
+seinen finalen Zustand schreibt. Nach außen erscheinen alle drei als `pending`,
+damit Clients bis `completed` oder `failed` weiterpollen. Der Unterschied
+existiert für die Recovery: nur `pending` ist altersbedingt freigebbar.
 
-**1M Tickets**, Sold-Out-Zeitpunkt ist variabel (haengt von der tatsaechlichen Reservierungsrate ab, nicht von einem Timer). Das Szenario zeigt: Sale-Unlock-Transition (HTTP 425 → 202), Sold-Out-Transition (HTTP 202 → 409), Queue-Backpressure und Cache-Performance.
+## Checkout-Datenfluss
 
-## Monitoring & Observability
+### 1. Verfügbarkeit
 
 ```mermaid
-flowchart LR
-    API["Fastify API + Worker"]
-    K6["k6 Lasttest"]
-    Prometheus[("Prometheus")]
-    Grafana["Grafana Panels:<br/>- RPS<br/>- p95<br/>- Errors<br/>- Queue<br/>- Redis"]
+sequenceDiagram
+    participant Web
+    participant API
+    participant Redis
 
-    API -->|scrape /metrics<br/>every 5s| Prometheus
-    K6 -->|prometheus remote<br/>write| Prometheus
-    Grafana -->|query| Prometheus
+    Web->>API: GET /api/tickets/:eventId/availability
+    API->>Redis: MGET available, total, opensAt
+    Redis-->>API: aktuelles Read-Model
+    API-->>Web: 200 availability
 ```
 
-### Grafana-Dashboards
+Dieser Pfad berührt PostgreSQL und Pub/Sub nicht.
 
-| Dashboard           | Metriken                                                                                           | Quelle                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| API Performance     | RPS, Latenz (p50/p95/p99), Error Rate                                                              | `prom-client` in Fastify                        |
-| Redis Performance   | Hit/Miss Ratio, Key Count, Memory Usage                                                            | Redis Exporter (`hts-redis-exporter`)           |
-| Inventory Integrity | Capacity-Delta/-Komponenten, Auditor-Health, Ledger, Reaper-Aktivitaet, aeltester Pending-Anspruch | `prom-client` in API/Worker                     |
-| DB & Runtime        | Pool-/Lock-Wait, Query-Latenz, Projector-Dauer/-Health, Event-Loop-Lag, CPU                        | `prom-client` in Worker + Node-Default-Metriken |
-| Pub/Sub Queue       | Queue Depth, Processing Rate, Consumer Lag                                                         | Pub/Sub Metrics                                 |
-| k6 Lasttest         | Virtual Users, Request Duration, Failure Rate                                                      | k6 → Prometheus                                 |
+### 2. Reservieren
 
-## Workspace-Struktur
+```mermaid
+sequenceDiagram
+    participant Web
+    participant API
+    participant Redis
 
+    Web->>API: POST /api/tickets/:eventId/buy
+    API->>Redis: reserveTicket Lua
+    alt Verkauf noch gesperrt
+        Redis-->>API: -2
+        API-->>Web: 425 Too Early
+    else ausverkauft
+        Redis-->>API: -1
+        API-->>Web: 409 Conflict
+    else reserviert
+        Redis-->>API: remaining
+        API-->>Web: 202 orderId
+    end
 ```
-high-frequency-ticket-system/
-├── apps/
-│   ├── api/          # Fastify API Gateway (HTTP → Redis + Pub/Sub)
-│   ├── web/          # Next.js Frontend (Tailwind CSS)
-│   └── worker/       # Fastify Worker (Pub/Sub → PostgreSQL + Redis)
-├── packages/
-│   ├── db/           # Drizzle ORM Schema, Migrations, DB Client
-│   ├── types/        # Shared Zod Schemas & TypeScript Types
-│   ├── eslint-config/# Shared ESLint Configuration
-│   ├── typescript-config/ # Shared tsconfig
-│   └── ui/           # Shared UI Components (optional)
-├── load-tests/       # k6 Lasttest-Skripte
-├── infra/            # Terraform + Kubernetes Manifeste
-├── docs/             # Architektur, ADRs, Requirements
-│   ├── ARCHITECTURE.md
-│   ├── DECISIONS.md
-│   ├── REQUIREMENTS.md
-│   └── TODO.md
-├── scripts/
-│   ├── debug/        # Reproduzierbare Diagnose- und Guardrail-Skripte
-│   └── local/        # Lokale Infrastruktur-Orchestrierung (Reset + Seed)
-└── docker-compose.yml  # Lokales Dev-Setup (PostgreSQL, Redis, Pub/Sub, Grafana)
+
+Das Script prüft `opensAt` und `available`, dekrementiert den Counter, trägt
+`orderId` mit ihrer Eligibility Deadline in das ZSet-Ledger ein und schreibt das
+Pending-Read-Model. `/buy` publiziert noch kein Event.
+
+### 3. Bezahlen und publizieren
+
+```mermaid
+sequenceDiagram
+    participant Web
+    participant API
+    participant Redis
+    participant PubSub
+
+    Web->>API: POST /api/orders/:orderId/pay
+    API->>Redis: Lua-Claim pending -> publishing (+ queuedAt)
+    alt Claim verloren oder Zustand unerwartet
+        Redis-->>API: Konflikt
+        API-->>Web: Fehler, kein Publish
+    else Claim gewonnen
+        API->>PubSub: BuyTicketEvent publizieren
+        alt Publish erfolgreich
+            PubSub-->>API: messageId
+            API->>Redis: publishing -> paid markieren
+            API-->>Web: 200 confirmed
+        else Publish fehlgeschlagen
+            API->>Redis: ZREM + INCR + DEL atomar (nur eigener publishing-Claim)
+            API-->>Web: Fehler
+        end
+    end
 ```
+
+Der Zustandsübergang `pending → publishing` ist der Serialisierungspunkt des
+Checkouts: nur der Gewinner dieses atomaren Claims publiziert, und er setzt dabei
+`queuedAt`. Parallele Pay-Versuche und ein gleichzeitiges Cancel sehen den
+Konflikt und dürfen den publizierenden Anspruch nicht freigeben. Nach
+bestätigtem Publish markiert ein zweites zustandsbewusstes Script `paid`; der
+Worker ersetzt diesen Zustand später durch sein finales Read-Model.
+
+Die simulierte Payment-/3DS-Latenz lebt im Frontend. `queuedAt` wird unmittelbar
+vor dem Publish gesetzt; die E2E-Metrik misst damit Publish bis
+Worker-Finalisierung und nicht die Checkout-Denkzeit.
+
+### 4. Persistieren und finalisieren
+
+```mermaid
+sequenceDiagram
+    participant PubSub
+    participant Worker
+    participant Postgres
+    participant Redis
+
+    PubSub->>Worker: BuyTicketEvent
+    Worker->>Redis: processed marker prüfen
+    Worker->>Postgres: buy_ticket(...)
+    Postgres-->>Worker: Ticket/Order-Ergebnis
+    Worker->>Redis: order completed + processed + ZREM
+    Worker-->>PubSub: ACK
+```
+
+Bei terminalem DB-Fachfehler markiert der Worker die Order als fehlgeschlagen
+und kompensiert den noch vorhandenen Ledger-Anspruch. Transiente Fehler und
+fehlgeschlagene Kompensation führen zu NACK und Redelivery.
+
+### 5. Abbrechen und Status lesen
+
+- `POST /api/orders/:orderId/cancel` gibt ausschließlich ein Checkout im Zustand
+  `pending` idempotent frei. Gewinnt Pay das Rennen, sieht Cancel den
+  Zustandskonflikt und lässt den Anspruch stehen.
+- `GET /api/orders/:orderId` liest `pending`, `completed` oder `failed` aus
+  `orders:{orderId}` in Redis.
+- Das Frontend pollt bis zu einem terminalen Zustand; es gibt keinen
+  WebSocket- oder SSE-Kanal.
+
+## Redis-Schlüssel
+
+Alle Keys sind event- oder order-spezifisch und werden zentral in
+`packages/types/src/redis-keys.ts` erzeugt.
+
+| Muster                                        | Inhalt                                      | Lebenszyklus                                                        |
+| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
+| Muster                                        | Inhalt                                      | Lebenszyklus                                                        |
+| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
+| `tickets:event:{eventId}:available`           | freie, reservierbare Tickets                | Seed/Reset; danach nur atomare Reserve-/Release-Skripte             |
+| `tickets:event:{eventId}:total`               | Event-Kapazität                             | Seed/Reset                                                          |
+| `tickets:event:{eventId}:opensAt`             | Sale-Unlock in Epoch-ms                     | Seed/Reset                                                          |
+| `tickets:event:{eventId}:reservations`        | ZSet `orderId → Eligibility Deadline`       | bis Finalisierung, Kompensation oder Reaper-Freigabe; keine TTL     |
+| `tickets:event:{eventId}:processed:{orderId}` | Worker-Idempotenzmarker                     | TTL-basiertes technisches Cleanup                                   |
+| `orders:{orderId}`                            | Checkout-State, danach finales Order-Modell | aktiv ohne TTL; nur der finale Zustand bekommt eine Cleanup-TTL     |
+
+Ein TTL-Ablauf ist technisches Cleanup und keine fachliche Berechtigung,
+Inventar freizugeben. Ledger und aktive Checkout-Zustände haben deshalb keine
+TTL: sie müssen bis zur zustandsbewussten Entscheidung lesbar bleiben.
+
+Fehlende Inventar-Keys während eines laufenden Sales sind ein beobachtbarer
+Fehler. Kein Runtime-Job legt sie an; Initialisierung passiert ausschließlich im
+expliziten Reset-/Seed-Ablauf.
+
+## Worker-Outcome-Policy
+
+`buyTicketOutcomePolicy` in
+`apps/worker/src/routes/pubsub-listener.ts` bildet die ACK/NACK-Entscheidung
+exhaustiv ab:
+
+| Outcome               | ACK/NACK | Wirkung                                                   |
+| --------------------- | -------- | --------------------------------------------------------- |
+| `completed`           | ACK      | Verkauf, E2E-Latenz und Abschluss zählen                  |
+| `duplicate`           | ACK      | bereits verarbeitet; Idempotenz-Hit zählen                |
+| `duplicate-absorbed`  | ACK      | DB absorbierte parallele Redelivery; kein zweiter Verkauf |
+| `invalid-payload`     | NACK     | Nachricht bleibt sichtbar statt still verworfen           |
+| `terminal-failed`     | ACK      | fachlich beendet und Reservierung kompensiert             |
+| `compensation-failed` | NACK     | erneute Zustellung nötig                                  |
+| `transient-error`     | NACK     | Infrastrukturfehler erneut versuchen                      |
+
+## Inventory-Wartung
+
+Der Worker startet den Pub/Sub-Consumer unabhängig von der Inventar-Wartung. Ein
+nicht überlappender Zyklus läuft sofort nach dem Start und danach periodisch; er
+teilt genau einen gruppierten `COUNT(tickets)`-Snapshot auf drei Komponenten auf:
+
+```text
+Subscriber startet (unabhängig)
+COUNT(tickets)-Snapshot
+    ├─ Sold-count Projector → events.sold_count
+    ├─ Inventory Auditor    → nur GET/ZCARD/ZCOUNT + Metriken
+    └─ Pending-Reaper       → gibt nur fälliges pending frei
+```
+
+| Komponente           | Darf                                                             | Darf nicht                                           |
+| -------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Sold-count Projector | `COUNT(tickets)` nach `events.sold_count` materialisieren        | nach Redis schreiben                                 |
+| Inventory Auditor    | Capacity-Komponenten und signiertes Delta messen                 | korrigieren oder fehlende Keys anlegen               |
+| Pending-Reaper       | einen fälligen `pending`-Anspruch per `orderId` atomar freigeben | `publishing`, `paid` oder terminale Orders freigeben |
+
+Ein `setTimeout` wird erst nach Abschluss neu geplant, sodass lange DB-Scans nie
+überlappen. Die drei Komponenten laufen nach dem geteilten Snapshot unabhängig
+voneinander; ein Fehler in ihnen stoppt den Consumer nicht. Nicht
+freigabefähige Recovery-Zustände meldet der Reaper als Skip und quarantiniert sie
+aus dem fälligen Score-Bereich — im Ledger bleiben sie aktive Ansprüche.
+
+Es gibt keinen schreibenden Cross-System-Reconcile mehr: kein Startup-Job, keine
+periodische `available`-Korrektur und keine `WORKER_RECONCILE_*`-Konfiguration.
+Begründung und verworfene Alternativen stehen in
+[ADR-031](decisions/ADR-031-redis-authoritatives-inventory-auditor-und-reaper-statt-schreibendem-reconcile.md).
+
+### Capacity-Invariante
+
+Der Auditor berichtet das signierte Delta
+
+```text
+available + COUNT(tickets) + activeReservations - totalCapacity
+```
+
+Unter parallelen Redis-/DB-Übergängen ist ein Ausschlag diagnostisch, weil der
+Cross-System-Snapshot nicht atomar ist. Nach abgeschlossenem Drain ist exakt `0`
+eine harte Invariante; ein positiver Wert bedeutet mehr Ansprüche als Kapazität.
+Der Lasttest prüft sie als eigenen Verdict-Check (REQ-C03).
+
+Konkrete Intervalle, Batch-Größen und Deadlines leben in
+`packages/env/src/index.ts`, nicht in dieser Datei.
+
+## Skalierung und Backpressure
+
+- **Web und API:** zustandslos; horizontal skalierbar, solange alle Instanzen
+  dieselben Redis- und Pub/Sub-Ressourcen nutzen.
+- **Redis:** serialisiert die kurzen Lua-Inventarübergänge atomar. Es ist der
+  Admission-Hot-Path und benötigt niedrige Latenz.
+- **Pub/Sub:** entkoppelt bestätigte Zahlungen von der DB-Write-Kapazität.
+  Queue-Depth und E2E-Latenz zeigen Backpressure.
+- **Worker:** Parallelität wird durch Subscriber-Flow-Control und
+  PostgreSQL-Poolgröße begrenzt. Die DB-Function vermeidet den früheren
+  `events.sold_count`-Hot-Row-Write.
+- **Worker-Wartung:** Der Worker läuft aktuell als `replicas: 1`. Da Auditor und
+  Projector nichts am Live-Inventar korrigieren, wäre eine zweite Instanz
+  höchstens ineffizient und kein Korrektheitsproblem — Leader Election ist für
+  sie nicht nötig. Der Reaper bleibt auch parallel sicher, weil er jeden Anspruch
+  einzeln und zustandsbewusst per Lua freigibt.
+- **PostgreSQL:** skaliert mit unabhängigen Ticket-/Order-Inserts; die
+  periodische `COUNT(tickets)`-Aggregation bleibt off-Hot-Path und trägt keine
+  Admission-Entscheidung.
+
+Konkrete Defaults leben in `packages/env/src/index.ts`, nicht in dieser Datei.
+
+## Observability
+
+API, Worker, Redis Exporter und k6 liefern Metriken an Prometheus; Grafana
+visualisiert sie. Die wichtigsten Systemsignale sind:
+
+- Request-Rate, Status und Latenz pro Route;
+- Reservation-, Payment-, Cancel- und Publish-Rollback-Counter;
+- Worker-Completion, Redelivery, Idempotenz und Kompensation;
+- Publish-bis-Persist-E2E-Latenz;
+- Capacity-Delta samt Rohkomponenten und Ledger-Zustand;
+- Auditor- und Projector-Health: Dauer, Fehler und letzter Erfolg;
+- Reaper-Kandidaten, Freigaben, übersprungene Zustände und ältester fälliger
+  Pending-Anspruch;
+- DB-Pool-Wait, Query-Latenz, Locks, CPU und Event-Loop-Lag;
+- k6 dropped iterations und Zielraten-Erfüllung.
+
+Die Dashboards gruppieren diese Signale als `API Performance`,
+`Redis Performance`, `Inventory Integrity`, `DB & Runtime`, `Pub/Sub Queue` und
+`k6 Lasttest`. `Inventory Integrity` hält die signierte Cross-System-Diagnose und
+die harte Final-Invariante getrennt, damit ein transienter Ausschlag nicht als
+Systemfehler gelesen wird.
+
+Lasttest-Aufbau und Bedienung stehen in `load-tests/README.md`,
+`scripts/load-test/README.md` und `docs/RUNBOOK.md`. Messergebnisse gehören unter
+`docs/reports/`.

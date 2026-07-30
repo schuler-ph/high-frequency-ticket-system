@@ -1,10 +1,10 @@
 # Load-Test Report Automation (MVP)
 
 Deterministic evidence collector + analyzer around the existing spike
-orchestration. Implements the "Minimum viable automation" from
-[`docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md`](../../docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md):
-it calculates facts, applies **versioned** rules, and labels anything it cannot
-prove — it does not guess a root cause.
+orchestration. It calculates facts, applies **versioned** rules, and labels
+anything it cannot prove — it does not guess a root cause. The design decision
+is recorded in
+[ADR-030](../../docs/decisions/ADR-030-grafana-panel-export-als-png-grafana-image-renderer-statt-hand-screenshots.md).
 
 ## Commands
 

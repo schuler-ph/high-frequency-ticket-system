@@ -1,32 +1,32 @@
-# Getting Started with [Fastify-CLI](https://www.npmjs.com/package/fastify-cli)
+# API
 
-This project was bootstrapped with Fastify-CLI.
+Fastify-Gateway für Verfügbarkeit, Reservierung, Payment-Bestätigung,
+Checkout-Abbruch und Order-Status.
 
-## Environment Variables
+## Lokale Befehle
 
-The API expects shared variables from the workspace root `.env` file via `@repo/env`.
+Vom Repository-Root:
 
-- `GOOGLE_CLOUD_PROJECT` (default: `high-frequency-ticket-system`)
-- `PUBSUB_TOPIC_BUY_TICKET` (default: `buy-ticket`)
-- `PUBSUB_EMULATOR_HOST` (optional, e.g. `localhost:10005` for local emulator)
+```bash
+pnpm --filter api run dev
+pnpm --filter api run test
+pnpm --filter api run check-types
+pnpm --filter api run lint
+pnpm --filter api run start:loadtest
+```
 
-## Available Scripts
+Die API läuft standardmäßig auf
+[http://localhost:10002](http://localhost:10002). Vor dem Start müssen die
+lokale Infrastruktur und `pnpm seed` gelaufen sein; die vollständige
+Reihenfolge steht im [`docs/RUNBOOK.md`](../../docs/RUNBOOK.md).
 
-In the project directory, you can run:
+## Grenzen
 
-### `npm run dev`
+- Request-, Response- und Event-Verträge kommen aus `packages/types`.
+- Verfügbarkeit und Order-Status werden aus Redis gelesen.
+- Kaufpfade schreiben nie direkt nach PostgreSQL.
+- Pub/Sub-Ressourcen werden lokal durch `pnpm seed` provisioniert, nicht beim
+  API-Start.
 
-To start the app in dev mode.\
-Open [http://localhost:10002](http://localhost:10002) to view it in the browser.
-
-### `npm start`
-
-For production mode
-
-### `npm run test`
-
-Run the test cases.
-
-## Learn More
-
-To learn Fastify, check out the [Fastify documentation](https://fastify.dev/docs/latest/).
+Aktuelles Verhalten und Datenfluss:
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).

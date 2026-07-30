@@ -12,10 +12,14 @@ Nutze diesen Workflow, wenn du fuer einen aktuellen Bereich nicht einfach mehr P
 
 Die Skill priorisiert die kleinsten naechsten Testaufgaben, die die fachliche Korrektheit und Flow-Sicherheit am staerksten verbessern.
 
-## Immer zuerst
+## Kontext gezielt laden
 
-1. Lese `docs/TODO.md`, `docs/REQUIREMENTS.md`, `docs/DECISIONS.md` und `docs/ARCHITECTURE.md` vollstaendig in den Kontext.
-2. Uebernehme daraus die Architekturregeln fuer die Analyse, insbesondere:
+1. Bestimme zuerst den konkreten Flow und lies dessen Code, Tests und lokale
+   READMEs.
+2. Nutze `docs/DOCS.md` als Router. Lies nur den relevanten Todo-Abschnitt,
+   betroffene Requirements-/Architekturabschnitte und passende Einzel-ADRs aus
+   `docs/decisions/`; lade keines dieser Dokumente pauschal vollständig.
+3. Beachte insbesondere:
    - API-Writes laufen nur asynchron ueber Pub/Sub.
    - Reads fuer Verfuegbarkeit laufen ueber Redis.
    - DTOs kommen aus `packages/types`; keine lokalen Typ-Duplikate.

@@ -19,7 +19,8 @@ Kurze Referenz fuer den taeglichen Copilot-Ablauf in diesem Repo.
 /plan-next-task
 
 Bitte waehle die naechste kleine, reviewbare Aufgabe aus docs/TODO.md.
-Beruecksichtige docs/REQUIREMENTS.md, docs/DECISIONS.md und docs/ARCHITECTURE.md.
+Lies die vom Todo verlinkten Details. Nutze docs/DOCS.md als Router und lade
+nur relevante Requirements-, Architektur- und ADR-Abschnitte.
 Wenn die naechste Aufgabe zu gross ist, zerlege sie in die kleinste sinnvolle Teilaufgabe.
 Liefere:
 - Ziel der Session

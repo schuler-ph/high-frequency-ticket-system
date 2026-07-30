@@ -56,7 +56,7 @@
         "command": "workbench.action.tasks.runTask",
         "args": ["spike:open-dashboards"]
       },
-      // --- Abläufe aus RUNBOOK.md -------------------------------------------
+      // --- Abläufe aus docs/RUNBOOK.md --------------------------------------
       {
         "name": "$(play) Dev Stack",
         "color": "#61AFEF",
@@ -127,10 +127,10 @@
       //   // heraus nicht verlaesslich mit einem Pfad-String aufrufbar.
       //   "name": "$(book) Runbook",
       //   "color": "#ABB2BF",
-      //   "tooltip": "RUNBOOK.md öffnen (Enter im Quick-Open bestätigen)",
+      //   "tooltip": "docs/RUNBOOK.md öffnen (Enter im Quick-Open bestätigen)",
       //   "useVsCodeApi": true,
       //   "command": "workbench.action.quickOpen",
-      //   "args": ["RUNBOOK.md"]
+      //   "args": ["docs/RUNBOOK.md"]
       // }
       // {
       //   "name": "$(git-merge) Merge hfts-dev1 → main",

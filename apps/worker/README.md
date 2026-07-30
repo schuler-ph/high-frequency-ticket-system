@@ -1,24 +1,31 @@
-# Getting Started with [Fastify-CLI](https://www.npmjs.com/package/fastify-cli)
+# Worker
 
-This project was bootstrapped with Fastify-CLI.
+Fastify-Service für Pub/Sub-Consumption, PostgreSQL-Persistenz,
+Redis-Finalisierung und Inventory-Hintergrundaufgaben.
 
-## Available Scripts
+## Lokale Befehle
 
-In the project directory, you can run:
+Vom Repository-Root:
 
-### `npm run dev`
+```bash
+pnpm --filter worker run dev
+pnpm --filter worker run test
+pnpm --filter worker run check-types
+pnpm --filter worker run lint
+pnpm --filter worker run start:loadtest
+```
 
-To start the app in dev mode.\
-Open [http://localhost:10003](http://localhost:10003) to view it in the browser.
+Der Health-/Metrics-Server läuft standardmäßig auf
+[http://localhost:10003](http://localhost:10003). Vor dem Start müssen
+PostgreSQL, Redis und Pub/Sub laufen und `pnpm seed` muss Topic sowie
+Subscription angelegt haben.
 
-### `npm start`
+## Grenzen
 
-For production mode
-
-### `npm run test`
-
-Run the test cases.
-
-## Learn More
-
-To learn Fastify, check out the [Fastify documentation](https://fastify.dev/docs/latest/).
+- Events und Redis-Keys kommen aus `packages/types`.
+- Datenbankzugriffe laufen über `packages/db`.
+- Redelivery, ACK/NACK und Kompensation folgen der Policy in
+  [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md#worker-outcome-policy).
+- Der gebaute Lasttest-Modus ist im
+  [`docs/RUNBOOK.md`](../../docs/RUNBOOK.md#3-lasttest-stack-hochfahren-gebauter-stand)
+  beschrieben.

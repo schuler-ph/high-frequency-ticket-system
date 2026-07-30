@@ -2,9 +2,9 @@
 
 k6-Lasttests für das High-Frequency Ticket System.
 
-Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung fuer kuenftige Baselines ist in `docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md` beschrieben. Der Leitfaden trennt Rohdaten, deterministische Analyse und Report-Rendering, damit Dashboard-Auswertungen nicht erneut manuell oder durch einen KI-Agenten rekonstruiert werden muessen.
-
-Der **MVP dieser Pipeline ist umgesetzt** unter `scripts/load-test/` (siehe [`scripts/load-test/README.md`](../scripts/load-test/README.md)):
+Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung ist unter
+`scripts/load-test/` umgesetzt. Der [Leitfaden](../scripts/load-test/README.md)
+trennt Rohdaten, deterministische Analyse und Report-Rendering:
 
 ```bash
 pnpm spike:report                 # kompletter Lauf: seed -> Last -> Drain -> Report (braucht Live-Stack)
@@ -23,9 +23,11 @@ Rohartefakte landen unter `artifacts/load-tests/<run-id>/` (gitignored); ein gep
 
 > Vor dem naechsten Kapazitaetslauf (Baseline D) zuerst den Abschnitt
 > „Backlog: Baseline-C-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten.
-> Die P0-Defekte aus dem B-Nachlauf sind erledigt (Baseline C belegt das); offen
-> sind jetzt das Phantom-Inventar im Reconcile, der blinde Drift-Gauge und der
-> DB-Pool als Engpass.
+> Die P0-Defekte aus dem B-Nachlauf sind erledigt (Baseline C belegt das).
+> Phantom-Inventar und blinder Drift-Gauge sind mit Phase 4.9 erledigt: der
+> schreibende Reconcile ist entfernt, das Capacity-Delta ist ein signierter Gauge
+> und die Invariante ein eigener Verdict-Check (ADR-031). Offen sind der
+> DB-Pool als Engpass und der Abschluss-Lasttest selbst.
 
 ## Voraussetzungen
 

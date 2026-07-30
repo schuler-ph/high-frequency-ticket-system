@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Versioned validity policy for the deterministic load-test report generator (docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md). Changing a threshold here is a report-logic change and must be reviewed alongside the golden fixtures.",
+  "description": "Versioned validity policy for the deterministic load-test report generator (scripts/load-test/README.md). Changing a threshold here is a report-logic change and must be reviewed alongside the golden fixtures.",
   "benchmark": {
     "maxDroppedIterationRateForValidRun": 0.001,
     "maxDroppedIterationRateForDegradedRun": 0.05,

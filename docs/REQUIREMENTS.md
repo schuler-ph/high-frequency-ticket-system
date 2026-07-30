@@ -1,86 +1,218 @@
-# Project Requirements: High-Frequency Ticket System
+# Systemanforderungen
 
-## Core Objective
+Diese Datei definiert, **was** das Ticket-System leisten und nachweisbar
+einhalten soll. Sie enthält keine Technologiebegründungen und keinen
+Umsetzungsstatus. Das aktuelle Design steht in `docs/ARCHITECTURE.md`,
+Begründungen im ADR-Index `docs/DECISIONS.md` und offene Umsetzung in
+`docs/TODO.md`.
 
-Entwicklung eines hochskalierbaren, asynchronen Ticket-Buchungssystems zur Simulation extremer Lastspitzen (Event: Frequency Festival 20XX Tickets). Fokus liegt auf der Vermeidung von Datenbank-Überlastungen durch Caching und Message-Queuing.
+## Produkt und Scope
 
-## Event-Theme
+Das System simuliert den Verkauf von einer Million General-Admission-Tickets
+für das Frequency Festival in St. Pölten. Es soll einen realistischen
+Sale-Lifecycle mit Vorverkaufsphase, plötzlicher Lastspitze, Checkout,
+Ausverkauf und anschließendem Drain demonstrieren.
 
-- **Event:** Frequency Festival 20XX
-- **Location:** St. Pölten, Österreich
-- **Ticket-Typ:** General Admission Tickets
-- **Ticket-Pool:** 1.000.000 Tickets
-- **Szenario:** Realistischer Verkaufsstart mit steigender Last. Nutzer strömen vor Verkaufsstart auf die Seite (Warm-Up), beim Opening explodiert der Traffic, Tickets werden verkauft bis Sold-Out, danach fällt der Traffic ab.
+Nicht Teil des Scopes sind echte Authentifizierung, ein echter Payment-Provider,
+Ticket-Preislogik und vollständige Disaster-Recovery nach Verlust des
+Live-Inventars. Käufer nutzen einen Guest Checkout; Payment und 3DS werden
+deterministisch simuliert.
 
-## Tech Stack & Architecture
+## Funktionale Anforderungen
 
-- **Repository Strategy:** Monorepo (Turborepo)
-- **Package Manager:** pnpm (v10+)
-- **Language:** TypeScript (Fullstack, 100%)
-- **TypeScript CLI Compiler:** `tsgo` via `@typescript/native-preview` (transition from `tsc`, mit temporaerer Ausnahme fuer `apps/web` `check-types`)
-- **Shared Runtime Packages:** Backend-relevante Workspace-Pakete (`@repo/env`, `@repo/types`, `@repo/db`) exportieren `types` + `source` fuer Editor/Testpfade und `default` auf gebautes `dist` fuer den Plain-Node-Runtime-Pfad
-- **Test Runner:** Backend packages (`apps/api`, `apps/worker`, `packages/db`) use direct package-local `node:test` runs against native `.ts` source with `--conditions=source`; API and Worker coverage use Node's native `--experimental-test-coverage`, `@repo/db` keeps `c8` for the more stable DB coverage path, and the local root `pnpm test` orchestration runs serialized via Turborepo for stable feedback
-- **Frontend:** Next.js, Tailwind CSS
-- **Backend Runtime:** Node.js (v22+; primär v24)
-- **Backend Framework:** Fastify (API Gateway & Worker Services)
-- **Database:** PostgreSQL (Cloud SQL, architected for future Cloud Spanner migration)
-- **ORM:** Drizzle ORM (Code-First)
-- **Configuration Management:** `@t3-oss/env-core` + Zod
-- **Schema Validation & DTOs:** Zod
-- **Message Broker:** Google Cloud Pub/Sub
-- **Inventory & Caching:** Cloud Memorystore (Redis); waehrend des Sales autoritative Quelle fuer `available` und aktive Reservierungen
-- **Infrastructure as Code:** Terraform
-- **Deployment:** Docker & Google Kubernetes Engine (GKE)
-- **Load Testing:** k6
-- **CI/CD:** GitHub Actions (Node 22+24 Quality-Matrix, migration/function guardrails, lint, typecheck, build, tests on Node 24)
-- **Git Hooks:** Husky (pre-commit: format, pre-push: lint + typecheck)
-- **Debugging Guardrails:** Deterministic test entrypoints + versioned `debug:*` scripts + short runbook + lokales `local:reset-seed` fuer reproduzierbaren PostgreSQL/Redis/PubSub-Startzustand
+### REQ-F01 — Verfügbarkeit
 
-## API Surface (`apps/api`)
+Clients können für ein Event die aktuelle freie und gesamte Kapazität sowie den
+Sale-Unlock-Zeitpunkt abrufen. Der Read-Pfad muss ohne PostgreSQL-Zugriff
+funktionieren.
 
-Der Kauf ist seit dem Reserve/Pay-Split (ADR-028) ein zweistufiger Checkout: `buy` reserviert nur, `pay` published. Die Payment-Latenz lebt im Frontend, nicht im Backend.
+### REQ-F02 — Reservierung
 
-| Methode & Route                          | Zweck                                                                                  | Antwort                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/tickets/:eventId/availability` | Aktuelle Verfügbarkeit aus Redis (kein DB-Zugriff)                                     | `200` (`available`, `total`, `opensAt`)                                       |
-| `POST /api/tickets/:eventId/buy`         | Reserviert atomar in Redis (Lua), **published nicht**                                  | `202` (`orderId`) · `409` Sold-Out · `425` Too Early                          |
-| `POST /api/orders/:orderId/pay`          | Validiert das (simulierte) Payment-DTO und **published** den `BuyTicketEvent` synchron | `200` (`confirmed`, `orderId`) · `404` keine Reservierung · `409` finalisiert |
-| `POST /api/orders/:orderId/cancel`       | Gibt eine noch nicht bezahlte Reservierung frei (Checkout-Abbruch/Timeout), idempotent | `200` (`cancelled`, `orderId`) · `409` finalisiert                            |
-| `GET /api/orders/:orderId`               | Finaler Order-Status ausschließlich aus Redis (`pending`/`completed`/`failed`)         | `200` (Order-Status) · `404` unbekannt                                        |
-| `GET /metrics`                           | Prometheus-Scraping-Endpunkt                                                           | `200`                                                                         |
+Ein Kaufversuch reserviert höchstens ein Ticket und liefert eine eindeutige
+`orderId`.
 
-## Load-Test Szenario (k6)
+- Vor Sale-Unlock antwortet das System mit `425 Too Early`.
+- Ohne freie Kapazität antwortet es mit `409 Conflict`.
+- Bei Erfolg hält es den Inventaranspruch atomar und antwortet mit
+  `202 Accepted`.
+- Die Reservierung publiziert noch keinen dauerhaften Kauf.
 
-Der lokale k6-Lasttest (`pnpm spike`, orchestriert via `scripts/local/run-spike.mjs`, siehe ADR-024/025) simuliert einen realistischen Ticket-Sale-Lifecycle mit echtem Sale-Unlock und reaktiver Sold-Out-Erkennung statt fester Phasen-Timer:
+### REQ-F03 — Payment-Bestätigung
 
-| Phase             | Dauer              | Requests/s  | Beschreibung                                                           |
-| ----------------- | ------------------ | ----------- | ---------------------------------------------------------------------- |
-| 1. Warm-Up        | 45 s               | 1.000       | Nutzer laden die Seite; Verkauf ist gesperrt, Kaufversuche liefern 425 |
-| 2. Ramp-Up        | 45 s               | 1.000→5.000 | Traffic steigt; Sale-Unlock faellt typischerweise in dieses Fenster    |
-| 3. Sustained Sale | variabel (reaktiv) | 5.000       | Verkauf laeuft, bis `available` auf 0 faellt (per Polling erkannt)     |
-| 4. Cool Down      | 1 min              | 1.000       | Traffic normalisiert sich nach bestaetigtem Sold-Out                   |
+Eine aktive Reservierung kann mit einem validen simulierten Payment bestätigt
+werden. Erst dieser Schritt publiziert den Kauf-Intent zur asynchronen
+Persistenz. Ein Publish-Fehler muss den gehaltenen Inventaranspruch vollständig
+und idempotent freigeben.
 
-**Ziel:** Zeigen, wie das System unter Last skaliert und wie sich die Metriken bei Sale-Unlock (425 → 202) und Sold-Out (202 → 409) verändern (Error-Rate steigt, Latenz bleibt stabil).
+### REQ-F04 — Checkout-Abbruch
 
-**Cloud-Lasttest (Phase 5, noch offen):** Fuer den Cloud-Lasttest gegen GKE ist ein hoeheres Ziel-Lastprofil vorgesehen (bis 50.000 RPS Sale-Opening/Sustained, 20.000 RPS Sold-Out), analog zur urspruenglichen lokalen Lastkurve — lokal ist das mangels vergleichbarer Infrastruktur nicht realistisch erreichbar.
+Eine noch nicht finalisierte Reservierung kann abgebrochen werden. Wiederholtes
+Abbrechen darf Inventar nicht mehrfach erhöhen. Eine bereits terminale Order
+darf nicht zurück in den Checkout-Zustand wechseln.
 
-## Observability & Monitoring
+### REQ-F05 — Order-Status
 
-- **Prometheus:** Sammelt Metriken von der App. Scraped alle 5 Sekunden den `/metrics`-Endpunkt der Fastify-Server und speichert Zeitreihendaten (RPS, Latenz-Histogramme, Error-Counter). Läuft lokal als Docker-Container.
-- **redis_exporter:** Exportiert Redis-INFO-Metriken (Hit/Miss-Ratio, Key-Count, Memory) als Prometheus-Serien. Läuft als Docker-Container (`hts-redis-exporter`, Host-Port `10009`) und wird von Prometheus container-intern gescraped.
-- **Inventory-Integrity-Metriken:** Der Worker exponiert Capacity-Komponenten/-Delta, Auditor-Dauer/-Fehler/-Freshness sowie Reaper-Kandidaten/-Releases/-Skips/-Fehler und den aeltesten faelligen Pending-Anspruch. Das Dashboard „Inventory Integrity“ zeigt die signierte Cross-System-Diagnose und die harte Final-Invariante getrennt.
-- **DB- & Runtime-Metriken:** Der Worker exponiert PostgreSQL-Bottleneck-Signale (`db_pool_connections` inkl. Pool-Wait, `db_query_duration_seconds`, `db_locks_waiting`) sowie Projector-Dauer/-Fehler/-Freshness via `prom-client`; Prozess-CPU und Event-Loop-Lag kommen aus den `prom-client`-Default-Metriken. Dienen der belastbaren Engpass-Zuordnung im Lasttest (Dashboard „DB & Runtime“).
-- **Grafana:** Visualisierungs-Tool, das sich mit Prometheus verbindet und Live-Dashboards baut (Linien-Charts, Heatmaps, Gauges). Die Dashboards werden als JSON im Repo versioniert.
-- **k6:** Open-Source Lasttest-Tool von Grafana Labs. Simuliert tausende parallele User via JavaScript-Skripte. Exportiert Ergebnisse direkt an Prometheus → Live-Visualisierung in Grafana während des Tests.
-- **grafana-image-renderer:** Rendert Grafana-Panels serverseitig als PNG (Container `hts-grafana-renderer`, Host-Port `10010`; Grafana kennt ihn über `GF_RENDERING_SERVER_URL`). `pnpm spike:graphs` exportiert damit alle Panels aller Dashboards für ein exaktes Zeitfenster ins Run-Verzeichnis — `spike:report` ruft das am Ende automatisch auf (ADR-030).
-- **README-Beweise:** Grafana-Panels unter Last als Nachweis der Skalierbarkeit — erhoben per `spike:graphs`, nicht per Hand-Screenshot.
+Clients können eine Order über `orderId` pollen. Unterstützte fachliche
+Zustände sind mindestens `pending`, `completed` und `failed`. Der API-Read-Pfad
+nutzt ein Redis-Read-Model und keinen PostgreSQL-Read.
 
-## Architectural Rules
+### REQ-F06 — Dauerhafte Finalisierung
 
-1.  **Strict Async Writes:** Die API darf niemals direkt in die Datenbank schreiben. Alle Schreib-Intents müssen in Pub/Sub gepuffert werden.
-2.  **Read-Heavy Optimization:** Die API liest ausschließlich aus Redis-Read-Modellen (aktuell Ticket-Verfügbarkeiten, spaeter auch Order-Status) und niemals direkt aus PostgreSQL.
-3.  **Type Safety:** Zod-Schemas generieren die Request-Typen. Drizzle generiert die Datenbank-Typen. Keine doppelten manuellen Typ-Deklarationen.
-4.  **Database Agnosticism:** Die Datenbankschicht muss so in Drizzle abstrahiert werden, dass ein späterer Wechsel von Cloud SQL zu Cloud Spanner mit minimalem Refactoring möglich ist.
-5.  **DB Write Encapsulation:** Der Worker nutzt `buy_ticket(...)` fuer Order- und Ticket-Writes. `sold_count` bleibt aus dem Hot-Path entfernt und wird in Phase 4.9 durch einen separaten, instrumentierten Projector aus `COUNT(tickets)` materialisiert; die Projektion schreibt nie nach Redis und traegt nicht die Admission.
-6.  **DTO Contract Discipline (inkl. Tests):** Payload-Typen für API/Worker und Test-Fixtures dürfen nicht lokal nachgebaut werden. Verwende immer die zentralen DTO-Typen oder Schemas aus `packages/types` (z.B. `BuyTicketRequest` oder `buyTicketRequestSchema`).
-7.  **Redis-authoritatives Inventory (Phase 4.9):** Im laufenden Sale veraendern nur atomare Reserve-/Release-/Finalize-Skripte das Inventar. Cross-System-Audits sind read-only; verwaiste Ansprueche werden per `orderId` durch den Reaper statt durch Summenkorrektur freigegeben (ADR-031).
+Ein bestätigter Kauf erzeugt atomar genau eine dauerhafte Order und genau ein
+Ticket. At-least-once-Zustellung darf keine zweite Order und kein zweites
+Ticket für dieselbe `orderId` erzeugen.
+
+### REQ-F07 — Reproduzierbarer Testzustand
+
+Der lokale Stack kann PostgreSQL, Redis und Pub/Sub auf einen definierten
+Fixture-Stand mit einer Million Tickets und kontrolliertem Sale-Unlock
+zurücksetzen.
+
+## API-Vertrag
+
+| Methode und Route                        | Verhalten                               | Erfolgsantwort             |
+| ---------------------------------------- | --------------------------------------- | -------------------------- |
+| `GET /api/tickets/:eventId/availability` | Redis-Verfügbarkeit lesen               | `200`                      |
+| `POST /api/tickets/:eventId/buy`         | atomar reservieren                      | `202` mit `orderId`        |
+| `POST /api/orders/:orderId/pay`          | Payment validieren und Kauf publizieren | `200` confirmed            |
+| `POST /api/orders/:orderId/cancel`       | Pending-Reservierung freigeben          | `200` cancelled true/false |
+| `GET /api/orders/:orderId`               | Order-Read-Model lesen                  | `200` oder `404`           |
+| `GET /metrics`                           | Prometheus-Metriken bereitstellen       | `200`                      |
+
+Request-, Response- und Event-Payloads werden zentral validiert. Ungültige
+Payloads dürfen keine Seiteneffekte auslösen.
+
+## Konsistenz und Fehlertoleranz
+
+### REQ-C01 — Keine direkten API-DB-Writes
+
+Kein HTTP-Kaufpfad darf direkt nach PostgreSQL schreiben. Die persistente
+Schreiblast wird durch Pub/Sub vom Request-Spike entkoppelt.
+
+### REQ-C02 — Atomare Inventarübergänge
+
+Reserve, Release und Worker-Kompensation müssen innerhalb von Redis atomar sein.
+Ein Release erhöht `available` nur, wenn derselbe `orderId`-Anspruch tatsächlich
+aus dem Ledger entfernt wurde.
+
+### REQ-C03 — Capacity-Invariante
+
+Nach Sale-Ende und vollständig abgeschlossenem Queue-Drain gilt:
+
+```text
+available + durableTickets + activeReservations = totalCapacity
+```
+
+Eine Abweichung ist ein Systemfehler. Fehlende Operanden machen den Nachweis
+`inconclusive`; sie dürfen nicht als Erfolg interpretiert werden.
+
+### REQ-C04 — Identitätsbasierte Recovery
+
+Verwaiste Reservierungen dürfen nur anhand einer konkreten `orderId` und ihres
+fachlichen Zustands freigegeben werden. Alter oder TTL allein beweisen keinen
+abgebrochenen Checkout. `publishing` oder bereits terminale Orders dürfen nie
+allein wegen Zeitablauf freigegeben werden.
+
+### REQ-C05 — ACK/NACK-Verhalten
+
+- Erfolgreiche, bereits absorbierte oder terminal kompensierte Events werden
+  bestätigt.
+- Transiente Infrastrukturfehler und fehlgeschlagene Kompensation werden
+  erneut zugestellt.
+- Invalides Event-Payload darf nicht still als erfolgreicher Kauf enden.
+
+### REQ-C06 — Fehlende Live-Keys
+
+Fehlende Inventar-Keys während eines laufenden Sales sind ein beobachtbarer
+Fehler. Runtime-Audits dürfen den Zustand nicht unbemerkt aus zeitversetzten
+PostgreSQL- und Redis-Snapshots rekonstruieren. Initialisierung findet im
+expliziten Reset-/Seed-Ablauf statt.
+
+## Last- und Skalierungsanforderungen
+
+### REQ-P01 — Lokales Referenzprofil
+
+Der lokale k6-Lauf umfasst:
+
+| Phase          | Dauer                |          Zielrate | Erwartetes Verhalten                |
+| -------------- | -------------------- | ----------------: | ----------------------------------- |
+| Warm-up        | 45 s                 |         1.000 RPS | Kaufversuche vor Unlock liefern 425 |
+| Ramp-up        | 45 s                 | 1.000 → 5.000 RPS | Übergang in offenen Sale            |
+| Sustained Sale | reaktiv bis Sold-out |         5.000 RPS | Reservieren, bezahlen, persistieren |
+| Cool-down      | 60 s                 |         1.000 RPS | Sold-out und Queue-Drain beobachten |
+
+Der Übergang zu Sold-out wird aus Systemzustand abgeleitet, nicht durch einen
+festen Timer.
+
+### REQ-P02 — Cloud-Zielprofil
+
+Das spätere GCP-Profil soll bis 50.000 RPS für Sale-Opening und Sustained Sale
+prüfen. Dieses Ziel ist erst nach Cloud-Deployment und verteiltem Lastgenerator
+ein belastbarer Kapazitätsnachweis.
+
+### REQ-P03 — Ehrlicher Kapazitätsnachweis
+
+Ein Lauf darf die Zielrate nicht als Backend-Kapazität ausweisen, wenn der
+Lastgenerator relevante Iterationen verworfen hat oder der Mess-Stack
+unvollständig war. Benchmark-Validität und Systemkorrektheit werden getrennt
+bewertet.
+
+### REQ-P04 — Backpressure
+
+Überlast muss als Queue-Wachstum oder erhöhte E2E-Latenz sichtbar werden, ohne
+die HTTP-API an die momentane PostgreSQL-Write-Kapazität zu koppeln.
+
+## Observability-Anforderungen
+
+### REQ-O01 — HTTP und Checkout
+
+Metriken müssen Request-Rate, Statuscode und Latenz pro Route sowie
+Reservationen, bestätigte Payments, Cancels und Publish-Rollbacks unterscheidbar
+machen.
+
+### REQ-O02 — Worker und Queue
+
+Metriken müssen Completion, Failure, Redelivery, absorbierte Duplikate,
+Idempotenztreffer, Kompensation und Publish-bis-Persist-Latenz sichtbar machen.
+
+### REQ-O03 — Inventar und Datenbank
+
+Metriken müssen freie, verkaufte und aktive Ansprüche, Capacity-Delta,
+Ledger-Zustand, DB-Pool-Auslastung/-Wait, Query-Latenz, Lock-Waits und
+Runtime-Sättigung zuordenbar machen.
+
+Zusätzlich müssen die Wartungskomponenten selbst beobachtbar sein: Dauer,
+Fehler und letzter Erfolg von Inventar-Audit und Sold-count-Projektion sowie
+Kandidaten, Freigaben, übersprungene Zustände und Fehler der
+identitätsbasierten Recovery. Der älteste fällige Pending-Anspruch muss
+sichtbar sein. Die signierte Cross-System-Diagnose und die harte
+Final-Invariante aus REQ-C03 bleiben getrennt auswertbar, damit ein
+transienter Ausschlag nicht als Systemfehler gilt.
+
+### REQ-O04 — Reproduzierbare Evidenz
+
+Jeder qualifizierte Lastlauf erzeugt:
+
+1. unveränderliche Rohdaten und Konfigurationssnapshot;
+2. maschinenlesbare abgeleitete Fakten;
+3. regelbasierte Validitäts- und System-Verdicts;
+4. einen deterministischen Markdown-Report;
+5. Grafana-Panelbilder für ein aus dem Run-Manifest abgeleitetes Zeitfenster.
+
+Fehlender optionaler Bildexport darf vorhandene numerische Evidenz nicht
+vernichten und muss nachholbar sein.
+
+## Qualitäts- und Sicherheitsanforderungen
+
+- Alle externen Payloads werden vor Seiteneffekten validiert.
+- Erwartete Fachfehler haben stabile HTTP-Statuscodes und sichere Meldungen.
+- Unbekannte interne Fehler geben in produktionsnahen Umgebungen keine
+  Infrastrukturdetails an Clients weiter.
+- Logs sind strukturiert, korrelierbar und für Cloud Logging auswertbar.
+- Datenbank-, Request- und Event-Typen haben jeweils eine zentrale ableitbare
+  Quelle.
+- Änderungen sind über format, lint, typecheck, Tests und die dokumentierten
+  Debug-Guardrails reproduzierbar prüfbar.
+
+Die konkret gewählten Technologien und ihre Begründungen sind Entscheidungen,
+keine Anforderungen. Sie stehen in den jeweiligen ADRs.
