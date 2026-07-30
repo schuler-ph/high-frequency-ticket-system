@@ -1,0 +1,24 @@
+# ADR-024: Sale-Unlock-Gate (425 Too Early)
+
+- **Datum:** 2026-07-15
+- **Kontext:** Der lokale Lasttest sollte einen echten Ticket-Sale nachbilden — Nutzer stroemen vor Verkaufsstart auf die Seite (Warm-Up/Pre-Sale-Hype), koennen aber noch nichts kaufen. Bisher war der Verkauf ab `t=0` offen; es gab keinen Mechanismus, Kaufversuche vor einem definierten Zeitpunkt abzulehnen.
+- **Entscheidung:** Ein neuer Redis-Key `tickets:event:{eventId}:opensAt` (Unix-Ms-Timestamp) wird als **erster Check** im bestehenden atomaren Reserve-Lua-Script gepruft (`apps/api/src/lib/redis-scripts.ts`). Ist `opensAt > 0` und liegt der uebergebene `nowMs` davor, bricht das Script sofort ohne jeden Schreibzugriff ab und liefert den Sentinel `-2`. Die API mappt das auf eine neue `TooEarlyError` (HTTP 425 Too Early, RFC 8470). Fehlt der Key oder ist er `0`, gilt das Event weiterhin als sofort offen (Rueckwaertskompatibilitaet fuer alle bestehenden Flows und Tests).
+- **Begruendung:**
+  - **Ein Roundtrip, keine Race Condition:** Der Check laeuft im selben atomaren Script wie Sold-Out-Check + Reservierung. Eine separate Pruefung davor (z.B. ein eigener Redis-`GET` oder ein DB-Read) wuerde entweder einen zusaetzlichen Roundtrip auf dem Hot-Path kosten oder ein TOCTOU-Fenster zwischen Check und Reservierung oeffnen.
+  - **Redis-only, passend zur bestehenden Architektur:** Die Gate-Entscheidung ist reiner Lesezugriff auf einen Redis-Key, kein DB-Write und kein DB-Read — die Regel "API liest Verfuegbarkeiten ausschliesslich aus Redis" (ADR-005) bleibt vollstaendig intakt, es entsteht keine neue Abhaengigkeit.
+  - **425 statt 409/403:** RFC 8470 beschreibt 425 Too Early exakt fuer "Server lehnt eine Anfrage ab, die er (noch) nicht verarbeiten will, der Client soll es spaeter erneut versuchen" — semantisch praeziser als eine Wiederverwendung von 409 (Conflict, bereits fuer Sold-Out belegt) oder 403 (Forbidden, impliziert keine zeitliche Bedingung).
+  - **`nowMs` statt Redis-Serverzeit:** Der Zeitvergleich nutzt den vom Aufrufer uebergebenen `Date.now()`-Wert (`ARGV[5]`) statt `redis.call("TIME")` im Script, um von Redis' Replikationsverhalten fuer Lua-Scripte unabhaengig zu bleiben und denselben Zeitstempel auch fuer `queuedAt` im Pub/Sub-Payload wiederzuverwenden (ein `Date.now()`-Aufruf pro Request statt zwei).
+- **Bekannte Einschraenkung (Cloud):** Da `nowMs` aus der Uhr des jeweiligen API-Prozesses stammt, oeffnet sich das Gate bei mehreren API-Replicas exakt so praezise wie deren Uhren synchron sind — bei Uhr-Drift zwischen Pods faellt der Verkaufsstart pro Pod um die Drift-Spanne unterschiedlich. Lokal (ein Prozess) irrelevant; in GKE ist NTP-Sync (Standard) fuer die typischerweise geforderte Sekunden-Genauigkeit ausreichend. Ist sub-sekunden-exakter, prozessuebergreifend identischer Unlock noetig, muesste stattdessen `redis.call("TIME")` (eine autoritative Uhr) genutzt werden — mit dem oben genannten Trade-off.
+- **Alternativen:**
+  - Separater Redis-`GET` vor dem Reserve-Script: einfacher zu lesen, aber ein zusaetzlicher Roundtrip und ein Race-Fenster zwischen Check und `DECR`.
+  - Gate in PostgreSQL (`events.opens_at`-Spalte, Check in `buy_ticket`): wuerde einen DB-Read in den API-Hot-Path zwingen — widerspricht ADR-005.
+  - HTTP 403 Forbidden statt 425: wiederverwendet eine bestehende Error-Klasse ohne neue Abstraktion, aber verliert die "retry later" Semantik, die 425 explizit transportiert.
+- **Umsetzung:**
+  - `packages/types/src/redis-keys.ts` (`opensAt`)
+  - `packages/types/src/errors.ts` (`TooEarlyError`)
+  - `apps/api/src/lib/redis-scripts.ts`
+  - `apps/api/src/routes/api/tickets/buy.ts`
+  - `apps/api/test/routes/tickets.buy.test.ts`
+  - `scripts/local/reset-seed.mjs` (`SALE_OPENS_IN_SECONDS`)
+  - `docs/ARCHITECTURE.md` (Happy-Path, Redis-Key-Lifecycle)
+- **Nachtrag (2026-07-19) — Test gegen echtes Redis:** Der bisherige Unit-Test (`tickets.buy.test.ts`) mockt nur den `-2`-Rueckgabewert der Service-Schicht und exerziert das Lua-Script selbst nie. Neuer Integrationstest `apps/api/test/lib/reserve-ticket-script.redis.test.ts` fuehrt das echte `RESERVE_TICKET_SCRIPT` via `registerTicketRedisScripts` gegen den `hts-redis`-Container aus und deckt die vier Gate-Faelle ab: `opensAt`-Key fehlt, `opensAt=0`, `nowMs` vor dem Schwellwert (→ `-2`, **keine** Schreibzugriffe) und `nowMs` am/nach dem Schwellwert (→ Reservierung inkl. `DECR`/`ZADD`/`SET`+TTL). Zusaetzlich der Sold-Out-Fall (`-1`, keine Schreibzugriffe) als Beweis desselben No-Write-Kontrakts. `ioredis` als API-devDependency ergaenzt. Praezisierung des aktuellen Script-Layouts (das Script wurde seit dem urspruenglichen ADR umgebaut): der `opensAt`-Schluessel ist heute `KEYS[4]`, `nowMs` ist `ARGV[4]` — nicht mehr `ARGV[5]` wie oben unter Begruendung/`nowMs` beschrieben.

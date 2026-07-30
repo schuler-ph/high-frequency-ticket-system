@@ -3,8 +3,8 @@
  *
  * Every function is a pure calculation over already-collected evidence so it
  * can be unit-tested without running the expensive load test
- * (docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md, "Deterministic
- * calculations"). Nothing here reads the clock, the network, or the database.
+ * (scripts/load-test/README.md). Nothing here reads the clock, the network, or
+ * the database.
  */
 
 /**

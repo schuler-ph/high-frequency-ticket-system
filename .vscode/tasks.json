@@ -66,11 +66,7 @@
           "args": ["-lc"]
         }
       },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": true
-      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
       "problemMatcher": []
     },
     {
@@ -83,7 +79,7 @@
     },
 
     // ---------------------------------------------------------------------
-    // Bausteine (RUNBOOK.md §2/§3). Einzeln nutzbar, aber vor allem als
+    // Bausteine (docs/RUNBOOK.md §2/§3). Einzeln nutzbar, aber vor allem als
     // dependsOn der zusammengesetzten Tasks weiter unten gedacht.
     // ---------------------------------------------------------------------
     {
@@ -159,7 +155,7 @@
     },
 
     // ---------------------------------------------------------------------
-    // Zusammengesetzte Flows (RUNBOOK.md)
+    // Zusammengesetzte Flows (docs/RUNBOOK.md)
     // ---------------------------------------------------------------------
     {
       "label": "dev:stack up",
@@ -258,7 +254,11 @@
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run debug:all",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
       "problemMatcher": []
     }
   ],

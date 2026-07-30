@@ -175,7 +175,7 @@ export const pollUntilSoldOutOrExit = async (exitPromise) => {
 
 // k6 beendet sich mit 99, wenn mindestens ein Threshold verletzt wurde — das
 // ist ein Test-Ergebnis, kein Absturz des Load-Generators (siehe
-// docs/LOAD-TEST-REPORT-AUTOMATION.md, "preserve exit semantics"). Jeder andere
+// scripts/load-test/README.md, "Exit semantics"). Jeder andere
 // Nicht-Null-Code ist ein echter Betriebsfehler (k6 liess sich nicht starten,
 // Skriptfehler o.ae.).
 const K6_THRESHOLD_FAILED_EXIT_CODE = 99;

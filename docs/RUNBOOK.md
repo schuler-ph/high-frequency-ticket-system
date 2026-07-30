@@ -1,10 +1,14 @@
 # Runbook — welcher Befehl, in welcher Reihenfolge
 
-Nachschlagewerk für die wiederkehrenden Abläufe. Jeder Abschnitt hat ein Diagramm und darunter die Befehle zum Kopieren.
+Nachschlagewerk für wiederkehrende Entwicklungs-, Test-, Betriebs- und
+Diagnoseabläufe mit kopierbaren Befehlen.
 
 Fast alles hat auch einen VS-Code-Task (`.vscode/tasks.json`) und einen Button in der Statusleiste (`.vscode/settings.json` → `actionButtons`). Task-Namen stehen unter jedem Diagramm.
 
-**Ports** (Block `10001`–`10009`, Quelle der Wahrheit: `docs/ARCHITECTURE.md`):
+## Standardports
+
+Der lokale Block `10001`–`10009` wird in `packages/env/src/index.ts`,
+`docker-compose.yml` und den jeweiligen Service-Skripten konfiguriert:
 
 | 10001 | 10002 | 10003  | 10004 | 10005   | 10006    | 10007      | 10008   | 10009          |
 | ----- | ----- | ------ | ----- | ------- | -------- | ---------- | ------- | -------------- |
@@ -317,7 +321,7 @@ pnpm format         # Prettier schreiben (bei format:check-Fehlern)
 
 ## 7. DB-Schema ändern
 
-**Regel aus `CLAUDE.md`:** Bei jeder Schema-Änderung in `packages/db` nicht nur generieren, sondern auch gegen die Ziel-DB anwenden **und** den Effekt in PostgreSQL verifizieren.
+**Regel aus `AGENTS.md`:** Bei jeder Schema-Änderung in `packages/db` nicht nur generieren, sondern auch gegen die Ziel-DB anwenden **und** den Effekt in PostgreSQL verifizieren.
 
 ```mermaid
 flowchart TD
@@ -379,11 +383,13 @@ flowchart TD
 ```
 
 ```bash
-pnpm debug:all                    # runtime + migrations + buy-ticket-contract
+pnpm debug:all                    # Runtime, Migrationen, Verträge und Doku
 pnpm debug:runtime                # aufgelöste Env + Ports
 pnpm debug:migrations             # Schema-Drift
 pnpm debug:buy-ticket-contract    # Direkt-completed-Insert, kein sold_count-Increment
 pnpm bench:hot-row                # Publish-Micro-Bench: Drain-Durchsatz + Lock-Wait
+pnpm debug:db:ticket-order-fk     # Live-FK in PostgreSQL prüfen
+pnpm debug:db:buy-ticket-function # Live-SQL-Function prüfen
 
 # Effektive Konfiguration der laufenden Services (nicht die des Terminals!)
 curl -s localhost:10002/metrics | grep '^service_config_info'
@@ -396,36 +402,16 @@ docker exec hts-postgres psql -U postgres -d high_frequency_tickets \
   -tAc 'select count(*) from orders'
 ```
 
-Weitere Hinweise: `docs/DEBUGGING.md`
+Bei Laufzeitmessungen können Turbo-Cache-Hits alte Paketlogs wiedergeben.
+Für eine echte Testdauer den Cache umgehen:
+
+```bash
+env CI=1 pnpm exec turbo run test --ui=stream --force
+/usr/bin/time -p pnpm test
+```
+
+Das Repository unterstützt Node 22 und 24; Node 24 ist die primäre Test-Runtime.
 
 **Task:** `debug:all` · **Button:** `Debug All`
 
 ---
-
-## 9. Der Ticket-Kauf als Ablauf (zum Nachschlagen)
-
-Seit ADR-028 ist der Kauf zwei synchrone API-Schritte: `buy` reserviert nur, `pay` published. Nützlich, um Metriken richtig zu lesen.
-
-```mermaid
-flowchart TD
-    A["POST /api/tickets/:eventId/buy"] --> B{"Lua: Gate + DECR"}
-    B -->|"opensAt nicht erreicht"| B1["425 Too Early"]
-    B -->|"available = 0"| B2["409 Sold Out"]
-    B -->|ok| C["202 + orderId<br/><i>reservations_created</i>"]
-
-    C --> D{"Nutzer?"}
-    D -->|bezahlt ~88%| E["POST /orders/:id/pay"]
-    D -->|bricht ab ~8%| F["POST /orders/:id/cancel<br/><i>checkouts_cancelled</i>"]
-    D -->|verschwindet ~4%| G["Phantom im Ledger<br/><i>Reaper-Kandidat</i>"]
-
-    E --> H["Publish an Pub/Sub<br/><i>payments_confirmed</i>"]
-    H --> I["Worker: buy_ticket"]
-    I --> J{"Ledger-ZREM"}
-    J -->|"1 = erstmalig"| K["<i>orders_completed</i><br/>+ E2E-Latenz"]
-    J -->|"0 = Redelivery"| L["<i>worker_duplicate_deliveries</i><br/>kein zusätzliches Ticket"]
-
-    style H fill:#4a7,color:#fff
-    style L fill:#e8a,color:#fff
-```
-
-**Merksatz für die Auswertung:** `orders_accepted_total` zählt beim **Reserve**, `payments_confirmed_total` beim **Publish**. Nur Letzteres ist die Bezugsgröße für Drain und Invarianten — sonst erscheinen die ~12 % Abbrecher als ewiger Backlog.

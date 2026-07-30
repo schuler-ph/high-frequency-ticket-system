@@ -5,12 +5,12 @@ description: Analysiert geänderte oder aktuell bearbeitete Dateien und entschei
 
 Nutze diesen Workflow, wenn du beurteilen sollst, ob in geänderten oder aktuell bearbeiteten Dateien ein Refactor jetzt sinnvoll ist.
 
-1. **Kontext laden (immer zuerst):**
-   - Lies `docs/TODO.md`.
-   - Lies `docs/REQUIREMENTS.md`.
-   - Lies `docs/DECISIONS.md`.
-   - Lies `docs/ARCHITECTURE.md`.
-   - Prüfe erst danach Code oder Diffs, damit die Empfehlung zu den Projektregeln passt.
+1. **Kontext gezielt laden:**
+   - Beginne mit Diff, betroffenen Dateien und lokalen READMEs.
+   - Nutze `docs/DOCS.md` als Router.
+   - Lies nur relevante Todo-, Requirements- und Architekturabschnitte.
+   - Suche Entscheidungen über `docs/DECISIONS.md` und öffne nur passende
+     Einzel-ADRs unter `docs/decisions/`.
 
 2. **Zielmenge festlegen:**
    - Nutze vom Nutzer genannte Dateien, falls vorhanden.
