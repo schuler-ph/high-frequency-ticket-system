@@ -111,6 +111,27 @@ export const inventoryCapacityDeltaTickets = new Gauge({
   registers: [workerRegistry],
 });
 
+export const inventoryCapacityTickets = new Gauge({
+  name: "inventory_capacity_tickets",
+  help: "Configured total ticket capacity per event observed by the inventory auditor",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const inventoryAvailableTickets = new Gauge({
+  name: "inventory_available_tickets",
+  help: "Redis-authoritative available ticket count per event observed by the inventory auditor",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const inventorySoldTickets = new Gauge({
+  name: "inventory_sold_tickets",
+  help: "Durable COUNT(tickets) per event observed by the inventory auditor",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
 export const reservationLedgerActive = new Gauge({
   name: "reservation_ledger_active",
   help: "Accepted-but-not-finalized reservations per event, counted from the ZSet ledger (active inventory claims)",

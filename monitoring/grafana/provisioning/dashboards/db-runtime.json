@@ -414,6 +414,224 @@
       ],
       "title": "Process CPU (cores, rate)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": ["last", "mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(db_query_duration_seconds_bucket{job=\"worker\",query=\"project_sold_counts\"}[5m])))",
+          "legendFormat": "COUNT(tickets) p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(db_query_duration_seconds_bucket{job=\"worker\",query=\"project_sold_counts\"}[5m])))",
+          "legendFormat": "COUNT(tickets) p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(db_query_duration_seconds_bucket{job=\"worker\",query=\"project_sold_counts\"}[5m])))",
+          "legendFormat": "COUNT(tickets) p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Sold-count Projector Query Duration",
+      "description": "Duration of the single grouped COUNT(tickets) aggregation shared with the inventory auditor and reaper.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["last", "mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(sold_count_projector_duration_seconds_bucket{job=\"worker\"}[5m])))",
+          "legendFormat": "projector p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sold_count_projector_duration_seconds_bucket{job=\"worker\"}[5m])))",
+          "legendFormat": "projector p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(sold_count_projector_duration_seconds_bucket{job=\"worker\"}[5m])))",
+          "legendFormat": "projector p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Sold-count Projector Write-back Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["last", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "time() - sold_count_projector_last_success_timestamp_seconds{job=\"worker\"}",
+          "legendFormat": "seconds since last success",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(sold_count_projector_runs_total{job=\"worker\",result=\"error\"}[15m])",
+          "legendFormat": "errors / 15m",
+          "refId": "B"
+        }
+      ],
+      "title": "Sold-count Projector Health",
+      "description": "Freshness and errors. With the default 60-second cycle, last-success age should normally stay below roughly 120 seconds.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": ["last", "mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "db_pool_connections{job=\"worker\",state=\"waiting\"}",
+          "legendFormat": "pool waiters",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(sold_count_projector_runs_total{job=\"worker\",result=\"success\"}[5m]))",
+          "legendFormat": "projector runs/s",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(db_query_duration_seconds_count{job=\"worker\",query=\"project_sold_counts\"}[5m]))",
+          "legendFormat": "COUNT(tickets) queries/s",
+          "refId": "C"
+        }
+      ],
+      "title": "Pool Wait during Projector Activity",
+      "description": "Correlates queued DB-pool acquirers with projector cycles to detect measurable interference under load.",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

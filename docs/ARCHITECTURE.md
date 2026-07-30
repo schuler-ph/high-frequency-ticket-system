@@ -324,15 +324,16 @@ flowchart LR
     Grafana -->|query| Prometheus
 ```
 
-### Grafana-Dashboards (geplant)
+### Grafana-Dashboards
 
-| Dashboard       | Metriken                                                              | Quelle                                          |
-| --------------- | --------------------------------------------------------------------- | ----------------------------------------------- |
-| API Performance | RPS, Latenz (p50/p95/p99), Error Rate                                 | `prom-client` in Fastify                        |
-| Redis Cache     | Hit/Miss Ratio, Key Count, Memory Usage                               | Redis Exporter (`hts-redis-exporter`)           |
-| DB & Runtime    | Pool-Connections/-Wait, Query-Latenz, Lock-Waits, Event-Loop-Lag, CPU | `prom-client` in Worker + Node-Default-Metriken |
-| Message Queue   | Queue Depth, Processing Rate, Consumer Lag                            | Pub/Sub Metrics                                 |
-| k6 Lasttest     | Virtual Users, Request Duration, Failure Rate                         | k6 → Prometheus                                 |
+| Dashboard           | Metriken                                                                                           | Quelle                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| API Performance     | RPS, Latenz (p50/p95/p99), Error Rate                                                              | `prom-client` in Fastify                        |
+| Redis Performance   | Hit/Miss Ratio, Key Count, Memory Usage                                                            | Redis Exporter (`hts-redis-exporter`)           |
+| Inventory Integrity | Capacity-Delta/-Komponenten, Auditor-Health, Ledger, Reaper-Aktivitaet, aeltester Pending-Anspruch | `prom-client` in API/Worker                     |
+| DB & Runtime        | Pool-/Lock-Wait, Query-Latenz, Projector-Dauer/-Health, Event-Loop-Lag, CPU                        | `prom-client` in Worker + Node-Default-Metriken |
+| Pub/Sub Queue       | Queue Depth, Processing Rate, Consumer Lag                                                         | Pub/Sub Metrics                                 |
+| k6 Lasttest         | Virtual Users, Request Duration, Failure Rate                                                      | k6 → Prometheus                                 |
 
 ## Workspace-Struktur
 

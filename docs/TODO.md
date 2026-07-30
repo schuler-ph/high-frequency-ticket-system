@@ -265,8 +265,8 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 - [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
 - [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
 - [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar `ZREM + INCR + DEL` freigegeben, `publishing|paid` bleiben Recovery-Kandidaten. Aktive Checkout-Keys haben kein TTL; echte Redis-Races belegen Pay-/Cancel-Exklusivitaet und kein Double-`INCR`.
-- [ ] **Inventory-Integrity-Dashboard:** Capacity-Delta, Auditor, Reaper und ältesten Pending-Anspruch anzeigen.
-- [ ] **DB-Dashboard:** Projector-Dauer, Fehler, letzter Erfolg und Pool-Wait; Einfluss unter Last messen.
+- [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
+- [ ] **DB-Dashboard:** Projector-Query-/Write-back-Dauer, Fehler, letzter Erfolg und Korrelation mit Pool-Wait sind als Panels umgesetzt; Einfluss unter Last noch messen.
 - [ ] **Abschluss-Lasttest:** Invariante nach Drain null; keine Korrektur- oder Double-Release-Races.
 
 ## Phase 5: Cloud Deployment (GCP)

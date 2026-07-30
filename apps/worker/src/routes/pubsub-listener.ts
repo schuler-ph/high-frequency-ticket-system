@@ -23,7 +23,10 @@ import {
   inventoryAuditDurationSeconds,
   inventoryAuditLastSuccessTimestampSeconds,
   inventoryAuditRunsTotal,
+  inventoryAvailableTickets,
+  inventoryCapacityTickets,
   inventoryCapacityDeltaTickets,
+  inventorySoldTickets,
   ordersCompletedTotal,
   ordersFailedTotal,
   orderE2eLatencySeconds,
@@ -232,6 +235,18 @@ const runInventoryCycle = async (
         redis: deps.redis,
         staleScoreCeiling: cycleNow,
         onEventAudited: (audit) => {
+          inventoryCapacityTickets.set(
+            { event_id: audit.eventId },
+            audit.totalCapacity,
+          );
+          inventoryAvailableTickets.set(
+            { event_id: audit.eventId },
+            audit.available,
+          );
+          inventorySoldTickets.set(
+            { event_id: audit.eventId },
+            audit.soldCount,
+          );
           inventoryCapacityDeltaTickets.set(
             { event_id: audit.eventId },
             audit.capacityDelta,
