@@ -26,15 +26,24 @@ export type RedisClient = {
     name: string,
     definition: { lua: string; numberOfKeys?: number },
   ): void;
-  // Sorted-Set-Operationen fuer den Reservation-Ledger (ADR-026): `zcard`
-  // zaehlt aktive Reservierungen in O(1), `zcount` findet Stale-Kandidaten
-  // nach Alter (Score = Erstellungszeit). Beide ersetzen den fruehreren
-  // Keyspace-`SCAN` im Reconcile-Loop.
+  // Sorted-Set-Operationen fuer den Reservation-Ledger (ADR-031): `zcard`
+  // zaehlt aktive Reservierungen in O(1), `zcount`/`zrangebyscore` finden
+  // Kandidaten an oder nach ihrer Eligibility Deadline. Kein Leseweg gibt
+  // Inventar frei; das erledigt ausschliesslich das zustandsbewusste Lua-Script.
   zcard(key: string): Promise<number>;
   zcount(
     key: string,
     min: number | string,
     max: number | string,
   ): Promise<number>;
+  zrangebyscore(
+    key: string,
+    min: number | string,
+    max: number | string,
+    withScores: "WITHSCORES",
+    limit: "LIMIT",
+    offset: number,
+    count: number,
+  ): Promise<string[]>;
   mset(values: Record<string, string>): Promise<unknown>;
 };

@@ -81,7 +81,8 @@ Dinge beschreiben:
   **tatsaechlich** liefen — `NODE_ENV`, `LOG_LEVEL`,
   `DISABLE_REQUEST_LOGGING`, und beim Worker zusaetzlich
   `PUBSUB_FLOW_CONTROL_MAX_MESSAGES`, `DATABASE_POOL_MAX`,
-  `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS`.
+  `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS` und
+  `WORKER_RESERVATION_REAPER_BATCH_SIZE`.
 
 Vor dieser Trennung wies der Report die Orchestrator-Umgebung als
 Messkonfiguration aus und behauptete dadurch `NODE_ENV=test`, obwohl beide

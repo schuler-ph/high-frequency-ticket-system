@@ -15,7 +15,9 @@ import {
   type BuyTicketOutcome,
 } from "../lib/handle-buy-ticket-message.ts";
 import { auditTicketInventory } from "../lib/inventory-auditor.ts";
+import { reapPendingReservations } from "../lib/pending-reservation-reaper.ts";
 import { registerWorkerRedisScripts } from "../lib/redis-scripts.ts";
+import type { WorkerRedisScripts } from "../lib/redis-scripts.ts";
 import { projectSoldCounts } from "../lib/sold-count-projector.ts";
 import {
   inventoryAuditDurationSeconds,
@@ -28,6 +30,12 @@ import {
   redisDbDriftTickets,
   reservationLedgerActive,
   reservationLedgerStale,
+  reservationReaperCandidates,
+  reservationReaperErrorsTotal,
+  reservationReaperOldestAgeSeconds,
+  reservationReaperReleasesTotal,
+  reservationReaperRunDurationSeconds,
+  reservationReaperSkipsTotal,
   soldCountProjectorDurationSeconds,
   soldCountProjectorLastSuccessTimestampSeconds,
   soldCountProjectorRunsTotal,
@@ -42,8 +50,14 @@ import type {} from "../plugins/pubsub.ts";
 
 type TicketRedisClient = Pick<
   RedisClient,
-  "get" | "zcard" | "zcount" | "defineCommand"
+  "get" | "zcard" | "zcount" | "zrangebyscore" | "defineCommand"
 >;
+
+type InventoryCycleRedis = Pick<
+  RedisClient,
+  "get" | "zcard" | "zcount" | "zrangebyscore"
+> &
+  Pick<WorkerRedisScripts, "reapPendingReservation">;
 
 type PubSubListenerRouteDeps = {
   executeBuyTicket: typeof executeBuyTicket;
@@ -52,6 +66,7 @@ type PubSubListenerRouteDeps = {
   markOrderFailed: typeof markOrderFailed;
   auditTicketInventory: typeof auditTicketInventory;
   projectSoldCounts: typeof projectSoldCounts;
+  reapPendingReservations: typeof reapPendingReservations;
 };
 
 const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
@@ -67,6 +82,7 @@ const defaultPubSubListenerRouteDeps: PubSubListenerRouteDeps = {
     ),
   auditTicketInventory,
   projectSoldCounts,
+  reapPendingReservations,
 };
 
 const observeE2eLatency = (
@@ -162,15 +178,23 @@ const runInventoryCycle = async (
     | "persistEventSoldCounts"
     | "auditTicketInventory"
     | "projectSoldCounts"
+    | "reapPendingReservations"
   > & {
-    redis: Pick<RedisClient, "get" | "zcard" | "zcount">;
+    redis: InventoryCycleRedis;
     now?: () => number;
+    onReaperError?: (
+      eventId: string,
+      orderId: string | null,
+      error: unknown,
+    ) => void;
   },
 ): Promise<{
   projector: InventoryCycleResult;
   auditor: InventoryCycleResult;
+  reaper: InventoryCycleResult;
 }> => {
   const now = deps.now ?? Date.now;
+  const cycleNow = now();
   let snapshots: Awaited<
     ReturnType<PubSubListenerRouteDeps["listEventInventorySnapshots"]>
   >;
@@ -191,7 +215,7 @@ const runInventoryCycle = async (
         persistSoldCounts: deps.persistEventSoldCounts,
       });
       soldCountProjectorRunsTotal.inc({ result: "success" });
-      soldCountProjectorLastSuccessTimestampSeconds.set(now() / 1000);
+      soldCountProjectorLastSuccessTimestampSeconds.set(cycleNow / 1000);
     } catch (error: unknown) {
       soldCountProjectorRunsTotal.inc({ result: "error" });
       throw error;
@@ -206,7 +230,7 @@ const runInventoryCycle = async (
       await deps.auditTicketInventory({
         snapshots,
         redis: deps.redis,
-        staleScoreCeiling: now() - env.RESERVATION_STALE_SECONDS * 1000,
+        staleScoreCeiling: cycleNow,
         onEventAudited: (audit) => {
           inventoryCapacityDeltaTickets.set(
             { event_id: audit.eventId },
@@ -228,7 +252,7 @@ const runInventoryCycle = async (
         },
       });
       inventoryAuditRunsTotal.inc({ result: "success" });
-      inventoryAuditLastSuccessTimestampSeconds.set(now() / 1000);
+      inventoryAuditLastSuccessTimestampSeconds.set(cycleNow / 1000);
     } catch (error: unknown) {
       inventoryAuditRunsTotal.inc({ result: "error" });
       throw error;
@@ -237,10 +261,50 @@ const runInventoryCycle = async (
     }
   })();
 
-  const [projectorResult, auditorResult] = await Promise.allSettled([
-    projector,
-    auditor,
-  ]);
+  const reaper = (async (): Promise<void> => {
+    const end = reservationReaperRunDurationSeconds.startTimer();
+    try {
+      await deps.reapPendingReservations({
+        snapshots,
+        redis: deps.redis,
+        nowMs: cycleNow,
+        batchSize: env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
+        onEventReaped: (result) => {
+          reservationReaperCandidates.set(
+            { event_id: result.eventId },
+            result.candidates,
+          );
+          reservationReaperOldestAgeSeconds.set(
+            { event_id: result.eventId },
+            result.oldestReleasedAgeSeconds,
+          );
+          if (result.released > 0) {
+            reservationReaperReleasesTotal.inc(
+              { event_id: result.eventId },
+              result.released,
+            );
+          }
+          for (const [reason, count] of Object.entries(result.skipped)) {
+            if (count > 0) {
+              reservationReaperSkipsTotal.inc(
+                { event_id: result.eventId, reason },
+                count,
+              );
+            }
+          }
+        },
+        onError: (eventId, orderId, error) => {
+          reservationReaperErrorsTotal.inc({ event_id: eventId });
+          deps.onReaperError?.(eventId, orderId, error);
+        },
+      });
+    } finally {
+      end();
+    }
+  })();
+
+  const [projectorResult, auditorResult, reaperResult] =
+    await Promise.allSettled([projector, auditor, reaper]);
 
   return {
     projector:
@@ -251,6 +315,10 @@ const runInventoryCycle = async (
       auditorResult.status === "fulfilled"
         ? { status: "fulfilled" }
         : { status: "rejected", reason: auditorResult.reason },
+    reaper:
+      reaperResult.status === "fulfilled"
+        ? { status: "fulfilled" }
+        : { status: "rejected", reason: reaperResult.reason },
   };
 };
 
@@ -311,7 +379,20 @@ const createPubSubListenerRoutes = (
         persistEventSoldCounts: routeDeps.persistEventSoldCounts,
         auditTicketInventory: routeDeps.auditTicketInventory,
         projectSoldCounts: routeDeps.projectSoldCounts,
-        redis,
+        reapPendingReservations: routeDeps.reapPendingReservations,
+        redis: {
+          get: redis.get.bind(redis),
+          zcard: redis.zcard.bind(redis),
+          zcount: redis.zcount.bind(redis),
+          zrangebyscore: redis.zrangebyscore.bind(redis),
+          reapPendingReservation: scripts.reapPendingReservation.bind(scripts),
+        },
+        onReaperError: (eventId, orderId, error) => {
+          fastify.log.error(
+            { err: error, eventId, orderId },
+            "Pending reservation reaper candidate failed",
+          );
+        },
       })
         .then((result) => {
           if (result.projector.status === "rejected") {
@@ -324,6 +405,12 @@ const createPubSubListenerRoutes = (
             fastify.log.error(
               { err: result.auditor.reason },
               "Inventory audit failed",
+            );
+          }
+          if (result.reaper.status === "rejected") {
+            fastify.log.error(
+              { err: result.reaper.reason },
+              "Pending reservation reaper failed",
             );
           }
         })

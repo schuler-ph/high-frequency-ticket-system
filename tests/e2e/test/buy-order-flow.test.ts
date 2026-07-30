@@ -68,7 +68,7 @@ function createInMemoryRedis(
       _opensAtKey,
       orderId,
       orderCacheValue,
-      _pendingOrderTtlSeconds,
+      _pendingTimeoutSeconds,
       _nowMs,
     ) {
       const current = Number(store.get(availableKey) ?? "0");
@@ -85,12 +85,38 @@ function createInMemoryRedis(
       store.set(orderCacheKey, orderCacheValue);
       return remaining;
     },
+    async claimPayment(orderCacheKey, queuedAt) {
+      const raw = store.get(orderCacheKey);
+      if (raw === undefined) return [0, null];
+      const order = JSON.parse(raw) as Record<string, unknown>;
+      if (order.status !== "pending") return [-1, raw];
+      const claimed = JSON.stringify({
+        ...order,
+        status: "publishing",
+        queuedAt,
+      });
+      store.set(orderCacheKey, claimed);
+      return [1, claimed];
+    },
+    async markPaymentPublished(orderCacheKey) {
+      const raw = store.get(orderCacheKey);
+      if (raw === undefined) return 0;
+      const order = JSON.parse(raw) as Record<string, unknown>;
+      if (order.status !== "publishing") return 0;
+      store.set(orderCacheKey, JSON.stringify({ ...order, status: "paid" }));
+      return 1;
+    },
     async releaseTicketReservation(
       reservationsLedgerKey,
       availableKey,
       orderCacheKey,
       orderId,
+      expectedStatus,
     ) {
+      const raw = store.get(orderCacheKey);
+      if (raw === undefined) return 0;
+      const order = JSON.parse(raw) as Record<string, unknown>;
+      if (order.status !== expectedStatus) return -1;
       const released = ledger.get(reservationsLedgerKey)?.delete(orderId)
         ? 1
         : 0;

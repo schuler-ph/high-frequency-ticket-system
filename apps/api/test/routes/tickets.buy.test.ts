@@ -22,7 +22,7 @@ type ReserveCall = {
   opensAtKey: string;
   orderId: string;
   orderCacheValue: string;
-  pendingOrderTtlSeconds: number;
+  pendingTimeoutSeconds: number;
   nowMs: number;
 };
 
@@ -53,7 +53,7 @@ function createScriptsMock(
       opensAtKey,
       orderId,
       orderCacheValue,
-      pendingOrderTtlSeconds,
+      pendingTimeoutSeconds,
       nowMs,
     ) {
       reserveCalls.push({
@@ -63,7 +63,7 @@ function createScriptsMock(
         opensAtKey,
         orderId,
         orderCacheValue,
-        pendingOrderTtlSeconds,
+        pendingTimeoutSeconds,
         nowMs,
       });
       return 999_999;
@@ -130,7 +130,7 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and doe
           lastName: "Lovelace",
         }),
       ),
-      pendingOrderTtlSeconds: 900,
+      pendingTimeoutSeconds: 900,
       nowMs: undefined,
     },
   );

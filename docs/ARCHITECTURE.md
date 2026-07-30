@@ -90,8 +90,8 @@ Seit dem Reserve/Pay-Split (ADR-028) ist der Kauf **zwei** synchrone API-Schritt
    - Check `tickets:event:{eventId}:opensAt` — ist der Verkaufsstart-Zeitpunkt noch nicht erreicht, bricht das Script ohne jeden Schreibzugriff ab (Sale-Unlock-Gate, siehe ADR-024)
    - Check `tickets:event:{eventId}:available > 0` — bei Sold-Out bricht das Script ebenfalls ohne Schreibzugriff ab
    - `DECR available`
-   - Ledger-Eintrag `ZADD tickets:event:{eventId}:reservations {nowMs} {orderId}` (Score = Erstellungszeit, **ohne TTL** — der Eintrag ist ein Inventar-Anspruch bis zur Finalisierung/Kompensation, ADR-026)
-   - Pending-Status `orders:{orderId}` inkl. Kaeuferdaten (`firstName`/`lastName`) mit eigener Pending-TTL — die Pay-Route rekonstruiert daraus den `BuyTicketEvent`
+   - Ledger-Eintrag `ZADD tickets:event:{eventId}:reservations {deadlineMs} {orderId}` (Score = `now + CHECKOUT_PENDING_TIMEOUT_SECONDS`, Default 900 s). Die Deadline macht eine Reservation nur reaper-faehig; bis zur konkreten Zustandspruefung bleibt sie ein Inventar-Anspruch.
+   - Pending-Status `orders:{orderId}` inkl. Kaeuferdaten (`firstName`/`lastName`) **ohne TTL**. Er bleibt sicher lesbar, bis Pay, Cancel, Worker oder Reaper atomar entscheidet.
 4. ✅ Reserviert → HTTP 202 Accepted (`orderId`). **Es wird noch nichts an Pub/Sub published.**
    ❌ Zu frueh bei Schritt 3 → HTTP 425 Too Early, es wurden keine Keys geschrieben.
    ❌ Sold Out bei Schritt 3 → HTTP 409 Conflict (Sold Out), es wurden keine Keys geschrieben.
@@ -111,14 +111,14 @@ Seit dem Reserve/Pay-Split (ADR-028) ist der Kauf **zwei** synchrone API-Schritt
 
 Alle Redis-Keys, die im Ticket-Kauf-Flow entstehen und wieder verschwinden:
 
-| Key-Muster                                    | Zweck                                                                                                                                                                                                                                                                     | TTL (Default)             | Erstellt von                                            | Gelesen / Gelöscht von                                                                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                                                                                                                                                       | unbegrenzt                | Seed/Reset                                              | API (`GET /availability`)                                                                                                  |
-| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                                                                                                                                                                    | unbegrenzt                | Seed/Reset, danach nur atomare Reserve-/Release-Skripte | API (Lua-DECR bei Reserve; `INCR` bei Pay-Rollback/Cancel-Release), Worker (INCR bei Kompensation), Auditor (nur Read)     |
-| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                                                                                                                                                                 | unbegrenzt                | Seed-Skript (`scripts/local/reset-seed.mjs`)            | API (Lua-Check bei Reservation, ADR-024)                                                                                   |
-| `tickets:event:{eventId}:reservations` (ZSet) | Ledger akzeptierter, noch nicht finalisierter Reservierungen (Score = Erstellungszeit, Member = `orderId`) — aktiver Inventar-Anspruch (ADR-026). Seit ADR-028 spannt der Eintrag den **gesamten Checkout** (Reserve bis Bezahlen/Abbrechen), nicht nur die Queue-Latenz. | **unbegrenzt** (kein TTL) | API (`ZADD` bei `POST /buy`)                            | Worker (`ZREM` bei Finalisierung/Kompensation), API (`ZREM` bei Pay-Rollback/Cancel), Auditor (`ZCARD`/`ZCOUNT`, nur Read) |
-| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut (spart DB-Roundtrip; Idempotenz-Garantie = DB-Transaktion, ADR-004)                                                                                                                                                                                   | 86 400 s                  | Worker                                                  | Worker (Idempotenz-Check bei jeder Nachricht)                                                                              |
-| `orders:{orderId}`                            | Interner Checkout-State (`pending → publishing → paid`) inkl. Kaeuferdaten; oeffentlich bis zur Worker-Finalisierung weiter `pending`, danach `completed                                                                                                                  | failed`                   | `pending` derzeit 900 s; `publishing                    | paid` ohne TTL; finale Read-Models 86 400 s                                                                                | API (Reserve/Pay-State), Worker (finaler Status nach DB-Write) | API (`GET /api/orders/:orderId`, `POST /pay`, `POST /cancel`); gelöscht bei zustandsbewusstem Pay-Rollback/Cancel |
+| Key-Muster                                    | Zweck                                                                                                                               | TTL (Default)                  | Erstellt von                            | Gelesen / Gelöscht von                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `tickets:event:{eventId}:total`               | Kapazitäts-Snapshot                                                                                                                 | unbegrenzt                     | Seed/Reset                              | API (`GET /availability`)                                                                 |
+| `tickets:event:{eventId}:available`           | Aktuelle Verfügbarkeit                                                                                                              | unbegrenzt                     | Seed/Reset, danach atomare Lua-Skripte  | API (Reserve/Release), Worker (Kompensation/Reaper), Auditor (nur Read)                   |
+| `tickets:event:{eventId}:opensAt`             | Sale-Unlock-Zeitpunkt (Unix-Ms); fehlt/`0` = sofort offen                                                                           | unbegrenzt                     | Seed-Skript                             | API (Lua-Check bei Reservation, ADR-024)                                                  |
+| `tickets:event:{eventId}:reservations` (ZSet) | Aktive Ansprueche; Score = Eligibility Deadline, Member = `orderId`. Die Deadline allein gibt nichts frei.                          | unbegrenzt                     | API (`ZADD` bei `POST /buy`)            | Worker (Finalisierung/Kompensation/Reaper), API (Pay-Rollback/Cancel), Auditor (nur Read) |
+| `tickets:event:{eventId}:processed:{orderId}` | Redelivery-Shortcut; Idempotenz-Garantie bleibt die DB-Transaktion                                                                  | 86 400 s                       | Worker                                  | Worker                                                                                    |
+| `orders:{orderId}`                            | Interner Checkout-State (`pending → publishing → paid`), danach finales `completed` oder `failed`; oeffentlich bis dahin `pending`. | aktiv ohne TTL; final 86 400 s | API (Checkout), Worker (finaler Status) | API (`GET`, Pay, Cancel), Worker/Reaper; gelöscht bei zustandsbewusstem Release           |
 
 Quelle der Key-Definitionen: `packages/types/src/redis-keys.ts`
 
@@ -147,10 +147,10 @@ Nach jedem read-only Audit berichtet der Worker den aktuellen Cross-System-Snaps
 - Einzelne Ausschlaege unter parallelen Redis-/DB-Uebergaengen sind wegen des nicht atomaren Cross-System-Snapshots diagnostisch. Nach abgeschlossenem Drain ist exakt 0 eine harte Invariante.
 - Sourcedateien: `apps/worker/src/lib/inventory-auditor.ts` (Messung), `apps/worker/src/lib/metrics.ts` (Gauges), `apps/worker/src/routes/pubsub-listener.ts` (Verdrahtung).
 
-**Warum der Ledger die Baseline-A-Drift (-314k) beseitigt (ADR-026):** In Baseline A liefen die per-`orderId`-Reservation-Keys nach 120 s TTL ab, waehrend die Order noch ~406 s in der Queue lag. Der damalige `SCAN`-basierte Zaehler sah die abgelaufene Reservierung nicht mehr, `available` blieb aber dekrementiert. Der ZSet-Ledger hat **keine TTL**: Jeder akzeptierte, noch nicht finalisierte Kauf bleibt via `ZCARD` ein aktiver Anspruch, unabhaengig von der Warteschlangen-Latenz. Ablauf/Alter ist nur ein Stale-Signal (`ZCOUNT` gegen einen Schwellwert `RESERVATION_STALE_SECONDS`, Default 900 s), das der Reaper auswertet — es loest nie eine Summenkorrektur aus.
+**Warum der Ledger die Baseline-A-Drift (-314k) beseitigt (ADR-026/031):** In Baseline A liefen die per-`orderId`-Reservation-Keys nach 120 s TTL ab, waehrend die Order noch ~406 s in der Queue lag. Der damalige Zaehler sah die abgelaufene Reservierung nicht mehr, `available` blieb aber dekrementiert. Jetzt haben Ledger und aktive Checkout-Zustaende kein TTL. Der Score ist eine Eligibility Deadline; erst ein zustandsbewusstes Lua-Script darf danach genau ein `pending` freigeben.
 
 - **Metrik:** `reservation_ledger_active` (Gauge, Label: `event_id`) — aktive Ansprueche (`ZCARD`)
-- **Metrik:** `reservation_ledger_stale` (Gauge, Label: `event_id`) — Ansprueche aelter als `RESERVATION_STALE_SECONDS` (Reaper-Kandidaten, nie automatisch zurueckgebucht)
+- **Metrik:** `reservation_ledger_stale` (Gauge, Label: `event_id`) — kompatibler Name fuer Ansprueche an/nach ihrer Eligibility Deadline.
 
 Auditor und Sold-count Projector teilen denselben gruppierten `COUNT(tickets)`-Snapshot. Der Auditor besitzt nur `GET`/`ZCARD`/`ZCOUNT`; fehlende Inventar-Keys sind ein Fehler und werden niemals aus PostgreSQL rekonstruiert.
 
@@ -262,17 +262,18 @@ Vollstaendiger Redis-Datenverlust, Redis-HA und dessen Recovery sind bewusst nic
 
 ## Read-only Inventory-Zyklus
 
-Der Worker startet den Pub/Sub-Consumer unabhaengig von Auditor und Projector. Danach laeuft sofort und anschliessend alle `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS` (Default 60 s) ein nicht ueberlappender Zyklus:
+Der Worker startet den Pub/Sub-Consumer unabhaengig von Auditor, Projector und Reaper. Danach laeuft sofort und anschliessend alle `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS` (Default 60 s) ein nicht ueberlappender Zyklus:
 
 ```
 Subscriber starten → COUNT(tickets)-Snapshot
                               ├─ Sold-count Projector → events.sold_count
-                              └─ Inventory Auditor → Redis-Reads + Metriken
+                              ├─ Inventory Auditor → Redis-Reads + Metriken
+                              └─ Pending-Reaper → nur fälliges pending freigeben
                                                ↓ (nach Abschluss)
                                     naechsten Zyklus planen
 ```
 
-`setTimeout` wird erst nach Abschluss erneut geplant, sodass lange DB-Scans nie ueberlappen. Ein Projector-Fehler verhindert den Auditor nicht; ein Fehler beider Maintenance-Komponenten stoppt den Consumer nicht. Das alte Startup-Reconcile, alle periodischen Redis-Korrekturen und die `WORKER_RECONCILE_*`-Konfiguration existieren nicht mehr.
+`setTimeout` wird erst nach Abschluss erneut geplant, sodass lange DB-Scans nie ueberlappen. Projector, Auditor und Reaper laufen nach dem geteilten Snapshot unabhaengig; ihr Fehler stoppt den Consumer nicht. Der Reaper verarbeitet pro Event hoechstens `WORKER_RESERVATION_REAPER_BATCH_SIZE` (Default 1000) Kandidaten. Nicht freigabefaehige Recovery-Zustaende werden als Skip-Metrik gemeldet und aus dem faelligen Score-Bereich quarantiniert, bleiben aber im Ledger als aktive Ansprueche erhalten. Das alte Startup-Reconcile, alle periodischen Redis-Korrekturen und die `WORKER_RECONCILE_*`-Konfiguration existieren nicht mehr.
 
 ### Historisches Deployment-Modell
 

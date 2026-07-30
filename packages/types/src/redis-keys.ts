@@ -5,12 +5,11 @@ export const ticketRedisKeys = (eventId: string) => ({
   // Fehlt der Key oder ist er "0", gilt das Event als sofort offen.
   opensAt: `tickets:event:${eventId}:opensAt`,
   // ZSet-Ledger der akzeptierten, noch nicht finalisierten Reservierungen:
-  // Score = Erstellungszeit (Unix-Ms), Member = orderId. Jeder Eintrag ist ein
-  // aktiver Inventar-Anspruch — bewusst OHNE TTL, damit Warteschlangen-Latenz
-  // keine Reservierung "ablaufen" laesst (ADR-026). Entfernt wird ein Eintrag
-  // nur durch Worker-Finalisierung (Erfolg) oder Kompensation (terminaler
-  // Fehler). Alter/Ablauf ist lediglich ein Stale-Kandidat fuer den Reaper
-  // (Phase 6), niemals eine automatische Rueckbuchung von `available`.
+  // Score = Eligibility Deadline (Unix-Ms), Member = orderId. Jeder Eintrag ist
+  // ein aktiver Inventar-Anspruch — bewusst OHNE TTL. Vor der Deadline darf
+  // nichts freigegeben werden; danach entscheidet der Reaper atomar anhand des
+  // konkreten Checkout-Status. Worker-Finalisierung/Kompensation und
+  // Cancel/Pay-Rollback entfernen denselben Eintrag idempotent (ADR-031).
   reservations: `tickets:event:${eventId}:reservations`,
   processed: (orderId: string) =>
     `tickets:event:${eventId}:processed:${orderId}`,

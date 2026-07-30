@@ -30,7 +30,7 @@ type QueueBuyTicketPurchaseInput = {
   eventId: string;
   body: BuyTicketBody;
   redis: TicketRedisScripts;
-  pendingOrderTtlSeconds?: number;
+  pendingTimeoutSeconds?: number;
   createOrderId?: () => string;
   onReservationCreated?: () => void;
 };
@@ -52,7 +52,7 @@ export async function queueBuyTicketPurchase({
   eventId,
   body,
   redis,
-  pendingOrderTtlSeconds = env.REDIS_PENDING_ORDER_TTL_SECONDS,
+  pendingTimeoutSeconds = env.CHECKOUT_PENDING_TIMEOUT_SECONDS,
   createOrderId = randomUUID,
   onReservationCreated,
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
@@ -78,7 +78,7 @@ export async function queueBuyTicketPurchase({
     keys.opensAt,
     orderId,
     orderCacheValue,
-    pendingOrderTtlSeconds,
+    pendingTimeoutSeconds,
     now,
   );
 

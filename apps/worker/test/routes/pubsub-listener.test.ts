@@ -98,11 +98,13 @@ function createRouteTestFastify() {
       defineCommand: () => undefined,
       zcard: async () => 0,
       zcount: async () => 0,
+      zrangebyscore: async () => [],
       mset: async () => "OK",
       // registerWorkerRedisScripts castet den Client — die per defineCommand
       // erzeugten Command-Methoden muss der Fake selbst mitbringen.
       finalizeOrderProcessing: async () => 1,
       compensateReservation: async () => 0,
+      reapPendingReservation: async () => 0,
     },
     pubsubSubscriber: {
       onMessage(
@@ -212,6 +214,10 @@ void test("pubsub-listener starts the subscriber before its first inventory cycl
       startupOrder.push("audit");
       return [];
     },
+    reapPendingReservations: async () => {
+      startupOrder.push("reap");
+      return [];
+    },
   });
 
   fastify.pubsubSubscriber.start = () => {
@@ -228,7 +234,7 @@ void test("pubsub-listener starts the subscriber before its first inventory cycl
   });
 
   assert.equal(inventoryReads, 1);
-  assert.deepEqual(startupOrder, ["start", "project", "audit"]);
+  assert.deepEqual(startupOrder, ["start", "project", "audit", "reap"]);
   assert.equal(startCalls.length, 1);
 
   await fastify.runHook("onClose");
@@ -251,13 +257,22 @@ void test("a failing projector does not prevent the read-only audit", async () =
       calls.push("audit");
       return [];
     },
-    redis: fastifyRedisReadStub(),
+    reapPendingReservations: async () => {
+      calls.push("reap");
+      return [];
+    },
+    redis: {
+      ...fastifyRedisReadStub(),
+      zrangebyscore: async () => [],
+      reapPendingReservation: async () => 0,
+    },
     now: () => 1_000,
   });
 
-  assert.deepEqual(calls, ["snapshot", "project", "audit"]);
+  assert.deepEqual(calls, ["snapshot", "project", "audit", "reap"]);
   assert.equal(result.projector.status, "rejected");
   assert.equal(result.auditor.status, "fulfilled");
+  assert.equal(result.reaper.status, "fulfilled");
 });
 
 void test("pubsub-listener message handler applies the outcome policy (completed → ACK)", async () => {
@@ -270,6 +285,7 @@ void test("pubsub-listener message handler applies the outcome policy (completed
     markOrderFailed: async () => "updated",
     projectSoldCounts: async () => undefined,
     auditTicketInventory: async () => [],
+    reapPendingReservations: async () => [],
   });
 
   await route(fastify as never, {} as never);

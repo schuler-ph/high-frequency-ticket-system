@@ -25,6 +25,7 @@ export const serviceConfigInfo = new Gauge({
     "pubsub_flow_control_max_messages",
     "database_pool_max",
     "worker_inventory_cycle_interval_seconds",
+    "worker_reservation_reaper_batch_size",
   ] as const,
   registers: [workerRegistry],
 });
@@ -41,6 +42,9 @@ serviceConfigInfo.set(
     database_pool_max: String(env.DATABASE_POOL_MAX),
     worker_inventory_cycle_interval_seconds: String(
       env.WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS,
+    ),
+    worker_reservation_reaper_batch_size: String(
+      env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
     ),
   },
   1,
@@ -116,7 +120,7 @@ export const reservationLedgerActive = new Gauge({
 
 export const reservationLedgerStale = new Gauge({
   name: "reservation_ledger_stale",
-  help: "Ledger reservations older than the stale threshold per event — reaper candidates, never auto-released",
+  help: "Ledger reservations at or beyond their eligibility deadline per event",
   labelNames: ["event_id"] as const,
   registers: [workerRegistry],
 });
@@ -158,6 +162,48 @@ export const soldCountProjectorDurationSeconds = new Histogram({
 export const soldCountProjectorLastSuccessTimestampSeconds = new Gauge({
   name: "sold_count_projector_last_success_timestamp_seconds",
   help: "Unix timestamp of the last successful sold-count projection",
+  registers: [workerRegistry],
+});
+
+export const reservationReaperCandidates = new Gauge({
+  name: "reservation_reaper_candidates",
+  help: "Reservation ledger entries at or beyond their eligibility deadline per event",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationReaperReleasesTotal = new Counter({
+  name: "reservation_reaper_releases_total",
+  help: "Due pending reservations atomically released by the reaper",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationReaperSkipsTotal = new Counter({
+  name: "reservation_reaper_skips_total",
+  help: "Reservation reaper candidates retained or already handled, by reason",
+  labelNames: ["event_id", "reason"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationReaperErrorsTotal = new Counter({
+  name: "reservation_reaper_errors_total",
+  help: "Reservation reaper errors per event",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationReaperOldestAgeSeconds = new Gauge({
+  name: "reservation_reaper_oldest_age_seconds",
+  help: "Age beyond deadline of the oldest pending reservation released in the latest run",
+  labelNames: ["event_id"] as const,
+  registers: [workerRegistry],
+});
+
+export const reservationReaperRunDurationSeconds = new Histogram({
+  name: "reservation_reaper_run_duration_seconds",
+  help: "Duration of reservation reaper runs",
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
   registers: [workerRegistry],
 });
 

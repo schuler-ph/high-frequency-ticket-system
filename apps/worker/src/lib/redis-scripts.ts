@@ -53,6 +53,62 @@ end
 return 0
 `;
 
+/**
+ * Gibt genau einen faelligen Pending-Anspruch atomar frei. Deadline, Checkout-
+ * Zustand, Ledger-Entfernung, Counter-Increment und Order-Cleanup liegen in
+ * demselben Redis-Script; Pay/Cancel/Worker konkurrieren daher ohne
+ * Check-then-act-Fenster (ADR-031).
+ *
+ * KEYS[1] = reservationsLedger, KEYS[2] = availableKey,
+ * KEYS[3] = orderCacheKey
+ * ARGV[1] = orderId, ARGV[2] = nowMs
+ *
+ * Return:
+ *   1 released, 0 already gone, 2 not due, 3 missing state,
+ *   4 publishing, 5 paid, 6 invalid/other state
+ */
+const REAP_PENDING_RESERVATION_SCRIPT = `
+local deadline = redis.call("ZSCORE", KEYS[1], ARGV[1])
+if not deadline then
+  return 0
+end
+if tonumber(deadline) > tonumber(ARGV[2]) then
+  return 2
+end
+
+local raw = redis.call("GET", KEYS[3])
+if not raw then
+  redis.call("ZADD", KEYS[1], 9007199254740991, ARGV[1])
+  return 3
+end
+
+local decodedOk, order = pcall(cjson.decode, raw)
+if not decodedOk or order["orderId"] ~= ARGV[1] then
+  redis.call("ZADD", KEYS[1], 9007199254740991, ARGV[1])
+  return 6
+end
+if order["status"] == "publishing" then
+  redis.call("ZADD", KEYS[1], 9007199254740991, ARGV[1])
+  return 4
+end
+if order["status"] == "paid" then
+  redis.call("ZADD", KEYS[1], 9007199254740991, ARGV[1])
+  return 5
+end
+if order["status"] ~= "pending" then
+  redis.call("ZADD", KEYS[1], 9007199254740991, ARGV[1])
+  return 6
+end
+
+local removed = redis.call("ZREM", KEYS[1], ARGV[1])
+if removed == 0 then
+  return 0
+end
+redis.call("INCR", KEYS[2])
+redis.call("DEL", KEYS[3])
+return 1
+`;
+
 export type WorkerRedisScripts = {
   finalizeOrderProcessing(
     orderCacheKey: string,
@@ -67,6 +123,13 @@ export type WorkerRedisScripts = {
     reservationsLedgerKey: string,
     availableKey: string,
     orderId: string,
+  ): Promise<number>;
+  reapPendingReservation(
+    reservationsLedgerKey: string,
+    availableKey: string,
+    orderCacheKey: string,
+    orderId: string,
+    nowMs: number,
   ): Promise<number>;
 };
 
@@ -85,6 +148,10 @@ export const registerWorkerRedisScripts = (
   client.defineCommand("compensateReservation", {
     numberOfKeys: 2,
     lua: COMPENSATE_RESERVATION_SCRIPT,
+  });
+  client.defineCommand("reapPendingReservation", {
+    numberOfKeys: 3,
+    lua: REAP_PENDING_RESERVATION_SCRIPT,
   });
 
   return client as unknown as WorkerRedisScripts;

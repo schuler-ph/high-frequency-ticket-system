@@ -3,7 +3,8 @@ import type { RedisClient } from "@repo/types/redis-client";
 /**
  * Reserviert ein Ticket atomar in einem einzigen Redis-Roundtrip:
  * Check Sale-Unlock (`opensAt`) + Check `available > 0` + DECR +
- * Ledger-Eintrag (`ZADD`, Score = nowMs) + Pending-Order-Key. Liefert den
+ * Ledger-Eintrag (`ZADD`, Score = Eligibility Deadline) + Pending-Order-Key.
+ * Liefert den
  * neuen `available`-Stand, -1 bei Sold-Out, oder -2 wenn der Verkauf noch
  * nicht freigegeben ist (in beiden Fehlerfaellen wurde nichts geschrieben).
  *
@@ -15,7 +16,7 @@ import type { RedisClient } from "@repo/types/redis-client";
  * KEYS[1] = available, KEYS[2] = reservationsLedger, KEYS[3] = orderCacheKey,
  * KEYS[4] = opensAtKey
  * ARGV[1] = orderId, ARGV[2] = orderCacheValue,
- * ARGV[3] = pendingOrderTtlSeconds, ARGV[4] = nowMs
+ * ARGV[3] = pendingTimeoutSeconds, ARGV[4] = nowMs
  */
 const RESERVE_TICKET_SCRIPT = `
 local opensAt = tonumber(redis.call("GET", KEYS[4]) or "0")
@@ -29,8 +30,9 @@ if current <= 0 then
 end
 
 local remaining = redis.call("DECR", KEYS[1])
-redis.call("ZADD", KEYS[2], ARGV[4], ARGV[1])
-redis.call("SET", KEYS[3], ARGV[2], "EX", ARGV[3])
+local deadline = tonumber(ARGV[4]) + tonumber(ARGV[3]) * 1000
+redis.call("ZADD", KEYS[2], deadline, ARGV[1])
+redis.call("SET", KEYS[3], ARGV[2])
 return remaining
 `;
 
@@ -128,7 +130,7 @@ export type TicketRedisScripts = {
     opensAtKey: string,
     orderId: string,
     orderCacheValue: string,
-    pendingOrderTtlSeconds: number,
+    pendingTimeoutSeconds: number,
     nowMs: number,
   ): Promise<number>;
   claimPayment(

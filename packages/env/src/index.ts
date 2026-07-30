@@ -31,17 +31,19 @@ export const env = createEnv({
     // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).
     // Bewusst unter dem Fastify/avvio-Default (10 s) gehalten.
     REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
-    // Alter (Sekunden), ab dem ein noch offener Ledger-Eintrag als
-    // Stale-Kandidat fuer den Reaper (Phase 6) gilt. Reine Observability:
-    // Reservierungen laufen NICHT mehr per TTL ab (ADR-026), sie bleiben ein
-    // Inventar-Anspruch bis Finalisierung/Kompensation. Grosszuegig ueber der
-    // erwarteten Queue-Latenz (Baseline A: ~406 s) angesetzt.
-    RESERVATION_STALE_SECONDS: z.coerce.number().int().positive().default(900),
-    REDIS_PENDING_ORDER_TTL_SECONDS: z.coerce
+    // Fachliches Checkout-Fenster. Der ZSet-Score traegt `now + timeout` als
+    // Eligibility Deadline; der Pending-Key selbst hat KEIN TTL, damit der
+    // Reaper seinen Zustand sicher pruefen kann (ADR-031).
+    CHECKOUT_PENDING_TIMEOUT_SECONDS: z.coerce
       .number()
       .int()
       .positive()
       .default(900),
+    WORKER_RESERVATION_REAPER_BATCH_SIZE: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1000),
     REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce
       .number()
       .int()

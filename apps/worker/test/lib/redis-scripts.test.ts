@@ -15,5 +15,6 @@ void test("registerWorkerRedisScripts registers all worker scripts once via defi
   assert.deepEqual(definedCommands, [
     { name: "finalizeOrderProcessing", numberOfKeys: 3 },
     { name: "compensateReservation", numberOfKeys: 2 },
+    { name: "reapPendingReservation", numberOfKeys: 3 },
   ]);
 });

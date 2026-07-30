@@ -19,7 +19,7 @@ import {
 let redis: Redis;
 let scripts: TicketRedisScripts;
 
-const PENDING_TTL_SECONDS = 900;
+const PENDING_TIMEOUT_SECONDS = 900;
 
 before(async () => {
   redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1 });
@@ -90,7 +90,7 @@ const reserve = (fx: Fixture, nowMs: number) =>
     fx.keys.opensAt,
     fx.orderId,
     fx.orderCacheValue,
-    PENDING_TTL_SECONDS,
+    PENDING_TIMEOUT_SECONDS,
     nowMs,
   );
 
@@ -110,10 +110,10 @@ async function assertReserved(fx: Fixture, expectedRemaining: number) {
     fx.orderCacheValue,
     "pending order record should be written",
   );
-  const ttl = await redis.ttl(fx.orderCacheKey);
-  assert.ok(
-    ttl > 0 && ttl <= PENDING_TTL_SECONDS,
-    `pending order TTL should be set (0 < ttl <= ${PENDING_TTL_SECONDS}), got ${ttl}`,
+  assert.equal(
+    await redis.ttl(fx.orderCacheKey),
+    -1,
+    "pending state must remain until cancel, pay, worker, or reaper decides it",
   );
 }
 
@@ -145,8 +145,8 @@ void test("reserve succeeds when the opensAt key is absent (event immediately op
   await assertReserved(fx, 4);
   assert.equal(
     await redis.zscore(fx.keys.reservations, fx.orderId),
-    String(now),
-    "ledger score should equal the passed nowMs",
+    String(now + PENDING_TIMEOUT_SECONDS * 1000),
+    "ledger score should equal the exact eligibility deadline",
   );
 });
 
