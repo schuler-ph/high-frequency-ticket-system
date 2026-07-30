@@ -187,3 +187,99 @@ void test("reserve returns -1 and writes nothing when sold out (even if open)", 
   assert.equal(result, -1, "sold out → -1");
   await assertNoWrites(fx, 0);
 });
+
+void test("pay atomically claims pending → publishing and then marks paid", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  await reserve(fx, Date.now());
+  const queuedAt = 1_700_000_000_000;
+
+  const [claimed, claimedRaw] = await scripts.claimPayment(
+    fx.orderCacheKey,
+    queuedAt,
+  );
+
+  assert.equal(claimed, 1);
+  assert.ok(claimedRaw);
+  assert.deepEqual(JSON.parse(claimedRaw), {
+    orderId: fx.orderId,
+    eventId: fx.eventId,
+    status: "publishing",
+    firstName: "Ada",
+    lastName: "Lovelace",
+    queuedAt,
+  });
+  assert.equal(
+    await redis.ttl(fx.orderCacheKey),
+    -1,
+    "publishing state must not expire before the worker/recovery decides it",
+  );
+
+  const duplicateClaim = await scripts.claimPayment(
+    fx.orderCacheKey,
+    queuedAt + 1,
+  );
+  assert.equal(duplicateClaim[0], -1, "a second pay must not publish again");
+
+  assert.equal(await scripts.markPaymentPublished(fx.orderCacheKey), 1);
+  assert.equal(
+    JSON.parse((await redis.get(fx.orderCacheKey)) ?? "{}").status,
+    "paid",
+  );
+  assert.equal(await scripts.markPaymentPublished(fx.orderCacheKey), 0);
+});
+
+void test("cancel cannot release a publishing or paid reservation", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  await reserve(fx, Date.now());
+  await scripts.claimPayment(fx.orderCacheKey, Date.now());
+
+  const cancelPublishing = await scripts.releaseTicketReservation(
+    fx.keys.reservations,
+    fx.keys.available,
+    fx.orderCacheKey,
+    fx.orderId,
+    "pending",
+  );
+  assert.equal(cancelPublishing, -1);
+  assert.equal(await redis.get(fx.keys.available), "4");
+  assert.equal(await redis.zcard(fx.keys.reservations), 1);
+
+  await scripts.markPaymentPublished(fx.orderCacheKey);
+  const cancelPaid = await scripts.releaseTicketReservation(
+    fx.keys.reservations,
+    fx.keys.available,
+    fx.orderCacheKey,
+    fx.orderId,
+    "pending",
+  );
+  assert.equal(cancelPaid, -1);
+  assert.equal(await redis.get(fx.keys.available), "4");
+  assert.equal(await redis.zcard(fx.keys.reservations), 1);
+});
+
+void test("publish rollback releases only the owned publishing claim once", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  await reserve(fx, Date.now());
+  await scripts.claimPayment(fx.orderCacheKey, Date.now());
+
+  const released = await scripts.releaseTicketReservation(
+    fx.keys.reservations,
+    fx.keys.available,
+    fx.orderCacheKey,
+    fx.orderId,
+    "publishing",
+  );
+  const repeated = await scripts.releaseTicketReservation(
+    fx.keys.reservations,
+    fx.keys.available,
+    fx.orderCacheKey,
+    fx.orderId,
+    "publishing",
+  );
+
+  assert.equal(released, 1);
+  assert.equal(repeated, 0);
+  assert.equal(await redis.get(fx.keys.available), "5");
+  assert.equal(await redis.zcard(fx.keys.reservations), 0);
+  assert.equal(await redis.exists(fx.orderCacheKey), 0);
+});

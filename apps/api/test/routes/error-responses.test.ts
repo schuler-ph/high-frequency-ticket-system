@@ -107,8 +107,11 @@ void test("POST /:eventId/buy serializes 425 (too early) through tooEarlyErrorRe
 void test("POST /:orderId/pay serializes 404 (missing reservation) through notFoundErrorResponseSchema", async () => {
   const redis = {
     defineCommand() {},
-    async get() {
-      return null;
+    async claimPayment() {
+      return [0, null];
+    },
+    async markPaymentPublished() {
+      return 0;
     },
     async releaseTicketReservation() {
       return 1;
@@ -135,8 +138,11 @@ void test("POST /:orderId/pay serializes 404 (missing reservation) through notFo
 void test("POST /:orderId/pay serializes 409 (already finalized) through conflictErrorResponseSchema", async () => {
   const redis = {
     defineCommand() {},
-    async get() {
-      return finalizedOrderJson;
+    async claimPayment() {
+      return [-1, finalizedOrderJson];
+    },
+    async markPaymentPublished() {
+      return 0;
     },
     async releaseTicketReservation() {
       return 1;

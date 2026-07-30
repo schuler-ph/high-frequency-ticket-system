@@ -263,7 +263,7 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 - [x] **Inventory Auditor:** misst Capacity-Delta und Ledger per `GET`/`ZCARD`/`ZCOUNT`; fehlende Keys sind Fehler, niemals Initialisierung oder Korrektur.
 - [x] **Sold-count Projector:** Auditor und Projektion teilen genau einen `COUNT(tickets)`-Snapshot je 60-s-Zyklus; Laufzeit/Fehler/letzter Erfolg sind instrumentiert, Redis ist keine Dependency.
 - [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
-- [ ] **Checkout-State:** `pending → publishing` vor Publish atomar claimen; nie `publishing|paid` altersbedingt freigeben.
+- [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
 - [ ] **Pending-Reaper:** nur fälliges `pending` atomar und idempotent freigeben; TTL dient nur dem Cleanup.
 - [ ] **Inventory-Integrity-Dashboard:** Capacity-Delta, Auditor, Reaper und ältesten Pending-Anspruch anzeigen.
 - [ ] **DB-Dashboard:** Projector-Dauer, Fehler, letzter Erfolg und Pool-Wait; Einfluss unter Last messen.

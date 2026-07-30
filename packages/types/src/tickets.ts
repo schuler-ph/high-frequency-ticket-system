@@ -72,6 +72,37 @@ export type PendingOrderReservation = z.infer<
   typeof pendingOrderReservationSchema
 >;
 
+const publishingOrderReservationSchema = pendingOrderReservationSchema.extend({
+  status: z.literal("publishing"),
+  queuedAt: z.number().int(),
+});
+
+export type PublishingOrderReservation = z.infer<
+  typeof publishingOrderReservationSchema
+>;
+
+const paidOrderReservationSchema = publishingOrderReservationSchema.extend({
+  status: z.literal("paid"),
+});
+
+export type PaidOrderReservation = z.infer<typeof paidOrderReservationSchema>;
+
+/**
+ * Interner Checkout-Zustandsautomat in Redis. `publishing` wird atomar vor dem
+ * Pub/Sub-Aufruf geclaimt; `paid` markiert den bestaetigten Publish. Beide
+ * Zustaende halten den Inventar-Anspruch und duerfen weder Cancel noch Reaper
+ * freigeben (ADR-031).
+ */
+export const checkoutOrderReservationSchema = z.discriminatedUnion("status", [
+  pendingOrderReservationSchema,
+  publishingOrderReservationSchema,
+  paidOrderReservationSchema,
+]);
+
+export type CheckoutOrderReservation = z.infer<
+  typeof checkoutOrderReservationSchema
+>;
+
 export const completedOrderCacheEntrySchema = z.object({
   orderId: z.uuid(),
   eventId: z.uuid(),

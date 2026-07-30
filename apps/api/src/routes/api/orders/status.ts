@@ -1,4 +1,5 @@
 import {
+  checkoutOrderReservationSchema,
   orderIdParamsSchema,
   orderStatusNotFoundResponseSchema,
   orderStatusResponseSchema,
@@ -11,8 +12,23 @@ import type {
 } from "fastify-type-provider-zod";
 import type {} from "@fastify/redis";
 
-const parseOrderCacheEntry = (value: string) =>
-  orderStatusResponseSchema.parse(JSON.parse(value));
+const parseOrderCacheEntry = (value: string) => {
+  const raw: unknown = JSON.parse(value);
+  const checkout = checkoutOrderReservationSchema.safeParse(raw);
+
+  // `publishing|paid` are internal safety states. Publicly the checkout stays
+  // pending until the worker exposes a terminal `completed|failed` result, so
+  // existing clients keep polling instead of treating `publishing` as final.
+  if (checkout.success) {
+    return {
+      orderId: checkout.data.orderId,
+      eventId: checkout.data.eventId,
+      status: "pending" as const,
+    };
+  }
+
+  return orderStatusResponseSchema.parse(raw);
+};
 
 const orderStatusRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
   fastify.withTypeProvider<ZodTypeProvider>().route({

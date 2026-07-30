@@ -16,6 +16,7 @@ type ReleaseCall = {
   availableKey: string;
   orderCacheKey: string;
   orderId: string;
+  expectedStatus: "pending" | "publishing";
 };
 
 function pendingReservationJson(): string {
@@ -40,6 +41,7 @@ function createRedisMock(
     availableKey: string,
     orderCacheKey: string,
     orderId: string,
+    expectedStatus: "pending" | "publishing",
   ) => Promise<number>;
   releaseCalls: ReleaseCall[];
 } {
@@ -55,12 +57,14 @@ function createRedisMock(
       availableKey,
       orderCacheKey,
       orderId,
+      expectedStatus,
     ) {
       releaseCalls.push({
         reservationsLedgerKey,
         availableKey,
         orderCacheKey,
         orderId,
+        expectedStatus,
       });
       return releaseResult;
     },
@@ -87,6 +91,7 @@ void test("cancelReservation releases an active reservation and reports cancelle
       availableKey: ticketRedisKeys(EVENT_ID).available,
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
       orderId: ORDER_ID,
+      expectedStatus: "pending",
     },
   ]);
 });
@@ -124,6 +129,20 @@ void test("cancelReservation reports cancelled=false when the ledger entry was a
   assert.equal(redis.releaseCalls.length, 1);
   // Kein Funnel-Zaehler, wenn faktisch nichts freigegeben wurde.
   assert.equal(cancelledFired, false);
+});
+
+void test("cancelReservation rejects when pay claimed the order after the GET", async () => {
+  const redis = createRedisMock(pendingReservationJson(), -1);
+
+  await assert.rejects(
+    () => cancelReservation({ orderId: ORDER_ID, redis }),
+    (error: unknown) => {
+      assert.ok(error instanceof ConflictError);
+      return true;
+    },
+  );
+
+  assert.equal(redis.releaseCalls.length, 1);
 });
 
 void test("cancelReservation throws ConflictError for an already-finalized order", async () => {

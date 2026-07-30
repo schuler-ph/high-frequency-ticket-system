@@ -1,11 +1,11 @@
 import {
   buyTicketEventSchema,
   conflictErrorResponseSchema,
+  checkoutOrderReservationSchema,
   notFoundErrorResponseSchema,
   orderIdParamsSchema,
   paymentRequestSchema,
   paymentResponseSchema,
-  pendingOrderReservationSchema,
   type BuyTicketEvent,
   type PaymentResponse,
 } from "@repo/types/tickets";
@@ -15,7 +15,6 @@ import type {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
-import type { RedisClient } from "@repo/types/redis-client";
 import {
   paymentsConfirmedTotal,
   publishRollbacksTotal,
@@ -31,8 +30,10 @@ type TicketPublisher = {
   publishBuyTicket: (payload: BuyTicketEvent) => Promise<string>;
 };
 
-type PayReservationRedis = Pick<RedisClient, "get"> &
-  Pick<TicketRedisScripts, "releaseTicketReservation">;
+type PayReservationRedis = Pick<
+  TicketRedisScripts,
+  "claimPayment" | "markPaymentPublished" | "releaseTicketReservation"
+>;
 
 type ConfirmPaymentInput = {
   orderId: string;
@@ -57,10 +58,11 @@ type ConfirmPaymentInput = {
  * `queuedAt` wird hier (zum Pay-Zeitpunkt) gesetzt, damit die E2E-Latenz nur
  * noch Publish→Persist misst und nicht die Checkout-Denkzeit des Nutzers.
  *
- * Die Kaeuferdaten (`eventId`, `firstName`, `lastName`) stammen aus dem
- * Reservierungs-Record, den `POST /buy` unter `orders:{orderId}` hinterlegt
- * hat. Fehlt der Record → `404`; ist die Order nicht (mehr) `pending` (bereits
- * finalisiert) → `409`.
+ * Vor dem Publish claimt ein Lua-Script den Checkout atomar von `pending` nach
+ * `publishing`. Cancel und Reaper duerfen diesen Zustand nicht freigeben. Nach
+ * bestaetigtem Publish wird er zu `paid`; der Worker ersetzt ihn spaeter durch
+ * `completed|failed`. Fehlt der Record → `404`; ist er nicht mehr `pending`
+ * → `409`.
  */
 export async function confirmPayment({
   orderId,
@@ -71,16 +73,24 @@ export async function confirmPayment({
   onPublishRollback,
 }: ConfirmPaymentInput): Promise<PaymentResponse> {
   const orderCacheKey = orderRedisKeys.entry(orderId);
-  const cached = await redis.get(orderCacheKey);
+  const queuedAt = createQueuedAt();
+  const [claimResult, claimedRaw] = await redis.claimPayment(
+    orderCacheKey,
+    queuedAt,
+  );
 
-  if (cached == null) {
+  if (claimResult === 0) {
     throw new NotFoundError(`Reservation ${orderId} not found`);
   }
 
-  const reservation = pendingOrderReservationSchema.safeParse(
-    JSON.parse(cached),
+  if (claimResult !== 1 || claimedRaw == null) {
+    throw new ConflictError(`Order ${orderId} is not awaiting payment`);
+  }
+
+  const reservation = checkoutOrderReservationSchema.safeParse(
+    JSON.parse(claimedRaw),
   );
-  if (!reservation.success) {
+  if (!reservation.success || reservation.data.status !== "publishing") {
     throw new ConflictError(`Order ${orderId} is not awaiting payment`);
   }
 
@@ -90,7 +100,7 @@ export async function confirmPayment({
     eventId,
     firstName,
     lastName,
-    queuedAt: createQueuedAt(),
+    queuedAt,
   } satisfies BuyTicketEvent;
 
   try {
@@ -103,6 +113,7 @@ export async function confirmPayment({
         keys.available,
         orderCacheKey,
         orderId,
+        "publishing",
       );
     } catch (releaseError) {
       onPublishRollback?.(eventId);
@@ -116,6 +127,7 @@ export async function confirmPayment({
     throw error;
   }
 
+  await redis.markPaymentPublished(orderCacheKey);
   onPaymentConfirmed?.(eventId);
 
   return {
@@ -127,7 +139,8 @@ export async function confirmPayment({
 const orderPayRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
   const scripts = registerTicketRedisScripts(fastify.redis);
   const redis: PayReservationRedis = {
-    get: (key) => fastify.redis.get(key),
+    claimPayment: scripts.claimPayment.bind(scripts),
+    markPaymentPublished: scripts.markPaymentPublished.bind(scripts),
     releaseTicketReservation: scripts.releaseTicketReservation.bind(scripts),
   };
 

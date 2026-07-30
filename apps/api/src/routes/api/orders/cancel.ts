@@ -65,7 +65,12 @@ export async function cancelReservation({
     keys.available,
     orderCacheKey,
     orderId,
+    "pending",
   );
+
+  if (released === -1) {
+    throw new ConflictError(`Order ${orderId} can no longer be cancelled`);
+  }
 
   if (released === 1) {
     onCheckoutCancelled?.(eventId);

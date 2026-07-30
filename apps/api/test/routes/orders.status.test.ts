@@ -62,6 +62,44 @@ void test("GET /:orderId returns a pending order from Redis", async () => {
   }
 });
 
+void test("GET /:orderId keeps an internal publishing order publicly pending", async () => {
+  const fastify = Fastify({ logger: false });
+  const redis: RedisMock = {
+    async get() {
+      return JSON.stringify({
+        orderId: pendingOrderId,
+        eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
+        status: "publishing",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        queuedAt: 1_700_000_000_000,
+      });
+    },
+  };
+
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.decorate("redis", redis);
+  await fastify.register(orderStatusRoute);
+  await fastify.ready();
+
+  try {
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/${pendingOrderId}`,
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(JSON.parse(response.body), {
+      orderId: pendingOrderId,
+      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
+      status: "pending",
+    });
+  } finally {
+    await fastify.close();
+  }
+});
+
 void test("GET /:orderId returns a completed order with ticket reference from Redis", async () => {
   const fastify = Fastify({ logger: false });
   const redis: RedisMock = {

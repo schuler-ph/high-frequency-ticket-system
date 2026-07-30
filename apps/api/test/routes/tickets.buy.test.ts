@@ -31,6 +31,7 @@ type ReleaseCall = {
   availableKey: string;
   orderCacheKey: string;
   orderId: string;
+  expectedStatus: "pending" | "publishing";
 };
 
 function createScriptsMock(
@@ -72,14 +73,22 @@ function createScriptsMock(
       availableKey,
       orderCacheKey,
       orderId,
+      expectedStatus,
     ) {
       releaseCalls.push({
         reservationsLedgerKey,
         availableKey,
         orderCacheKey,
         orderId,
+        expectedStatus,
       });
       return 1;
+    },
+    async claimPayment() {
+      return [0, null];
+    },
+    async markPaymentPublished() {
+      return 0;
     },
     ...overrides,
   };
@@ -192,7 +201,7 @@ void test("buyTicketBodySchema validates request body", () => {
   assert.equal(result.success, false);
 });
 
-void test("registerTicketRedisScripts registers both scripts once via defineCommand", () => {
+void test("registerTicketRedisScripts registers the checkout state-machine scripts once", () => {
   const definedCommands: Array<{ name: string; numberOfKeys?: number }> = [];
 
   const scripts = registerTicketRedisScripts({
@@ -204,6 +213,8 @@ void test("registerTicketRedisScripts registers both scripts once via defineComm
   assert.ok(scripts);
   assert.deepEqual(definedCommands, [
     { name: "reserveTicket", numberOfKeys: 4 },
+    { name: "claimPayment", numberOfKeys: 1 },
+    { name: "markPaymentPublished", numberOfKeys: 1 },
     { name: "releaseTicketReservation", numberOfKeys: 3 },
   ]);
 });

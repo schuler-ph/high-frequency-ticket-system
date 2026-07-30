@@ -35,15 +35,83 @@ return remaining
 `;
 
 /**
- * Gegen-Script zu RESERVE_TICKET_SCRIPT fuer den Publish-Fehlerpfad.
+ * Atomarer Pay-Claim: nur `pending` darf zu `publishing` wechseln. Das Script
+ * liefert den geclaimten Record zurueck, damit die Route zwischen Zustandscheck
+ * und Publish keinen zweiten GET-Race oeffnet.
+ *
+ * Das SET entfernt bewusst die Pending-TTL: ein `publishing`-Anspruch darf nie
+ * altersbedingt verschwinden oder freigegeben werden. Der Worker ersetzt den
+ * Key nach Finalisierung durch das begrenzte finale Read-Model.
+ *
+ * KEYS[1] = orderCacheKey
+ * ARGV[1] = queuedAt
+ *
+ * Return: {1, claimedJson} | {0, false} (missing) | {-1, raw} (conflict)
+ */
+const CLAIM_PAYMENT_SCRIPT = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return {0, false}
+end
+
+local decodedOk, order = pcall(cjson.decode, raw)
+if not decodedOk or order["status"] ~= "pending" then
+  return {-1, raw}
+end
+
+order["status"] = "publishing"
+order["queuedAt"] = tonumber(ARGV[1])
+local claimed = cjson.encode(order)
+redis.call("SET", KEYS[1], claimed)
+return {1, claimed}
+`;
+
+/**
+ * Nach bestaetigtem Pub/Sub-Publish wird `publishing → paid` markiert. Falls
+ * der Worker den Key bereits finalisiert hat, ist der No-op korrekt.
+ *
+ * KEYS[1] = orderCacheKey
+ * Return: 1 = transitioned, 0 = state changed/missing
+ */
+const MARK_PAYMENT_PUBLISHED_SCRIPT = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return 0
+end
+
+local decodedOk, order = pcall(cjson.decode, raw)
+if not decodedOk or order["status"] ~= "publishing" then
+  return 0
+end
+
+order["status"] = "paid"
+redis.call("SET", KEYS[1], cjson.encode(order))
+return 1
+`;
+
+/**
+ * Zustandsbewusstes Gegen-Script zu RESERVE_TICKET_SCRIPT.
  * Idempotent: `available` wird nur zurueckgebucht, wenn der Ledger-Eintrag
  * tatsaechlich noch existierte (`ZREM` liefert 1 — kein Double-Increment bei
- * Wiederholung).
+ * Wiederholung). Cancel darf nur `pending`, der Publish-Fehlerpfad nur den
+ * eigenen `publishing`-Claim freigeben. Damit kann ein vorgelagerter GET-Race
+ * nie eine inzwischen publizierende Order freigeben.
  *
  * KEYS[1] = reservationsLedger, KEYS[2] = available, KEYS[3] = orderCacheKey
- * ARGV[1] = orderId
+ * ARGV[1] = orderId, ARGV[2] = expectedStatus
+ * Return: 1 = released, 0 = nothing left, -1 = state conflict
  */
 const RELEASE_TICKET_RESERVATION_SCRIPT = `
+local raw = redis.call("GET", KEYS[3])
+if not raw then
+  return 0
+end
+
+local decodedOk, order = pcall(cjson.decode, raw)
+if not decodedOk or order["orderId"] ~= ARGV[1] or order["status"] ~= ARGV[2] then
+  return -1
+end
+
 local released = redis.call("ZREM", KEYS[1], ARGV[1])
 if released == 1 then
   redis.call("INCR", KEYS[2])
@@ -63,16 +131,22 @@ export type TicketRedisScripts = {
     pendingOrderTtlSeconds: number,
     nowMs: number,
   ): Promise<number>;
+  claimPayment(
+    orderCacheKey: string,
+    queuedAt: number,
+  ): Promise<[result: number, claimedJson: string | null]>;
+  markPaymentPublished(orderCacheKey: string): Promise<number>;
   releaseTicketReservation(
     reservationsLedgerKey: string,
     availableKey: string,
     orderCacheKey: string,
     orderId: string,
+    expectedStatus: "pending" | "publishing",
   ): Promise<number>;
 };
 
 /**
- * Registriert beide Scripts einmalig via ioredis `defineCommand` (EVALSHA mit
+ * Registriert die Checkout-Scripts einmalig via ioredis `defineCommand` (EVALSHA mit
  * automatischem Fallback — der Script-Text geht nicht bei jedem Request ueber
  * die Leitung). Der Cast ist die einzige Stelle, an der die dynamisch
  * erzeugten Command-Methoden typisiert werden.
@@ -83,6 +157,14 @@ export const registerTicketRedisScripts = (
   client.defineCommand("reserveTicket", {
     numberOfKeys: 4,
     lua: RESERVE_TICKET_SCRIPT,
+  });
+  client.defineCommand("claimPayment", {
+    numberOfKeys: 1,
+    lua: CLAIM_PAYMENT_SCRIPT,
+  });
+  client.defineCommand("markPaymentPublished", {
+    numberOfKeys: 1,
+    lua: MARK_PAYMENT_PUBLISHED_SCRIPT,
   });
   client.defineCommand("releaseTicketReservation", {
     numberOfKeys: 3,

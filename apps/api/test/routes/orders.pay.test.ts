@@ -17,7 +17,10 @@ type ReleaseCall = {
   availableKey: string;
   orderCacheKey: string;
   orderId: string;
+  expectedStatus: "pending" | "publishing";
 };
+
+type ClaimCall = { orderCacheKey: string; queuedAt: number };
 
 function pendingReservationJson(): string {
   return JSON.stringify(
@@ -35,37 +38,56 @@ function createRedisMock(
   cachedValue: string | null,
   releaseOverride?: () => Promise<number>,
 ): {
-  get: (key: string) => Promise<string | null>;
+  claimPayment: (
+    orderCacheKey: string,
+    queuedAt: number,
+  ) => Promise<[number, string | null]>;
+  markPaymentPublished: (orderCacheKey: string) => Promise<number>;
   releaseTicketReservation: (
     reservationsLedgerKey: string,
     availableKey: string,
     orderCacheKey: string,
     orderId: string,
+    expectedStatus: "pending" | "publishing",
   ) => Promise<number>;
-  getCalls: string[];
+  claimCalls: ClaimCall[];
+  markPublishedCalls: string[];
   releaseCalls: ReleaseCall[];
 } {
-  const getCalls: string[] = [];
+  const claimCalls: ClaimCall[] = [];
+  const markPublishedCalls: string[] = [];
   const releaseCalls: ReleaseCall[] = [];
 
   return {
-    getCalls,
+    claimCalls,
+    markPublishedCalls,
     releaseCalls,
-    async get(key) {
-      getCalls.push(key);
-      return cachedValue;
+    async claimPayment(orderCacheKey, queuedAt) {
+      claimCalls.push({ orderCacheKey, queuedAt });
+      if (cachedValue == null) return [0, null];
+
+      const cached = JSON.parse(cachedValue) as Record<string, unknown>;
+      if (cached.status !== "pending") return [-1, cachedValue];
+
+      return [1, JSON.stringify({ ...cached, status: "publishing", queuedAt })];
+    },
+    async markPaymentPublished(orderCacheKey) {
+      markPublishedCalls.push(orderCacheKey);
+      return 1;
     },
     async releaseTicketReservation(
       reservationsLedgerKey,
       availableKey,
       orderCacheKey,
       orderId,
+      expectedStatus,
     ) {
       releaseCalls.push({
         reservationsLedgerKey,
         availableKey,
         orderCacheKey,
         orderId,
+        expectedStatus,
       });
       if (releaseOverride) {
         return releaseOverride();
@@ -96,7 +118,13 @@ void test("confirmPayment publishes the BuyTicketEvent and returns confirmed", a
   });
 
   assert.deepEqual(response, { confirmed: true, orderId: ORDER_ID });
-  assert.deepEqual(redis.getCalls, [orderRedisKeys.entry(ORDER_ID)]);
+  assert.deepEqual(redis.claimCalls, [
+    {
+      orderCacheKey: orderRedisKeys.entry(ORDER_ID),
+      queuedAt: 1_700_000_000_000,
+    },
+  ]);
+  assert.deepEqual(redis.markPublishedCalls, [orderRedisKeys.entry(ORDER_ID)]);
   assert.equal(redis.releaseCalls.length, 0);
   assert.equal(confirmedEventId, EVENT_ID);
   assert.ok(publishedPayload);
@@ -128,6 +156,7 @@ void test("confirmPayment throws NotFoundError when the reservation is missing",
       return true;
     },
   );
+  assert.equal(redis.markPublishedCalls.length, 0);
 
   assert.equal(redis.releaseCalls.length, 0);
 });
@@ -160,6 +189,7 @@ void test("confirmPayment throws ConflictError when the order is not awaiting pa
       return true;
     },
   );
+  assert.equal(redis.markPublishedCalls.length, 0);
 });
 
 void test("confirmPayment rolls back the reservation on publish failure", async () => {
@@ -189,9 +219,11 @@ void test("confirmPayment rolls back the reservation on publish failure", async 
       availableKey: ticketRedisKeys(EVENT_ID).available,
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
       orderId: ORDER_ID,
+      expectedStatus: "publishing",
     },
   ]);
   assert.equal(rollbackEventId, EVENT_ID);
+  assert.equal(redis.markPublishedCalls.length, 0);
 });
 
 void test("confirmPayment aggregates publish and release errors when the rollback fails", async () => {
