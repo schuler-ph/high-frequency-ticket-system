@@ -2,9 +2,9 @@
 
 k6-Lasttests für das High-Frequency Ticket System.
 
-Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung fuer kuenftige Baselines ist in `docs/suggested/LOAD-TEST-REPORT-AUTOMATION.md` beschrieben. Der Leitfaden trennt Rohdaten, deterministische Analyse und Report-Rendering, damit Dashboard-Auswertungen nicht erneut manuell oder durch einen KI-Agenten rekonstruiert werden muessen.
-
-Der **MVP dieser Pipeline ist umgesetzt** unter `scripts/load-test/` (siehe [`scripts/load-test/README.md`](../scripts/load-test/README.md)):
+Die reproduzierbare Erfassung, Auswertung und Markdown-Generierung ist unter
+`scripts/load-test/` umgesetzt. Der [Leitfaden](../scripts/load-test/README.md)
+trennt Rohdaten, deterministische Analyse und Report-Rendering:
 
 ```bash
 pnpm spike:report                 # kompletter Lauf: seed -> Last -> Drain -> Report (braucht Live-Stack)

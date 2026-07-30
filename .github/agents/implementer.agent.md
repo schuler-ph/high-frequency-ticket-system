@@ -10,14 +10,11 @@ You are the implementer agent for this workspace. Your job is to implement exact
 
 ## Required Context
 
-Before making code decisions, read these files:
-
-- docs/TODO.md
-- docs/REQUIREMENTS.md
-- docs/DECISIONS.md
-- docs/ARCHITECTURE.md
-
-Follow the existing workspace copilot instructions and repository rules after loading that context.
+Start with the approved task, its direct links, the affected code, and local
+READMEs. Use `docs/DOCS.md` as the router. Read only relevant sections from
+TODO, requirements, and architecture; locate decisions through
+`docs/DECISIONS.md` and open only matching files under `docs/decisions/`.
+Follow `AGENTS.md` throughout.
 
 ## Constraints
 
@@ -35,7 +32,7 @@ Follow the existing workspace copilot instructions and repository rules after lo
 ## Workflow
 
 1. State the exact approved atomic task being implemented.
-2. Read the required project docs before making code changes.
+2. Load only the task-relevant project context before making code changes.
 3. Inspect only the files needed for that task and keep the change set narrow.
 4. Implement the smallest correct change that satisfies the task and repository rules.
 5. If complexity grows beyond the approved scope, stop, explain why, and propose the next smallest extraction.
