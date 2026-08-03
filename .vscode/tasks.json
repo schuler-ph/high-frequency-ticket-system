@@ -182,34 +182,18 @@
     },
     {
       "label": "loadtest:report",
-      "detail": "Nur der Lauf selbst (setzt einen bereiten Stack voraus). Normalerweise ueber 'loadtest:run+report' aufrufen, das vorher die Bereitschaft prueft.",
+      "detail": "Nur der Lauf selbst (setzt einen bereiten Stack voraus), Lastprofil wird abgefragt. Normalerweise ueber 'loadtest:run+report' aufrufen, das vorher die Bereitschaft prueft.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike:report",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && LOAD_PROFILE='${input:loadProfile}' pnpm run spike:report",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
       "problemMatcher": []
     },
     {
       "label": "loadtest:run+report",
-      "detail": "RUNBOOK §4 — prueft zuerst die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
+      "detail": "RUNBOOK §4 — fragt das Lastprofil ab, prueft die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report"],
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:report realism",
-      "detail": "Wie 'loadtest:report', aber mit LOAD_PROFILE=realism: der k6-Funnel legt zwischen Reserve und Pay eine randomisierte Denkzeit (THINK_TIME_MIN..MAX, Default 2-8s) ein — Karteneingabe/3DS. Misst gleichzeitig gehaltene Ledger-Reservierungen + Redis-Memory statt roher Kapazitaet und braucht deutlich mehr VUs. Normalerweise ueber 'loadtest:run+report realism' aufrufen.",
-      "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && LOAD_PROFILE=realism pnpm run spike:report",
-      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:run+report realism",
-      "detail": "RUNBOOK §4 — voller Lauf mit Belegerhebung im realism-Profil (Denkzeit im Payment-Funnel), inkl. Readiness-Check vorweg. Laufzeit: viele Minuten, laenger als das capacity-Profil.",
-      "dependsOrder": "sequence",
-      "dependsOn": ["stack:wait-ready", "loadtest:report realism"],
       "problemMatcher": []
     },
     {
@@ -274,6 +258,27 @@
       "type": "command",
       "command": "simpleBrowser.show",
       "args": "http://localhost:10008"
+    },
+    {
+      // Lastprofil des k6-Funnels (load-tests/lib/scenario-helpers.js).
+      "id": "loadProfile",
+      "type": "pickString",
+      "description": "Lastprofil für den Lauf",
+      "default": "capacity",
+      "options": [
+        {
+          "label": "capacity — buy→pay back-to-back, 60 % Availability-Reads",
+          "value": "capacity"
+        },
+        {
+          "label": "realism — Denkzeit 2–8 s zwischen Reserve und Pay",
+          "value": "realism"
+        },
+        {
+          "label": "checkout — nur buy→pay, keine Availability-Reads",
+          "value": "checkout"
+        }
+      ]
     },
     {
       "id": "runDir",

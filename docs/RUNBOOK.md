@@ -106,7 +106,7 @@ until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` (für `stack:wait-ready` gibt es keinen eigenen Button mehr — die `Spike Report`-Buttons prüfen die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar)
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` (für `stack:wait-ready` gibt es keinen eigenen Button mehr — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar)
 
 ### Warum der Readiness-Check ein eigener Schritt ist (Falle 4)
 
@@ -217,12 +217,13 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 # Varianten
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
 LOAD_PROFILE=realism pnpm spike:report       # mit Denkzeit (2–8s) statt back-to-back
+LOAD_PROFILE=checkout pnpm spike:report      # nur buy→pay, keine Availability-Reads
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 
 > **k6-Remote-Write ist standardmäßig aus.** Der Report liest keine k6-Serien aus Prometheus — alle Queries gehen gegen `job="api"`/`job="worker"`. Das Remote-Write diente nur dem Live-Blick, trieb Prometheus aber auf 5,5 GiB bis zum `503` und nahm dabei genau die Daten mit, die der Report braucht.
 
-**Tasks:** `loadtest:run+report` (capacity, prüft zuerst die Bereitschaft) und `loadtest:run+report realism` (identisch, aber mit `LOAD_PROFILE=realism`) · **Buttons:** `Spike Report`, `Spike Report Wait`
+**Task:** `loadtest:run+report` — fragt das Lastprofil ab (`capacity` / `realism` / `checkout`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
 ---
 
@@ -262,7 +263,7 @@ pnpm spike:report:test                                       # Unit-/Golden-Test
 
 Bestehende Baselines: `docs/reports/baseline-a-2026-07-14/`, `docs/reports/baseline-b-2026-07-26/`
 
-**Tasks:** `loadtest:analyze` und `loadtest:compare` (fragen nach den Verzeichnissen) · **Button:** `Analyze`
+**Tasks:** `loadtest:analyze` und `loadtest:compare` (fragen nach den Verzeichnissen) · **kein Button** — `spike:report` wertet am Ende jedes Laufs selbst aus; diese Tasks sind für nachträgliche Re-Analysen und Vergleiche da
 
 ### Grafana-Panels als PNG exportieren (statt Screenshots)
 

@@ -39,16 +39,23 @@ const POLL_INTERVAL_SECONDS = Number(__ENV.CHECKOUT_POLL_INTERVAL || 1);
 //   - "realism": randomisierte Denkzeit ~2–8 s → misst gleichzeitig gehaltene
 //     Ledger-Reservierungen + Redis-Memory. Denkzeit blaeht die VU-Zahl massiv
 //     auf (Grund fuer die ~20k-VU-/verteilter-Runner-Anforderung in Stage 4).
+//   - "checkout": keine Availability-Reads und keine Denkzeit — jede Iteration
+//     geht direkt `buy`→`pay`. Isoliert den Write-Pfad (Reserve + Publish +
+//     Worker-Persistenz) von den Redis-Read-Modellen, die im capacity-Profil
+//     60 % der Requests stellen.
 const LOAD_PROFILE = __ENV.LOAD_PROFILE || "capacity";
 const THINK_TIME_MIN = Number(__ENV.THINK_TIME_MIN || 2);
 const THINK_TIME_MAX = Number(__ENV.THINK_TIME_MAX || 8);
+const CHECKOUT_ONLY = LOAD_PROFILE === "checkout";
 
 // Funnel-Verzweigung nach dem Reserve: Mehrheit zahlt, ein Teil bricht via
 // Cancel ab (gibt die Reservierung frei → `INCR available`), der Rest
 // verschwindet ohne Cancel (Phantom-Anspruch im Ledger, Reaper-Kandidat).
 // Anteile summieren sich nicht zwingend auf 1 — der Rest ist "abandon".
-const PAY_RATE = Number(__ENV.PAY_RATE || 0.88);
-const CANCEL_RATE = Number(__ENV.CANCEL_RATE || 0.08);
+// Im "checkout"-Profil zahlt per Default jede Reservierung (reiner buy→pay-Pfad,
+// kein Cancel/Abandon); explizit gesetzte Envs schlagen den Profil-Default.
+const PAY_RATE = Number(__ENV.PAY_RATE || (CHECKOUT_ONLY ? 1 : 0.88));
+const CANCEL_RATE = Number(__ENV.CANCEL_RATE || (CHECKOUT_ONLY ? 0 : 0.08));
 
 const FIRST_NAMES = [
   "Anna",
@@ -261,9 +268,11 @@ export function runCheckout() {
   }
 }
 
-// 60% availability checks, 40% full checkout funnel (buy → pay → optional poll)
+// 60% availability checks, 40% full checkout funnel (buy → pay → optional poll).
+// Im "checkout"-Profil entfaellt der Availability-Read komplett: jede Iteration
+// ist ein Checkout.
 export function ticketSaleIteration() {
-  if (Math.random() < 0.4) {
+  if (CHECKOUT_ONLY || Math.random() < 0.4) {
     runCheckout();
   } else {
     checkAvailability();

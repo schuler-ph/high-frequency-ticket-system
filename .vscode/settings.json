@@ -84,26 +84,10 @@
       {
         "name": "$(dashboard) Spike Report",
         "color": "#FF8C00",
-        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten)",
+        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Lastprofil ab: capacity / realism / checkout. Die Auswertung läuft im Anschluss automatisch.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report"]
-      },
-      {
-        "name": "$(watch) Spike Report Wait",
-        "color": "#FF8C00",
-        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung im realism-Profil (LOAD_PROFILE=realism) — Denkzeit 2–8 s zwischen Reserve und Payment → artifacts/load-tests/<run-id>/",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["loadtest:run+report realism"]
-      },
-      {
-        "name": "$(graph) Analyze",
-        "color": "#56B6C2",
-        "tooltip": "RUNBOOK §5: Run-Verzeichnis auswerten — rein, ohne laufenden Stack",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["loadtest:analyze"]
       },
       // {
       //   "name": "$(database) DB Apply",
