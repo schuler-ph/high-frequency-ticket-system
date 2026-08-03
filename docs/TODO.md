@@ -250,10 +250,12 @@ Append-forward verschobene Folgearbeit aus Phase 4–4.6; Reihenfolge gemäß Ro
 
 > `/pay` und `/cancel` fehlen im API-Performance-Dashboard als eigene Graphen. → [Details](notes/phases/phase-4-8-api-performance.md#phase-48-nachtrag-zum-api-performance-dashboard)
 
-- [ ] Ergänze im API-Performance-Dashboard Request-Rate-Serien fuer `/pay` und `/cancel`.
-- [ ] Füge ein eigenes `/pay`-Latenzpanel mit p50, p95 und p99 hinzu.
-- [ ] Füge analog ein Panel „POST /cancel Latency (p50 / p95 / p99)" fuer `route="/api/orders/:orderId/cancel"` hinzu.
-- [ ] Verifiziere nach dem Import in Grafana, dass die neuen Serien unter Last (`pnpm spike`) tatsaechlich Daten liefern und die `route`-Label-Werte exakt den Fastify-Templates entsprechen (kein Fallback auf Roh-URL — siehe `apps/api/src/plugins/metrics.ts`).
+Umgesetzt im Dashboard-Audit des Baseline-C-Nachlaufs. → [Umsetzungsstand](notes/phases/phase-4-8-api-performance.md#umsetzungsstand-2026-07-26)
+
+- [x] Request-Rate-Serien `POST /pay RPS` und `POST /cancel RPS` im Panel „Request Rate (RPS)".
+- [x] Panel „POST /pay Latency (p50 / p95 / p99)" ergaenzt; Pay-p95 im Crunch 4,55 s gegen Buy 874 ms.
+- [x] Kein eigenes `/cancel`-Latenzpanel — „Latency by Route (p50 / p95)" deckt es generisch ab, analog zum ebenfalls weggelassenen `GET /orders/:orderId`.
+- [x] Serien gegen Baseline-C-Daten verifiziert; die `route`-Labels entsprechen den Fastify-Templates.
 
 ## Phase 4.9: Redis-authoritatives Inventory
 
@@ -266,8 +268,8 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 - [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
 - [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten. → [Details](notes/phases/phase-4-9-inventory-integrity.md#umsetzungsstand-2026-07-30)
 - [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
-- [ ] **DB-Dashboard:** Projector-Query-/Write-back-Dauer, Fehler, letzter Erfolg und Korrelation mit Pool-Wait sind als Panels umgesetzt; Einfluss unter Last noch messen.
-- [ ] **Abschluss-Lasttest:** Invariante nach Drain null; keine Korrektur- oder Double-Release-Races.
+- [x] **DB-Dashboard:** `db-runtime` zeigt Projector-Query-Dauer, Write-back-Dauer, Health (Fehler, letzter Erfolg) und „Pool Wait during Projector Activity".
+- [ ] **Abschluss-Lasttest:** Invariante nach Drain null; keine Korrektur- oder Double-Release-Races; dabei den Projector-Einfluss auf Pool-Wait in `db-runtime` messen.
 
 ## Phase 5: Cloud Deployment (GCP)
 
