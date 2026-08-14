@@ -232,7 +232,7 @@ Nach dem Reserve/Pay-Split gebündelte Folgearbeit aus den Phasen 4–4.2: erst 
 - [x] **Request-Logging abschaltbar machen:** `DISABLE_REQUEST_LOGGING` für API und Worker. → [Details](notes/backlogs/stage-4-capacity-evidence.md#request-logging-fuer-den-lasttest-abschaltbar-machen)
 - [x] **Worker-Resubscribe nach Seed/Reset:** Subscription wird idempotent wiederhergestellt. → [Details](notes/backlogs/stage-4-capacity-evidence.md#worker-resubscribe-nach-seedreset)
 - [x] **MVP der Report-Automation umgesetzt:** `scripts/load-test/` (pur/side-effecting getrennt), Kommandos `spike:report`/`:analyze`/`:compare`, 47 Tests + Goldens. → [Details](notes/backlogs/stage-4-capacity-evidence.md#mvp-der-report-automation)
-- [ ] Trenne den Lastgenerator vom System-under-Test bzw. nutze einen verteilten Runner; dimensioniere fuer das 50k-RPS-Ziel mindestens ~20k aktive VUs und fordere 0 dropped iterations fuer einen gueltigen Kapazitaetsnachweis.
+- [x] ~~Generator vom SUT trennen fuer 50k RPS (~20k VUs, 0 dropped).~~ **Verworfen 2026-08-14:** per REQ-P02 ein Cloud-Ziel (→ Phase 4.11 + 5); lebt lokal in Phase 4.12 weiter. → [Begruendung](notes/backlogs/local-generator-split.md#warum-das-50k-todo-verworfen-wurde)
 - [x] **Baseline B ausgefuehrt (2026-07-26):** `benchmark=invalid` (67,66 % dropped, Generator-Saturation), fachlich korrekt: 867.575 Orders, 0 Verlust, E2E 406 s → 7,52 s. → [Details](notes/backlogs/stage-4-capacity-evidence.md#baseline-b-lauf)
 - [x] **Sold-Out-Fehlalarm durch alten Completion-Counter:** Plateau zählt relativ zur Poll-Baseline. → [Details](notes/backlogs/stage-4-capacity-evidence.md#sold-out-fehlalarm-durch-stale-completion-counter)
 
@@ -254,7 +254,7 @@ Folgearbeit aus Baseline B; P0 blockierte die Auswertung, P2 die Kapazitätsauss
 
 ### P2 — Kapazitaet
 
-- [ ] **Baseline C erst nach P0/P1 fahren.** Voraussetzung bleibt das offene Phase-4.4-Todo „Generator vom SUT trennen“: Baseline B verwarf 67,66 % der Iterationen bei `maxVUs: 10000`. → [Details](notes/backlogs/baseline-b-capacity.md#baseline-c-nach-p0-und-p1)
+- [ ] **Baseline C erst nach P0/P1 fahren.** Voraussetzung bleibt der Generator-SUT-Split (jetzt Phase 4.12): Baseline B verwarf 67,66 % der Iterationen bei `maxVUs: 10000`. → [Details](notes/backlogs/baseline-b-capacity.md#baseline-c-nach-p0-und-p1)
 
 ### Beobachtung fuer das Storage-Review (Phase 6)
 
@@ -273,7 +273,7 @@ Aus dem Baseline-C-Lauf: die Messketten-Fixes des B-Nachlaufs haben gehalten, de
 
 - [ ] **`DATABASE_POOL_MAX` erhöhen und neu messen:** Pool-Limit 20 war der Engpass; Messlauf mit 50 fehlt. → [Details](notes/backlogs/baseline-c-capacity.md#database_pool_max-erhoehen-und-neu-messen)
 - [x] **k6-`maxVUs` und Zielrate in Einklang bringen:** 5.000 VUs bei 10.000 Iterationen/s garantierten Verwerfungen rechnerisch; `maxVUs` auf 10.000 (deckt ~1 s Iterationsdauer). → [Details](notes/backlogs/baseline-c-capacity.md#k6-maxvus-und-zielrate-in-einklang-bringen)
-- [ ] **Transportfehler untersuchen:** 109.386 Requests (2,7 %) ohne App-Antwort bei 0 % 5xx — riecht nach Host-Netzwerkgrenzen, nicht nach Applikationsfehlern. Haengt am Generator-SUT-Split (Phase 4.4). → [Details](notes/backlogs/baseline-c-capacity.md#transportfehler-untersuchen)
+- [ ] **Transportfehler untersuchen:** 109.386 Requests (2,7 %) ohne App-Antwort bei 0 % 5xx — riecht nach Host-Netzwerkgrenzen, nicht nach Applikationsfehlern. Haengt am Generator-SUT-Split (Phase 4.12). → [Details](notes/backlogs/baseline-c-capacity.md#transportfehler-untersuchen)
 
 ### P2 — Dashboard-Audit (alle 8 Dashboards, 2026-07-26)
 
@@ -337,8 +337,16 @@ Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. 
 - [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `snapshots.mjs` ist auf `docker exec hts-postgres`/`hts-redis` hart verdrahtet; braucht einen austauschbaren Zugriffspfad. → [Details](notes/backlogs/cloud-report-automation.md#state-snapshots-gegen-cloud-sql-und-memorystore)
 - [ ] **Preflight umgebungsabhaengig machen:** `preflight()` verlangt die lokalen Container und bricht im Cloud-Lauf ab; `requiredContainers` gibt es schon, ein Cloud-Profil fehlt. → [Details](notes/backlogs/cloud-report-automation.md#preflight-umgebungsabhaengig-machen)
 - [ ] **Seed-Pfad fuer die Cloud:** `reset-seed.mjs` nutzt Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf. → [Details](notes/backlogs/cloud-report-automation.md#seed-pfad-fuer-die-cloud)
-- [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.4). → [Details](notes/backlogs/cloud-report-automation.md#verteilten-k6-runner-orchestrieren)
+- [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.12). → [Details](notes/backlogs/cloud-report-automation.md#verteilten-k6-runner-orchestrieren)
 - [ ] **Monitoring-Quelle fuer den Cloud-Lauf entscheiden:** Managed Prometheus, selbst betriebener Prometheus im Cluster oder Cloud Monitoring — und wie `targetUp`/Range-Queries darauf abbilden. → [Details](notes/backlogs/cloud-report-automation.md#monitoring-quelle-fuer-den-cloud-lauf)
+
+## Phase 4.12: Lokale Baseline C mit getrenntem Lastgenerator (Zwei-Maschinen-Setup)
+
+Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC, SUT allein auf dem MacBook, Ziel 5k RPS sustained (REQ-P01). → [Details](notes/backlogs/local-generator-split.md#backlog-lokaler-generator-sut-split-vorspann)
+
+- [ ] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [Details](notes/backlogs/local-generator-split.md#sut-host-vorbereiten)
+- [ ] **Generator-Host (Ryzen-PC) anbinden:** k6 installieren, `BASE_URL` auf die SUT-IP; Minimalpfad manueller/ssh-Lauf + `--summary-export`-Import in `spike:report`. Ethernet, WLAN nur Fallback. → [Details](notes/backlogs/local-generator-split.md#generator-host-anbinden)
+- [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe. → [Details](notes/backlogs/local-generator-split.md#baseline-c-mit-getrenntem-generator-fahren)
 
 ## Phase 5: Cloud Deployment (GCP)
 
