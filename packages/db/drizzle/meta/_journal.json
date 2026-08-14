@@ -57,6 +57,13 @@
       "when": 1776819600000,
       "tag": "0008_return_existing_ticket_for_duplicate_order",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784385859000,
+      "tag": "0009_buy_ticket_without_sold_count_hot_row",
+      "breakpoints": true
     }
   ]
 }

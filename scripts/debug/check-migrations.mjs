@@ -42,6 +42,22 @@ for (const tag of tags) {
   }
 }
 
+// Historische Dateien ohne Journal-Eintrag: nie via db:migrate gelaufen und
+// durch spaetere Migrationen vollstaendig ersetzt. Neue Dateien gehoeren ins
+// Journal, sonst wendet die CI sie nie an.
+const supersededWithoutJournalEntry = new Set([
+  "0003_persist_order_id_in_orders.sql",
+]);
+
+const journaledFiles = new Set(tags.map((tag) => `${tag}.sql`));
+for (const file of sqlFiles) {
+  if (!journaledFiles.has(file) && !supersededWithoutJournalEntry.has(file)) {
+    fail(
+      `SQL file ${file} has no journal entry — db:migrate will never apply it.`,
+    );
+  }
+}
+
 const prefixes = sqlFiles
   .map((name) => {
     const match = name.match(/^(\d{4})_/);
