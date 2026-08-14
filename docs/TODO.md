@@ -368,3 +368,10 @@ Kleinteilige Verbesserungen am Lasttest-Werkzeug, die beim Fahren der Baseline-D
 
 - [x] **Grafana-Panels als PNG exportieren:** alle 48 Panels reproduzierbar im Run-Verzeichnis. → ADR-030, [RUNBOOK §5](RUNBOOK.md#5-auswertung-braucht-keinen-laufenden-stack)
 - [x] **Web im Lasttest-Stack mitstarten:** der `LT Stack`-Button liess das Frontend aus, obwohl es zum Beobachten laeuft; neuer Task `loadtest:web` (Dev-Modus, :10001), `loadtest:stack down` raeumt den Port mit auf. → [RUNBOOK §3](RUNBOOK.md#3-lasttest-stack-hochfahren-gebauter-stand)
+
+## Backlog: Checkout-Expiry-Funnel (entdeckt 2026-08-14)
+
+Reservierungs-Timer im Frontend, 2-min-Deadline und ein Funnel-Lastprofil, das
+den Reaper erstmals unter Last ausübt und exakten Sellout beweist.
+
+- [ ] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge. → [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
