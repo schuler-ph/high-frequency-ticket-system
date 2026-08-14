@@ -45,6 +45,27 @@ nur Redis und die Queue, nicht die Datenbank. Das System enthält außerdem
 reproduzierbare k6-Läufe, Prometheus/Grafana-Dashboards und eine
 automatisierte Report-Pipeline.
 
+Drei Grafana-Panels aus einem k6-Spike-Lauf belegen das — alle Panels samt
+Erklärung liegen unter
+[`docs/reports/grafana-panels-2026-08-03`](docs/reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md):
+
+![Request Rate mit Peak von 8.1K Requests pro Sekunde](docs/reports/grafana-panels-2026-08-03/images/api-performance/01-request-rate-rps.png)
+
+_Peak von **8.1K req/s** auf der API — Verfügbarkeit und Order-Status kommen
+ausschließlich aus Redis, PostgreSQL steht nie im Request-Pfad._
+
+![Publish- und Consumer-Rate liegen deckungsgleich übereinander](docs/reports/grafana-panels-2026-08-03/images/pub-sub-queue-worker-processing/03-publish-vs-consumer-rate.png)
+
+_Der Puffer in Aktion: Der Worker verarbeitet bis zu **4K Orders/s** aus
+Pub/Sub und hält mit der Publish-Rate exakt mit — bei **0 Redeliveries und
+0 Duplikaten**._
+
+![Error Rate: 0 Prozent 5xx über den gesamten Lauf](docs/reports/grafana-panels-2026-08-03/images/api-performance/04-error-rate-5xx-409-425.png)
+
+_**0 % Server-Fehler** über den gesamten Lauf. Die gelbe Linie markiert den
+Ausverkauf: ab da antwortet die API kontrolliert mit `409 Sold Out` statt zu
+versagen._
+
 Der verbindliche Ist-Datenfluss steht in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
