@@ -12,7 +12,7 @@
   - Bei ad-hoc Shell-Diagnosen bleiben und nur bei Bedarf manuell debuggen (langsamer, fehleranfaelliger).
   - Nur lokale Checks ohne CI-Guardrails (Drift wird spaet erkannt).
 - **Status:** Fertig
-- **TODO-Mapping:** `docs/TODO.md` Phase 1 (Debug-Skripte, Runbook) + Phase 3.5 (CI-Guardrails)
+- **TODO-Mapping:** `docs/TODO.md` Phase 1 (Debug-Skripte, Runbook) + Phase 3.1 (CI-Guardrails)
 
 ### Update 2026-04-21: Direkter Testpfad ohne Shared Runner
 

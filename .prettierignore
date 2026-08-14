@@ -10,3 +10,4 @@ pnpm-lock.yaml
 # deterministic renderer output (scripts/load-test/lib/render-markdown.mjs);
 # Prettier reformatting them would break the golden-file tests.
 scripts/load-test/test/golden
+.claude/worktrees

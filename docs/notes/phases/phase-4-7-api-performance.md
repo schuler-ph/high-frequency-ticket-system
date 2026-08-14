@@ -1,10 +1,11 @@
-# Phase 4.8: API-Performance-Dashboard — fehlende Order-Routen
+# Phase 4.7: API-Performance-Dashboard — fehlende Order-Routen
 
-Detailnotiz zum Nachtrag des API-Performance-Dashboards aus Phase 4.8.
+Detailnotiz zum Nachtrag des API-Performance-Dashboards aus Phase 4.7
+(bis zur TODO-Reorganisation 2026-08-14 als Phase 4.8 geführt).
 
-### Phase 4.8: Nachtrag zum API-Performance-Dashboard
+### Phase 4.7: Nachtrag zum API-Performance-Dashboard
 
-> > Nachtrag zum abgeschlossenen Phase-4.5-Todo „Grafana-Dashboard: API Performance" (`monitoring/grafana/provisioning/dashboards/api-performance.json`). Das Dashboard bricht bisher nur `/api/tickets/:eventId/buy` und `/api/tickets/:eventId/availability` einzeln auf; die Order-Routen `POST /api/orders/:orderId/pay` und `POST /api/orders/:orderId/cancel` fehlen als eigene Graphen, obwohl `http_request_duration_seconds` sie bereits per `route`-Label exponiert.
+> > Nachtrag zum abgeschlossenen Phase-4.1-Todo „Grafana-Dashboard: API Performance" (`monitoring/grafana/provisioning/dashboards/api-performance.json`). Das Dashboard bricht bisher nur `/api/tickets/:eventId/buy` und `/api/tickets/:eventId/availability` einzeln auf; die Order-Routen `POST /api/orders/:orderId/pay` und `POST /api/orders/:orderId/cancel` fehlen als eigene Graphen, obwohl `http_request_duration_seconds` sie bereits per `route`-Label exponiert.
 
 ## Umsetzungsstand (2026-07-26)
 

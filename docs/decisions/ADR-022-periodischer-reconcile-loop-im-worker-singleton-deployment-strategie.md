@@ -15,7 +15,7 @@
   5. Sauberes Stoppen ueber Fastify `onClose`-Hook (analog zum bestehenden Pub/Sub-Subscriber-Stop).
 - **Begruendung:**
   - `setInterval` wuerde Laeufe ueberlappen, wenn ein Reconcile-Lauf (DB-Read + Redis-Scan + Writes) laenger dauert als das Intervall.
-  - Intervall-Steuerung ueber K8s-Auslastung (CPU/Replicas) waere der falsche Steuerkanal: K8s-Autoscaling spiegelt nicht den fachlichen Redis/DB-Drift wider. Korrekte Signale waeren Drift-Metriken, Reservation-Churn und Queue-Backlog – diese stehen erst mit Phase 4.5 (Observability) zur Verfuegung.
+  - Intervall-Steuerung ueber K8s-Auslastung (CPU/Replicas) waere der falsche Steuerkanal: K8s-Autoscaling spiegelt nicht den fachlichen Redis/DB-Drift wider. Korrekte Signale waeren Drift-Metriken, Reservation-Churn und Queue-Backlog – diese stehen erst mit Phase 4.1 (Observability) zur Verfuegung.
   - Redis `SET NX EX` Leader-Election waere fuer einen Effizienz-Lock ausreichend (Kleppmann: _"Redis shines for approximate, non-critical locks"_), aber bei Singleton-Deployment unnoetige Komplexitaet.
   - Dedizierter `reconciler`-Service (dritter Service) waere die sauberste Separation of Concerns, erhoehte aber Deployment- und Betriebskomplexitaet ohne konkreten Mehrwert solange der Worker als Singleton laeuft.
 - **Eskalationspfad (Phase 5):** Wenn der Worker horizontal skaliert wird (`replicas > 1`), muss entweder Leader Election via Kubernetes Lease API (`coordination.k8s.io/v1`) eingefuehrt werden, oder der Reconciler wird als dedizierter Singleton-Service (`apps/reconciler`) ausgelagert. Beide Optionen sind gleichwertig; Entscheidung abhaengig von operativer Komplexitaet und Monitoring-Reife.

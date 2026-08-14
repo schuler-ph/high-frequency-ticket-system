@@ -69,6 +69,9 @@ einer Querschnittsmigration oder einer expliziten Doku-Prüfung nötig.
 - Nicht triviale Wahl mit Alternativen: neue ADR-Datei plus Indexeintrag.
 - Aktueller Plan oder längerer Todo-Kontext: thematische Phasen- oder
   Backlog-Notiz; im Todo bleibt eine kurze Zeile mit direktem Link.
+- Neue Phase in `docs/TODO.md`: direkt nach der aktuell aktiven Phase
+  einfügen und fortlaufend nummerieren, nie ans Dateiende — die Phasenfolge
+  ist der rote Faden.
 - Noch unentschiedener größerer Entwurf: thematische Notiz.
 - Messung oder Untersuchungsergebnis: Report.
 - Geänderte Dateien und ausgeführte Tests: Commit-Body oder Chat-Zusammenfassung.

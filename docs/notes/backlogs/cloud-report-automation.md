@@ -20,7 +20,7 @@ Offene Detailnotiz fuer eine cloud-faehige Lasttest- und Report-Automation.
 
 ### Verteilten k6-Runner orchestrieren
 
-> - [ ] **Verteilter k6-Runner orchestrieren:** `spawnK6` startet genau **einen lokalen** k6-Prozess und wertet dessen Exit-Code plus eine `--summary-export`-Datei aus. Fuer das 50k-RPS-Ziel (Stage-4-Todo #244) braucht es mehrere Generator-Knoten und ein Zusammenfuehren der Teil-Summaries, bevor `summarisePhase` sie auswerten kann. Haengt direkt an #244.
+> - [ ] **Verteilter k6-Runner orchestrieren:** `spawnK6` startet genau **einen lokalen** k6-Prozess und wertet dessen Exit-Code plus eine `--summary-export`-Datei aus. Fuer das 50k-RPS-Ziel braucht es mehrere Generator-Knoten und ein Zusammenfuehren der Teil-Summaries, bevor `summarisePhase` sie auswerten kann. Haengt direkt am offenen Phase-4.4-Todo „Generator vom SUT trennen“.
 
 ### Monitoring-Quelle fuer den Cloud-Lauf
 

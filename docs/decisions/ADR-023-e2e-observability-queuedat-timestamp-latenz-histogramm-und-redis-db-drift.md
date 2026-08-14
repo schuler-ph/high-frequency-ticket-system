@@ -1,7 +1,7 @@
 # ADR-023: E2E-Observability — queuedAt-Timestamp, Latenz-Histogramm und Redis-DB-Drift
 
 - **Datum:** 2026-05-31
-- **Kontext:** Nach Abschluss von Phase 3.5 ist der vollständige Async-Flow (API → Pub/Sub → Worker → PostgreSQL → Redis) messbar. Zwei Kernfragen: Wie messen wir End-to-End-Latenz ohne synchrone Kopplung von API und Worker? Und wie erkennen wir Redis-DB-Konsistenz-Drift ohne kontinuierliche DB-Scans?
+- **Kontext:** Nach Abschluss von Phase 3.1 ist der vollständige Async-Flow (API → Pub/Sub → Worker → PostgreSQL → Redis) messbar. Zwei Kernfragen: Wie messen wir End-to-End-Latenz ohne synchrone Kopplung von API und Worker? Und wie erkennen wir Redis-DB-Konsistenz-Drift ohne kontinuierliche DB-Scans?
 - **Entscheidung:**
   1. `queuedAt: Date.now()` wird beim Pub/Sub-Publish in das `BuyTicketEvent`-Payload eingebettet. Der Worker misst bei Abschluss die Differenz als `order_e2e_latency_seconds`-Histogram mit Labels `event_id` und `status` (`completed` | `failed`).
   2. Nach jedem Reconcile-Lauf schreibt der Worker einen `redis_db_drift_tickets`-Gauge pro Event: `redis_available − (total_capacity − sold_count − active_reservations)`.

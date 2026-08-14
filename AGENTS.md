@@ -59,9 +59,13 @@ Startkontext.
 
 - `docs/TODO.md` ist ein Arbeitsindex, kein Protokoll. Ein Todo bleibt eine
   kurze Zeile und verlinkt längere Details.
+- Die Phasen in `docs/TODO.md` sind der rote Faden und werden von oben nach
+  unten gelesen. Eine neue Phase wird direkt nach der aktuell aktiven Phase
+  eingefügt und fortlaufend nummeriert — nie ans Dateiende hinter noch offene
+  spätere Phasen gehängt.
 - Abgeschlossene Todos werden nicht umgeschrieben oder wieder geöffnet.
-  Folgearbeit kommt in einen neuen Eintrag am Ende. Längere Phasen- oder
-  Backlog-Details liegen thematisch unter `docs/notes/`.
+  Folgearbeit kommt in einen neuen Eintrag am Ende der passenden Phase.
+  Längere Phasen- oder Backlog-Details liegen thematisch unter `docs/notes/`.
 - Neue nicht-triviale Entscheidungen erhalten eine eigene Datei unter
   `docs/decisions/` und einen Eintrag in `docs/DECISIONS.md`.
 - Aktuelle Architektur beschreibt Ist-Zustand, Datenfluss, Zuständigkeiten und

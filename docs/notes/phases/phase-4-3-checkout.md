@@ -1,8 +1,8 @@
-# Phase 4.7: Checkout & Payment-Simulation (Web + API)
+# Phase 4.3: Checkout & Payment-Simulation (Web + API)
 
 Abgeschlossene Phasenspezifikation zum Reserve/Pay-Split und Checkout. Die verbindliche Entscheidung steht in ADR-028.
 
-### Phase 4.7: Ziel und Leitentscheidung
+### Phase 4.3: Ziel und Leitentscheidung
 
 > Ziel: Der Kauf laeuft nicht mehr als ein einziger `POST /buy`-Klick, sondern als realistischer Checkout — Reservierung beim "Kaufen", ein Payment-Modal mit simuliertem 3DS, und danach ein Live-Order-Status auf derselben Seite. Leitentscheidung (siehe neuen ADR-028): **`POST /buy` reserviert nur, die neue synchrone Pay-Route published** — das Ticket ist waehrend der Zahlung gehalten, der Worker sieht die Order erst nach bestaetigter Zahlung.
 

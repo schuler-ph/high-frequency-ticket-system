@@ -1,6 +1,6 @@
-# Phase 4.6: Standard-Flow-Optimierung (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`)
+# Phase 4.2: Standard-Flow-Optimierung (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`)
 
-Abgeschlossene Detailnotiz zur Standard-Flow-Optimierung aus Phase 4.6. Messergebnisse stehen in den verlinkten Reports.
+Abgeschlossene Detailnotiz zur Standard-Flow-Optimierung aus Phase 4.2. Messergebnisse stehen in den verlinkten Reports.
 
 ### #5 Reservation-Ledger statt Keyspace-SCAN
 

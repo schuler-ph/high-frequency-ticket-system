@@ -1,10 +1,10 @@
 # Stage 2 — DB-Hot-Row (naechster echter Limiter nach dem Sleep-Removal)
 
-Abgeschlossene Detailnotiz zur DB-Hot-Row-Arbeit nach Phase 4.7.
+Abgeschlossene Detailnotiz zur DB-Hot-Row-Arbeit nach Phase 4.3.
 
 ## #7 isoliert benchmarken
 
-> - [x] #7 isoliert benchmarken (vor Umsetzung): Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen. **Neu gefasst:** der frueher noetige Schritt "Payment-Mock deaktivieren" entfaellt — mit dem Worker-Sleep-Removal aus Phase 4.7 ist der 1-s-Mock weg, der `sold_count`-Hot-Row-UPDATE ist damit direkt als Limiter isolierbar (Baseline A traf nur den 500/s-Flow-Control-Deckel und bewies den Hot-Row-Limiter nicht separat). — Fokussierter Publish-Micro-Bench `scripts/local/bench-hot-row.mjs` (`pnpm bench:hot-row`, published `BuyTicketEvent`s direkt an Pub/Sub, misst Drain-Durchsatz + `pg_stat_activity`-Lock-Wait-Backends + Worker-`/metrics`). BEFORE mit `FLOW_CONTROL=2000`/`POOL_MAX=50`: **235 tickets/s, 49/50 Backends im Lock-Wait** auf der einen `events`-Row — Hot-Row als Limiter bewiesen (`docs/reports/hot-row-bench/README.md`).
+> - [x] #7 isoliert benchmarken (vor Umsetzung): Flow-Control >1.000 setzen und DB-Pool-Wait/Query-/Lock-Wait messen. **Neu gefasst:** der frueher noetige Schritt "Payment-Mock deaktivieren" entfaellt — mit dem Worker-Sleep-Removal aus Phase 4.3 ist der 1-s-Mock weg, der `sold_count`-Hot-Row-UPDATE ist damit direkt als Limiter isolierbar (Baseline A traf nur den 500/s-Flow-Control-Deckel und bewies den Hot-Row-Limiter nicht separat). — Fokussierter Publish-Micro-Bench `scripts/local/bench-hot-row.mjs` (`pnpm bench:hot-row`, published `BuyTicketEvent`s direkt an Pub/Sub, misst Drain-Durchsatz + `pg_stat_activity`-Lock-Wait-Backends + Worker-`/metrics`). BEFORE mit `FLOW_CONTROL=2000`/`POOL_MAX=50`: **235 tickets/s, 49/50 Backends im Lock-Wait** auf der einen `events`-Row — Hot-Row als Limiter bewiesen (`docs/reports/hot-row-bench/README.md`).
 
 ## #7 buy_ticket ohne sold_count-Hot-Row
 

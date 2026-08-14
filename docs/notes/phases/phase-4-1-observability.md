@@ -1,6 +1,6 @@
-# Phase 4.5: Monitoring & Observability
+# Phase 4.1: Monitoring & Observability
 
-Abgeschlossene Detailnotiz zur Observability-Arbeit aus Phase 4.5. Der aktuelle Systemstand steht in [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md).
+Abgeschlossene Detailnotiz zur Observability-Arbeit aus Phase 4.1. Der aktuelle Systemstand steht in [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 ### Dashboard-PromQL gegen fehlende Zero-Serien
 
