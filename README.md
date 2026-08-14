@@ -17,14 +17,14 @@ Verkaufspfad und der Datenbank:
 flowchart LR
     Browser["Browser"]
 
-    subgraph hot["Hot Path · synchron · Millisekunden"]
+    subgraph hot["Hot Path"]
         API["Fastify API"]
         Redis[("Redis<br/>Inventar & Order-Status")]
     end
 
     PubSub[["Pub/Sub<br/>puffert bezahlte Kauf-Events"]]
 
-    subgraph persist["Persistenz · asynchron · entkoppelt"]
+    subgraph persist["Persistenz"]
         Worker["Worker"]
         PG[("PostgreSQL<br/>dauerhafte Wahrheit")]
     end
