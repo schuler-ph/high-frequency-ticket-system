@@ -254,11 +254,11 @@ Folgearbeit aus Baseline B; P0 blockierte die Auswertung, P2 die Kapazitätsauss
 
 ### P2 — Kapazitaet
 
-- [ ] **Baseline C erst nach P0/P1 fahren.** Voraussetzung bleibt der Generator-SUT-Split (jetzt Phase 4.12): Baseline B verwarf 67,66 % der Iterationen bei `maxVUs: 10000`. → [Details](notes/backlogs/baseline-b-capacity.md#baseline-c-nach-p0-und-p1)
+- [x] **Baseline C erst nach P0/P1 fahren.** Superseded 2026-08-14: der Lauf erfolgte 2026-07-26 abends (benchmark-invalid, 21,85 % dropped); der gueltige Lauf lebt in Phase 4.12. → [Details](notes/backlogs/baseline-b-capacity.md#baseline-c-nach-p0-und-p1)
 
 ### Beobachtung fuer das Storage-Review (Phase 6)
 
-- [ ] **Datenbasis aus Baseline B in das Storage-Review einspeisen:** Redis 1.777.916 Keys / 505 MB fuer 867.575 Orders (~582 B/Order), PostgreSQL 246 MB, 43.066 Ledger-Phantoms. → [Details](notes/backlogs/baseline-b-storage-review.md#datenbasis-aus-baseline-b-fuer-das-storage-review)
+- [x] **Datenbasis aus Baseline B in das Storage-Review einspeisen:** nach Phase 6 verschoben — das Storage-Review-Todo verlinkt die Datenbasis jetzt direkt. → [Details](notes/backlogs/baseline-b-storage-review.md#datenbasis-aus-baseline-b-fuer-das-storage-review)
 
 ## Phase 4.6: Baseline-C-Nachlauf (entdeckt 2026-07-26 abends)
 
@@ -271,9 +271,9 @@ Aus dem Baseline-C-Lauf: die Messketten-Fixes des B-Nachlaufs haben gehalten, de
 
 ### P1 — Kapazitaet weitertreiben
 
-- [ ] **`DATABASE_POOL_MAX` erhöhen und neu messen:** Pool-Limit 20 war der Engpass; Messlauf mit 50 fehlt. → [Details](notes/backlogs/baseline-c-capacity.md#database_pool_max-erhoehen-und-neu-messen)
+- [x] **`DATABASE_POOL_MAX` erhöhen und neu messen:** Config erledigt (`start:loadtest` setzt Pool 50); der 2026-08-03-Lauf war generator-verzerrt, die gueltige Messung ist Teil des 4.12-Laufs. → [Details](notes/backlogs/baseline-c-capacity.md#database_pool_max-erhoehen-und-neu-messen)
 - [x] **k6-`maxVUs` und Zielrate in Einklang bringen:** 5.000 VUs bei 10.000 Iterationen/s garantierten Verwerfungen rechnerisch; `maxVUs` auf 10.000 (deckt ~1 s Iterationsdauer). → [Details](notes/backlogs/baseline-c-capacity.md#k6-maxvus-und-zielrate-in-einklang-bringen)
-- [ ] **Transportfehler untersuchen:** 109.386 Requests (2,7 %) ohne App-Antwort bei 0 % 5xx — riecht nach Host-Netzwerkgrenzen, nicht nach Applikationsfehlern. Haengt am Generator-SUT-Split (Phase 4.12). → [Details](notes/backlogs/baseline-c-capacity.md#transportfehler-untersuchen)
+- [x] **Transportfehler untersuchen:** Hypothese Host-Netzwerkgrenzen; wird durch den 4.12-Lauf mit getrenntem Generator entschieden — bleiben sie, folgt ein neues Todo. → [Pruefpunkt](notes/backlogs/local-generator-split.md#baseline-c-mit-getrenntem-generator-fahren)
 
 ### P2 — Dashboard-Audit (alle 8 Dashboards, 2026-07-26)
 
@@ -321,7 +321,7 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 - [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten. → [Details](notes/phases/phase-4-9-inventory-integrity.md#umsetzungsstand-2026-07-30)
 - [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
 - [x] **DB-Dashboard:** `db-runtime` zeigt Projector-Query-Dauer, Write-back-Dauer, Health (Fehler, letzter Erfolg) und „Pool Wait during Projector Activity".
-- [ ] **Abschluss-Lasttest:** Invariante nach Drain null; keine Korrektur- oder Double-Release-Races; dabei den Projector-Einfluss auf Pool-Wait in `db-runtime` messen.
+- [x] **Abschluss-Lasttest:** erbracht durch den Lauf 2026-08-03 — alle 5 Invarianten, Capacity-Delta 0 nach Drain, keine Projector-Interferenz auf Pool-Wait (ADR-031 beantwortet). → [Beleg](reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md)
 
 ## Phase 4.10: Checkout-Expiry-Funnel (entdeckt 2026-08-14)
 
@@ -358,7 +358,7 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 
-- [ ] Fuehre danach ein Storage-Review fuer den Order-Flow durch: Redis-/DB-Footprint pro Order messen, TTL-/Key-Strategie bewerten und konkrete Optimierungen fuer Speicherbedarf und Key-Anzahl priorisieren.
+- [ ] Fuehre danach ein Storage-Review fuer den Order-Flow durch: Redis-/DB-Footprint pro Order messen, TTL-/Key-Strategie bewerten, Optimierungen priorisieren. → [Datenbasis aus Baseline B](notes/backlogs/baseline-b-storage-review.md#datenbasis-aus-baseline-b-fuer-das-storage-review)
 - [ ] Implementiere Dead Letter Queue (DLQ) in Pub/Sub und einen Retry/Replay-Mechanismus im Worker.
 - [ ] Implementiere Idempotency Keys für die Ticket-Kauf-Route (API & DB) um doppelte Käufe zu verhindern.
 - [ ] Füge Rate Limiting in Fastify (via Redis) als Bot-Protection hinzu.
