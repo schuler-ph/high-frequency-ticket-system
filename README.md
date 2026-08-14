@@ -10,18 +10,40 @@ pnpm-Turborepo.
 ## Was das Projekt zeigt
 
 Der Checkout trennt Reservierung, simulierte Zahlung und dauerhafte
-Finalisierung:
+Finalisierung. Pub/Sub sitzt dabei als Puffer zwischen dem synchronen
+Verkaufspfad und der Datenbank:
 
-```text
-Browser → Fastify API → Redis-Reservierung
-                    → /pay → Pub/Sub → Worker → PostgreSQL
-Browser ← Order-Status aus Redis
+```mermaid
+flowchart LR
+    Browser["Browser"]
+
+    subgraph hot["Hot Path · synchron · Millisekunden"]
+        API["Fastify API"]
+        Redis[("Redis<br/>Inventar & Order-Status")]
+    end
+
+    PubSub[["Pub/Sub<br/>puffert bezahlte Kauf-Events"]]
+
+    subgraph persist["Persistenz · asynchron · entkoppelt"]
+        Worker["Worker"]
+        PG[("PostgreSQL<br/>dauerhafte Wahrheit")]
+    end
+
+    Browser -->|"buy · pay · Status-Polling"| API
+    API <-->|"atomare Lua-Skripte"| Redis
+    API -.->|"publish nach Zahlung"| PubSub
+    PubSub -.->|"at-least-once"| Worker
+    Worker -->|"buy_ticket()"| PG
+    Worker -.->|"completed / failed"| Redis
 ```
 
-Redis schützt den Verkaufs-Hot-Path vor synchronen Datenbankzugriffen. Die API
-schreibt Kaufdaten nie direkt nach PostgreSQL; der Worker persistiert
-asynchron. Das System enthält außerdem reproduzierbare k6-Läufe,
-Prometheus/Grafana-Dashboards und eine automatisierte Report-Pipeline.
+Der Browser bekommt seine Antworten vollständig aus Redis; PostgreSQL steht
+nie im Request-Pfad. Bezahlte Kauf-Events landen stattdessen im
+Pub/Sub-Puffer, der Worker persistiert sie asynchron in seinem eigenen Tempo
+und schreibt den finalen Status zurück nach Redis. Ein Lastspike trifft damit
+nur Redis und die Queue, nicht die Datenbank. Das System enthält außerdem
+reproduzierbare k6-Läufe, Prometheus/Grafana-Dashboards und eine
+automatisierte Report-Pipeline.
 
 Der verbindliche Ist-Datenfluss steht in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
