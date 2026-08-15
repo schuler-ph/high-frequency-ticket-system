@@ -125,6 +125,8 @@ aktuell aktiven Phase eingefügt, nie am Dateiende (siehe `AGENTS.md`).
 
 ## Phase 4: Interface & Testing
 
+Details: [phase-4-load-tests](notes/phases/phase-4-load-tests.md)
+
 ### Frontend (`apps/web`)
 
 - [x] Erstelle Grund-Layout der Next.js Landingpage (Frequency Festival Theme, Hero-Section).
@@ -141,10 +143,12 @@ aktuell aktiven Phase eingefügt, nie am Dateiende (siehe `AGENTS.md`).
 - [x] Fuehre den lokalen Baseline-A-Lasttest aus und dokumentiere Bottlenecks. → [Report](reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md)
 - [x] Erzeuge Screenshots der Dashboards unter extremer Last fuer die README.
 - [x] Sale-Unlock-Gate atomar in Redis umsetzen und im Seed konfigurierbar machen. → [ADR-024](decisions/ADR-024-sale-unlock-gate-425-too-early.md)
-- [x] **Reaktive Sold-Out-Erkennung im Lasttest:** `spike-phase-a/b.js`, orchestriert von `run-spike.mjs` statt fixer Phasen-Timer — Baseline A endete sonst mitten im Peak. → ADR-025, [Details](notes/phases/phase-4-load-tests.md#reaktive-sold-out-erkennung-im-lasttest)
+- [x] **Reaktive Sold-Out-Erkennung im Lasttest:** `spike-phase-a/b.js`, orchestriert von `run-spike.mjs` statt fixer Phasen-Timer — Baseline A endete sonst mitten im Peak. → ADR-025
 - [x] Dokumentiere und implementiere die automatisierbare Evidence-/Report-Pipeline inkl. Validitaetsregeln und Artefaktvertrag (`scripts/load-test/README.md`).
 
 ## Phase 4.1: Monitoring & Observability
+
+Details: [phase-4-1-observability](notes/phases/phase-4-1-observability.md)
 
 - [x] Integriere `prom-client` in `apps/api` und Worker für Custom-Metriken (Counter, Histogram).
 - [x] Exponiere `/metrics` Endpunkt für Prometheus-Scraping (API & Worker).
@@ -159,13 +163,15 @@ aktuell aktiven Phase eingefügt, nie am Dateiende (siehe `AGENTS.md`).
 - [x] Erstelle Grafana-Dashboard: Worker Reliability (Redeliveries, Idempotenz-Hits, Processing-Lock-Konflikte, Kompensationen).
 - [x] Erstelle Grafana-Dashboard: Reservation & Consistency (aktive Reservations, Publish-Rollbacks, Redis-DB-Drift).
 - [x] Konfiguriere k6 Output zur Speicherung in Prometheus/Grafana für Live-Views (`pnpm spike` nutzt `experimental-prometheus-rw`).
-- [x] **Dashboard-PromQL gegen fehlende Zero-Serien haerten:** jeder potenziell fehlende Operand mit `or vector(0)` umschlossen, damit gesundes Null nicht als `No data` verschwindet. → [Details](notes/phases/phase-4-1-observability.md#dashboard-promql-gegen-fehlende-zero-serien)
-- [x] **E2E-Latenz und Throughput-Panel korrigieren:** Buckets bis 600 s, ehrliche Ratio-Bezeichnung und `last` statt Legendensumme. → ADR-023, [Details](notes/phases/phase-4-1-observability.md#e2e-latenz-buckets-und-throughput-panel)
-- [x] **`redis_exporter` + DB-/Runtime-Bottleneck-Metriken:** Pool-Wait, Query-Latency und Lock-Wait aus dem Worker, sichtbar im Dashboard „DB & Runtime“. → ADR-026, [Details](notes/phases/phase-4-1-observability.md#redis_exporter-und-db-runtime-bottleneck-metriken)
+- [x] **Dashboard-PromQL gegen fehlende Zero-Serien haerten:** jeder potenziell fehlende Operand mit `or vector(0)` umschlossen, damit gesundes Null nicht als `No data` verschwindet.
+- [x] **E2E-Latenz und Throughput-Panel korrigieren:** Buckets bis 600 s, ehrliche Ratio-Bezeichnung und `last` statt Legendensumme. → ADR-023
+- [x] **`redis_exporter` + DB-/Runtime-Bottleneck-Metriken:** Pool-Wait, Query-Latency und Lock-Wait aus dem Worker, sichtbar im Dashboard „DB & Runtime“. → ADR-026
 
 ## Phase 4.2: Standard-Flow-Optimierung (vgl. `docs/reports/ANALYSIS-STANDARD-FLOW.md`)
 
 Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3/4) — umgesetzt:
+
+Details: [phase-4-2-standard-flow](notes/phases/phase-4-2-standard-flow.md)
 
 - [x] #10: Redis-Typ-Schatten/Casts durch zentrales `@repo/types/redis-client` ersetzen; Zod-Parse selbst konstruierter Literale durch `satisfies` (Zod bleibt an allen externen Grenzen).
 - [x] #1: Reserve+Reservation+Pending-Order als **ein** atomares Lua-Script via ioredis `defineCommand`/EVALSHA; Publish-Rollback als idempotentes Gegen-Script (3→1 RTT, ADR-005-Update).
@@ -178,7 +184,7 @@ Risikoarme Massnahmen (Analyse §9, Nr. 1/2/6/8/10) und der Handler-Block (Nr. 3
 Offene Folge-Massnahmen (Analyse §9, vor dem naechsten grossen Lasttest):
 
 - [x] Lokalen Lasttest als Baseline ausfuehren und Vorher-Zahlen fuer #5/#7 dokumentieren (`docs/reports/baseline-a-2026-07-14/LOAD-TEST-REPORT-2026-07-14.md`).
-- [x] **#5 Reservation-Ledger (ZSet) statt Keyspace-SCAN:** Reconcile zaehlt via `ZCARD` (O(1)), Ablauf ist nur Stale-Kandidat statt Rueckbuchung — behebt das Baseline-A-Oversell-Risiko. → ADR-027, [Details](notes/phases/phase-4-2-standard-flow.md#5-reservation-ledger-statt-keyspace-scan)
+- [x] **#5 Reservation-Ledger (ZSet) statt Keyspace-SCAN:** Reconcile zaehlt via `ZCARD` (O(1)), Ablauf ist nur Stale-Kandidat statt Rueckbuchung — behebt das Baseline-A-Oversell-Risiko. → ADR-027
 
 ## Phase 4.3: Checkout & Payment-Simulation (Web + API)
 
@@ -188,108 +194,114 @@ Ziel: Reservierung, simuliertes 3DS und Live-Status. `/buy` reserviert; erst `/p
 
 ### Backend: Reserve/Pay-Split (`apps/api` + `packages/types`)
 
-- [x] **Buy entkoppeln:** `POST /api/tickets/:eventId/buy` reserviert nur noch (Lua: `DECR available` + Ledger-`ZADD` + `pending`-Order) und liefert `orderId` + `202`, **ohne** Publish. → [Details](notes/phases/phase-4-3-checkout.md#buy-entkoppeln)
-- [x] **Payment-DTO in `packages/types`:** Zod-Schema fuer den simulierten Payment-Request/Response, klar als Fake gekennzeichnet, keine Persistenz der Zahlungsdaten. → [Details](notes/phases/phase-4-3-checkout.md#payment-dto-in-packagestypes)
-- [x] **Worker-Sleep entfernen:** 1-s-Payment-Mock samt `sleep`-Dependency aus `handle-buy-ticket-message.ts` geloescht; der Worker ist jetzt reiner Persist-Consumer. → [Details](notes/phases/phase-4-3-checkout.md#worker-sleep-entfernen)
-- [x] **Synchrone Pay-Route:** `POST /api/orders/:orderId/pay` validiert das DTO und published `BuyTicketEvent`, antwortet synchron mit `200` — kein Server-Sleep, keine DB-Writes. → [Details](notes/phases/phase-4-3-checkout.md#synchrone-pay-route)
+- [x] **Buy entkoppeln:** `POST /api/tickets/:eventId/buy` reserviert nur noch (Lua: `DECR available` + Ledger-`ZADD` + `pending`-Order) und liefert `orderId` + `202`, **ohne** Publish.
+- [x] **Payment-DTO in `packages/types`:** Zod-Schema fuer den simulierten Payment-Request/Response, klar als Fake gekennzeichnet, keine Persistenz der Zahlungsdaten.
+- [x] **Worker-Sleep entfernen:** 1-s-Payment-Mock samt `sleep`-Dependency aus `handle-buy-ticket-message.ts` geloescht; der Worker ist jetzt reiner Persist-Consumer.
+- [x] **Synchrone Pay-Route:** `POST /api/orders/:orderId/pay` validiert das DTO und published `BuyTicketEvent`, antwortet synchron mit `200` — kein Server-Sleep, keine DB-Writes.
 - [x] **Publish-Rollback im Pay-Pfad:** Bei Publish-Fehler den Reservierungsanspruch atomar und idempotent freigeben. → [ADR-028](decisions/ADR-028-reserve-pay-publish-split-payment-latenz-lebt-im-frontend.md)
-- [x] **Checkout-Abbruch/Timeout behandeln:** `POST /api/orders/:orderId/cancel` gibt die Ledger-Reservierung idempotent frei, sonst bliebe sie als Phantom-Anspruch stehen. → [Details](notes/phases/phase-4-3-checkout.md#checkout-abbruch-und-timeout-behandeln)
-- [x] **Observability nachziehen:** E2E misst Publish→Persist; Checkout-Funnel und Abandon-Rate ergänzt. → [Details](notes/phases/phase-4-3-checkout.md#metriken-und-observability-nachziehen)
-- [x] **Tests:** Pay-Route (Happy/`404`/`409`/Rollback), Cancel-Route, Worker ohne Sleep und die E2E-Flows auf reserve→pay→Worker→Status umgestellt. → [Details](notes/phases/phase-4-3-checkout.md#tests-zum-reservepay-split)
-- [x] **ADR-028 + Doku-Lockstep:** ADR-028 angelegt, ADR-013/ADR-023 annotiert, `ARCHITECTURE.md` (Happy Path, Flow, Key-Lifecycle) und `REQUIREMENTS.md` (API-Surface) nachgezogen. → [Details](notes/phases/phase-4-3-checkout.md#adr-028-und-doku-lockstep)
+- [x] **Checkout-Abbruch/Timeout behandeln:** `POST /api/orders/:orderId/cancel` gibt die Ledger-Reservierung idempotent frei, sonst bliebe sie als Phantom-Anspruch stehen.
+- [x] **Observability nachziehen:** E2E misst Publish→Persist; Checkout-Funnel und Abandon-Rate ergänzt.
+- [x] **Tests:** Pay-Route (Happy/`404`/`409`/Rollback), Cancel-Route, Worker ohne Sleep und die E2E-Flows auf reserve→pay→Worker→Status umgestellt.
+- [x] **ADR-028 + Doku-Lockstep:** ADR-028 angelegt, ADR-013/ADR-023 annotiert, `ARCHITECTURE.md` (Happy Path, Flow, Key-Lifecycle) und `REQUIREMENTS.md` (API-Surface) nachgezogen.
 
 ### Frontend: Checkout-Flow (`apps/web`)
 
-- [x] **Auto-Fill Namen:** `apps/web/lib/names.ts` befuellt Vor-/Nachname beim Betreten der `open`-Phase mit Zufallsnamen, weiterhin editierbar. → [Details](notes/phases/phase-4-3-checkout.md#auto-fill-namen)
-- [x] **Payment-Modal:** Nach dem Reserve oeffnet `components/PaymentModal.tsx` (Tailwind-only) mit vorbefuellten Fake-Zahlungsdaten. → [Details](notes/phases/phase-4-3-checkout.md#payment-modal)
-- [x] **Fake-3DS-Challenge:** Modal-Statemachine `form → challenge → processing`; erst „Bestätigen“ ruft `POST /pay`, Fehler landen als Banner im Kartenformular. → [Details](notes/phases/phase-4-3-checkout.md#fake-3ds-challenge)
-- [x] **Modal-Abbruch:** Schliessen des Modals (X/Abbrechen/Backdrop/Escape) gibt die Reservierung idempotent frei; `onPaid` loest **keinen** Cancel aus. → [Details](notes/phases/phase-4-3-checkout.md#modal-abbruch)
-- [x] **Neue `tracking`-Phase:** `Phase`-Modell um `tracking` erweitert; nach bestaetigter Zahlung zeigt die neue `TrackingView` den Order-Status inline. → [Details](notes/phases/phase-4-3-checkout.md#neue-tracking-phase)
-- [x] **Live-Order-Status:** `hooks/useOrderStatus.ts` pollt (2 s + Jitter) bis zum Final-Status; `TrackingView` rendert `pending`/`completed`/`failed` live. → [Details](notes/phases/phase-4-3-checkout.md#live-order-status)
+- [x] **Auto-Fill Namen:** `apps/web/lib/names.ts` befuellt Vor-/Nachname beim Betreten der `open`-Phase mit Zufallsnamen, weiterhin editierbar.
+- [x] **Payment-Modal:** Nach dem Reserve oeffnet `components/PaymentModal.tsx` (Tailwind-only) mit vorbefuellten Fake-Zahlungsdaten.
+- [x] **Fake-3DS-Challenge:** Modal-Statemachine `form → challenge → processing`; erst „Bestätigen“ ruft `POST /pay`, Fehler landen als Banner im Kartenformular.
+- [x] **Modal-Abbruch:** Schliessen des Modals (X/Abbrechen/Backdrop/Escape) gibt die Reservierung idempotent frei; `onPaid` loest **keinen** Cancel aus.
+- [x] **Neue `tracking`-Phase:** `Phase`-Modell um `tracking` erweitert; nach bestaetigter Zahlung zeigt die neue `TrackingView` den Order-Status inline.
+- [x] **Live-Order-Status:** `hooks/useOrderStatus.ts` pollt (2 s + Jitter) bis zum Final-Status; `TrackingView` rendert `pending`/`completed`/`failed` live.
 
 ## Phase 4.4: Weg zur Baseline B (Folgearbeit aus Phase 4–4.2)
 
 Nach dem Reserve/Pay-Split gebündelte Folgearbeit aus den Phasen 4–4.2: erst den `sold_count`-Hot-Row als nächsten Limiter entfernen, dann günstige Cleanups, dann der Kapazitätsnachweis (Baseline B).
 
+Details: [stage-2-db-hot-row](notes/backlogs/stage-2-db-hot-row.md) · [stage-3-pre-baseline-cleanups](notes/backlogs/stage-3-pre-baseline-cleanups.md) · [stage-4-capacity-evidence](notes/backlogs/stage-4-capacity-evidence.md) · [local-generator-split](notes/backlogs/local-generator-split.md)
+
 ### DB-Hot-Row (nächster echter Limiter nach dem Sleep-Removal)
 
-- [x] **#7 isoliert benchmarken:** Micro-Bench `pnpm bench:hot-row` weist den `sold_count`-Hot-Row als Limiter nach — 235 tickets/s bei 49/50 Backends im Lock-Wait. → [Details](notes/backlogs/stage-2-db-hot-row.md#7-isoliert-benchmarken)
-- [x] **#7 `buy_ticket` ohne `sold_count`-Hot-Row:** Verkaufsstand via `COUNT(tickets)` im Reconcile aggregiert (Migration 0009) — 26.385 tickets/s bei 0 Lock-Wait (~112×). → ADR-011-Update, [Details](notes/backlogs/stage-2-db-hot-row.md#7-buy_ticket-ohne-sold_count-hot-row)
+- [x] **#7 isoliert benchmarken:** Micro-Bench `pnpm bench:hot-row` weist den `sold_count`-Hot-Row als Limiter nach — 235 tickets/s bei 49/50 Backends im Lock-Wait.
+- [x] **#7 `buy_ticket` ohne `sold_count`-Hot-Row:** Verkaufsstand via `COUNT(tickets)` im Reconcile aggregiert (Migration 0009) — 26.385 tickets/s bei 0 Lock-Wait (~112×). → ADR-011
 
 ### Pre-Baseline-Cleanups (günstig, vor dem Kapazitätslauf gebündelt)
 
-- [x] **#9 Pub/Sub-Provisioning nach `scripts/local`:** Runtime-Clients von Provisioning und `*Like`-Schattentypen befreit. → [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#9-pubsub-provisioning-nach-scriptslocal)
-- [x] **Sale-Unlock-Gate gegen echtes Redis testen:** alle Gate-Fälle plus Sold-Out abgedeckt. → ADR-024, [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#sale-unlock-gate-gegen-echtes-redis-testen)
-- [x] **`409`/`425` und die neuen Pay/Cancel-Fehler im Response-Schema deklarieren:** wiederverwendbare Fabrik `httpErrorResponseSchema` statt Copy-Paste. → [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#fehler-response-schemas-fuer-buy-pay-und-cancel)
-- [x] **k6-Checkout-Funnel:** `runCheckout()` fährt buy → pay → optionalen Status-Poll. → [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#k6-checkout-funnel-blocker-fuer-baseline-b)
-- [x] **Abandonment + Think-Time im Funnel modellieren:** ~88 % pay / ~8 % cancel / ~4 % Abbruch, Denkzeit als k6-`sleep()` in zwei Profilen (capacity/realism). → [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#abandonment-und-think-time-im-funnel)
-- [x] **Sold-Out-Erkennung korrigieren:** Plateau von `orders_completed_total` statt `available`. → ADR-025, [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#sold-out-erkennung-im-orchestrator-korrigieren)
-- [x] **k6-Metriken klassifizieren:** Funnel, Endpoint/Status und Transportfehler. → [Details](notes/backlogs/stage-3-pre-baseline-cleanups.md#k6-metriken-nach-endpoint-status-und-fehlerklasse)
+- [x] **#9 Pub/Sub-Provisioning nach `scripts/local`:** Runtime-Clients von Provisioning und `*Like`-Schattentypen befreit.
+- [x] **Sale-Unlock-Gate gegen echtes Redis testen:** alle Gate-Fälle plus Sold-Out abgedeckt. → ADR-024
+- [x] **`409`/`425` und die neuen Pay/Cancel-Fehler im Response-Schema deklarieren:** wiederverwendbare Fabrik `httpErrorResponseSchema` statt Copy-Paste.
+- [x] **k6-Checkout-Funnel:** `runCheckout()` fährt buy → pay → optionalen Status-Poll.
+- [x] **Abandonment + Think-Time im Funnel modellieren:** ~88 % pay / ~8 % cancel / ~4 % Abbruch, Denkzeit als k6-`sleep()` in zwei Profilen (capacity/realism).
+- [x] **Sold-Out-Erkennung korrigieren:** Plateau von `orders_completed_total` statt `available`. → ADR-025
+- [x] **k6-Metriken klassifizieren:** Funnel, Endpoint/Status und Transportfehler.
 
 ### Kapazitätsnachweis (System jetzt sleeplos + Hot-Row-optimiert)
 
-- [x] **Dedizierter LoadTest-Run gegen gebauten Stand:** `start:loadtest` in API und Worker (gebaut, ohne `-P`/pino-pretty, ohne `tsc-watch`) statt `pnpm dev`. → [Details](notes/backlogs/stage-4-capacity-evidence.md#dedizierter-loadtest-run-gegen-gebauten-stand)
-- [x] **Request-Logging abschaltbar machen:** `DISABLE_REQUEST_LOGGING` für API und Worker. → [Details](notes/backlogs/stage-4-capacity-evidence.md#request-logging-fuer-den-lasttest-abschaltbar-machen)
-- [x] **Worker-Resubscribe nach Seed/Reset:** Subscription wird idempotent wiederhergestellt. → [Details](notes/backlogs/stage-4-capacity-evidence.md#worker-resubscribe-nach-seedreset)
-- [x] **MVP der Report-Automation umgesetzt:** `scripts/load-test/` (pur/side-effecting getrennt), Kommandos `spike:report`/`:analyze`/`:compare`, 47 Tests + Goldens. → [Details](notes/backlogs/stage-4-capacity-evidence.md#mvp-der-report-automation)
-- [x] ~~Generator vom SUT trennen fuer 50k RPS (~20k VUs, 0 dropped).~~ **Verworfen 2026-08-14:** per REQ-P02 ein Cloud-Ziel (→ Phase 4.11 + 5); lebt lokal in Phase 4.12 weiter. → [Begruendung](notes/backlogs/local-generator-split.md#warum-das-50k-todo-verworfen-wurde)
-- [x] **Baseline B ausgefuehrt (2026-07-26):** `benchmark=invalid` (67,66 % dropped, Generator-Saturation), fachlich korrekt: 867.575 Orders, 0 Verlust, E2E 406 s → 7,52 s. → [Details](notes/backlogs/stage-4-capacity-evidence.md#baseline-b-lauf)
-- [x] **Sold-Out-Fehlalarm durch alten Completion-Counter:** Plateau zählt relativ zur Poll-Baseline. → [Details](notes/backlogs/stage-4-capacity-evidence.md#sold-out-fehlalarm-durch-stale-completion-counter)
+- [x] **Dedizierter LoadTest-Run gegen gebauten Stand:** `start:loadtest` in API und Worker (gebaut, ohne `-P`/pino-pretty, ohne `tsc-watch`) statt `pnpm dev`.
+- [x] **Request-Logging abschaltbar machen:** `DISABLE_REQUEST_LOGGING` für API und Worker.
+- [x] **Worker-Resubscribe nach Seed/Reset:** Subscription wird idempotent wiederhergestellt.
+- [x] **MVP der Report-Automation umgesetzt:** `scripts/load-test/` (pur/side-effecting getrennt), Kommandos `spike:report`/`:analyze`/`:compare`, 47 Tests + Goldens.
+- [x] ~~Generator vom SUT trennen fuer 50k RPS (~20k VUs, 0 dropped).~~ **Verworfen 2026-08-14:** per REQ-P02 ein Cloud-Ziel (→ Phase 4.11 + 5); lebt lokal in Phase 4.12 weiter.
+- [x] **Baseline B ausgefuehrt (2026-07-26):** `benchmark=invalid` (67,66 % dropped, Generator-Saturation), fachlich korrekt: 867.575 Orders, 0 Verlust, E2E 406 s → 7,52 s.
+- [x] **Sold-Out-Fehlalarm durch alten Completion-Counter:** Plateau zählt relativ zur Poll-Baseline.
 
 ## Phase 4.5: Baseline-B-Nachlauf (entdeckt 2026-07-26)
 
 Folgearbeit aus Baseline B; P0 blockierte die Auswertung, P2 die Kapazitätsaussage. → [Details](notes/backlogs/baseline-b-overview.md#backlog-baseline-b-nachlauf-vorspann)
 
+Details: [baseline-b-measurement-chain](notes/backlogs/baseline-b-measurement-chain.md) · [baseline-b-environment](notes/backlogs/baseline-b-environment.md) · [baseline-b-capacity](notes/backlogs/baseline-b-capacity.md) · [baseline-b-storage-review](notes/backlogs/baseline-b-storage-review.md)
+
 ### P0 — Messkette reparieren (sonst ist auch Baseline C nicht auswertbar)
 
-- [x] **Drain-Formel auf Publish umstellen:** `payments_confirmed_total` statt Reserve-Counter. → [Details](notes/backlogs/baseline-b-measurement-chain.md#drain-formel-auf-den-publish-zeitpunkt-umstellen)
-- [x] **`dbTickets == completed` redelivery-tolerant machen:** Erst-Finalisierung und Duplikate getrennt zählen. → [Details](notes/backlogs/baseline-b-measurement-chain.md#invariante-dbtickets-gleich-completed)
-- [x] **Fehlende Counter-Baseline behandeln:** `resolveCounter` im Analyzer statt DB-Read in der API. → [Details](notes/backlogs/baseline-b-measurement-chain.md#labeled-counter-ohne-baseline-im-snapshot)
+- [x] **Drain-Formel auf Publish umstellen:** `payments_confirmed_total` statt Reserve-Counter.
+- [x] **`dbTickets == completed` redelivery-tolerant machen:** Erst-Finalisierung und Duplikate getrennt zählen.
+- [x] **Fehlende Counter-Baseline behandeln:** `resolveCounter` im Analyzer statt DB-Read in der API.
 
 ### P1 — Messumgebung
 
-- [x] **Prometheus stirbt am k6-Remote-Write (Report §4.1):** Remote-Write ist jetzt opt-in (`K6_PROMETHEUS_RW`) und im Default aus — der Report liest ohnehin keine k6-Serien. → [Details](notes/backlogs/baseline-b-environment.md#prometheus-stirbt-am-k6-remote-write)
-- [x] **Config-Snapshot aus den Services statt aus dem Orchestrator (Report §2):** neuer Gauge `service_config_info`; der Report weist Harness- und effektive Service-Config getrennt aus. → [Details](notes/backlogs/baseline-b-environment.md#config-snapshot-aus-den-services-ziehen)
-- [x] **Plateau-Detektor gegen Host-Contention haerten (Report §4.5):** das Plateau wird gegen den Rest-Bestand klassifiziert — `available == 0` → `sold-out`, sonst `stalled`. → ADR-025-Nachtrag, [Details](notes/backlogs/baseline-b-environment.md#plateau-detektor-gegen-host-contention-haerten)
+- [x] **Prometheus stirbt am k6-Remote-Write (Report §4.1):** Remote-Write ist jetzt opt-in (`K6_PROMETHEUS_RW`) und im Default aus — der Report liest ohnehin keine k6-Serien.
+- [x] **Config-Snapshot aus den Services statt aus dem Orchestrator (Report §2):** neuer Gauge `service_config_info`; der Report weist Harness- und effektive Service-Config getrennt aus.
+- [x] **Plateau-Detektor gegen Host-Contention haerten (Report §4.5):** das Plateau wird gegen den Rest-Bestand klassifiziert — `available == 0` → `sold-out`, sonst `stalled`. → ADR-025
 
 ### P2 — Kapazitaet
 
-- [x] **Baseline C erst nach P0/P1 fahren.** Superseded 2026-08-14: der Lauf erfolgte 2026-07-26 abends (benchmark-invalid, 21,85 % dropped); der gueltige Lauf lebt in Phase 4.12. → [Details](notes/backlogs/baseline-b-capacity.md#baseline-c-nach-p0-und-p1)
+- [x] **Baseline C erst nach P0/P1 fahren.** Superseded 2026-08-14: der Lauf erfolgte 2026-07-26 abends (benchmark-invalid, 21,85 % dropped); der gueltige Lauf lebt in Phase 4.12.
 
 ### Beobachtung fuer das Storage-Review (Phase 6)
 
-- [x] **Datenbasis aus Baseline B in das Storage-Review einspeisen:** nach Phase 6 verschoben — das Storage-Review-Todo verlinkt die Datenbasis jetzt direkt. → [Details](notes/backlogs/baseline-b-storage-review.md#datenbasis-aus-baseline-b-fuer-das-storage-review)
+- [x] **Datenbasis aus Baseline B in das Storage-Review einspeisen:** nach Phase 6 verschoben — das Storage-Review-Todo verlinkt die Datenbasis jetzt direkt.
 
 ## Phase 4.6: Baseline-C-Nachlauf (entdeckt 2026-07-26 abends)
 
 Aus dem Baseline-C-Lauf: die Messketten-Fixes des B-Nachlaufs haben gehalten, der Lauf legte echte System- und Dashboard-Defekte frei. → [Report](reports/baseline-c-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md), [Vorspann](notes/backlogs/baseline-c-overview.md#backlog-baseline-c-nachlauf-vorspann)
 
+Details: [baseline-c-correctness](notes/backlogs/baseline-c-correctness.md) · [baseline-c-capacity](notes/backlogs/baseline-c-capacity.md) · [local-generator-split](notes/backlogs/local-generator-split.md) · [baseline-c-dashboard-audit](notes/backlogs/baseline-c-dashboard-audit.md)
+
 ### P0 — Korrektheit
 
-- [x] **Reconcile-Leseordnung umdrehen (Report §5):** DB-vor-Ledger-Read erfand Inventar (389 Ansprueche > Kapazitaet); jetzt Ledger vor DB, damit die Korrektur konservativ nach unten irrt. → ADR-022-Nachtrag, [Details](notes/backlogs/baseline-c-correctness.md#reconcile-leseordnung-umdrehen)
-- [x] **Drift-Gauge entklammern (Report §5):** `Math.max(…, 0)` machte `redis_db_drift_tickets` genau bei Ueberzeichnung blind; Klammer nur noch am Redis-Write, Metrik aus dem ungeklammerten Erwartungswert. → [Details](notes/backlogs/baseline-c-correctness.md#drift-gauge-entklammern)
+- [x] **Reconcile-Leseordnung umdrehen (Report §5):** DB-vor-Ledger-Read erfand Inventar (389 Ansprueche > Kapazitaet); jetzt Ledger vor DB, damit die Korrektur konservativ nach unten irrt. → ADR-022
+- [x] **Drift-Gauge entklammern (Report §5):** `Math.max(…, 0)` machte `redis_db_drift_tickets` genau bei Ueberzeichnung blind; Klammer nur noch am Redis-Write, Metrik aus dem ungeklammerten Erwartungswert.
 
 ### P1 — Kapazitaet weitertreiben
 
-- [x] **`DATABASE_POOL_MAX` erhöhen und neu messen:** Config erledigt (`start:loadtest` setzt Pool 50); der 2026-08-03-Lauf war generator-verzerrt, die gueltige Messung ist Teil des 4.12-Laufs. → [Details](notes/backlogs/baseline-c-capacity.md#database_pool_max-erhoehen-und-neu-messen)
-- [x] **k6-`maxVUs` und Zielrate in Einklang bringen:** 5.000 VUs bei 10.000 Iterationen/s garantierten Verwerfungen rechnerisch; `maxVUs` auf 10.000 (deckt ~1 s Iterationsdauer). → [Details](notes/backlogs/baseline-c-capacity.md#k6-maxvus-und-zielrate-in-einklang-bringen)
-- [x] **Transportfehler untersuchen:** Hypothese Host-Netzwerkgrenzen; wird durch den 4.12-Lauf mit getrenntem Generator entschieden — bleiben sie, folgt ein neues Todo. → [Pruefpunkt](notes/backlogs/local-generator-split.md#baseline-c-mit-getrenntem-generator-fahren)
+- [x] **`DATABASE_POOL_MAX` erhöhen und neu messen:** Config erledigt (`start:loadtest` setzt Pool 50); der 2026-08-03-Lauf war generator-verzerrt, die gueltige Messung ist Teil des 4.12-Laufs.
+- [x] **k6-`maxVUs` und Zielrate in Einklang bringen:** 5.000 VUs bei 10.000 Iterationen/s garantierten Verwerfungen rechnerisch; `maxVUs` auf 10.000 (deckt ~1 s Iterationsdauer).
+- [x] **Transportfehler untersuchen:** Hypothese Host-Netzwerkgrenzen; wird durch den 4.12-Lauf mit getrenntem Generator entschieden — bleiben sie, folgt ein neues Todo.
 
 ### P2 — Dashboard-Audit (alle 8 Dashboards, 2026-07-26)
 
 Leitfehler: Panels lasen Reserve als Publish. → [Vorspann](notes/backlogs/baseline-c-dashboard-audit.md#dashboard-audit-vorspann), [korrekt geprüft](notes/backlogs/baseline-c-dashboard-audit.md#dashboard-audit-als-korrekt-geprueft)
 
-- [x] **`order-lifecycle`: Pending, Ratio und Counts** auf `payments_confirmed_total` korrigiert. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#order-lifecycle-pending-ratio-und-cumulative-counts)
-- [x] **`order-lifecycle`: „Checkout Abandon Rate" lieferte −7,33 %** — 5m-Fenster statt Lauf; jetzt `$__range` + `clamp_min`, live 12,1 % (modelliert 12 %). → [Details](notes/backlogs/baseline-c-dashboard-audit.md#order-lifecycle-checkout-abandon-rate-negativ)
-- [x] **`pubsub-queue`: Publish Rate und Queue Depth** lasen `accepted` statt Publish und ueberschaetzten die Tiefe; `worker_duplicate_deliveries_total` fehlte. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#pubsub-queue-publish-rate-und-queue-depth)
-- [x] **`api-performance`: `/pay` und `/cancel` ohne eigene Panels** — der Publish-Pfad war unsichtbar; RPS-Serien + Pay-Latenz-Panel ergaenzt (p95 4,55 s im Crunch). → [Details](notes/backlogs/baseline-c-dashboard-audit.md#api-performance-eigene-panels-fuer-pay-und-cancel)
-- [x] **`api-performance`: Error Rate ignorierte `425`** (29.965 Warm-up-Versuche) und mischte die mehrdeutigen 409 global. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#api-performance-error-rate-ignoriert-425)
-- [x] **`reservation-consistency`: „Current Drift" nutzte `abs()`** und verwarf das Vorzeichen — genau die Oversell-Information. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#reservation-consistency-current-drift-mit-vorzeichen)
-- [x] **`reservation_ledger_active`/`_stale` in keinem Dashboard:** das Reaper-Signal war unsichtbar, obwohl es 4,3 % des Inventars band; neues Panel. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#reservation_ledger_active-und-_stale-ohne-panel)
-- [x] **`worker-reliability`: Duplicate Deliveries fehlten,** Rate-Nenner war `accepted` statt `payments_confirmed`. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#worker-reliability-duplicate-deliveries-und-nenner)
-- [x] **`order-completion-latency`: Panel-Titel seit ADR-028 falsch** — gemessen wird Publish→Persist, nicht `/buy`→completed. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#order-completion-latency-panel-titel-seit-adr-028-falsch)
-- [x] **`redis-performance`: „Memory Usage" plottete `redis_memory_max_bytes`** (ohne `maxmemory` konstant 0, sah wie ein Defekt aus) → Serie entfernt, bewusst kein `maxmemory`. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#redis-performance-memory-usage-plottet-konstante-null)
-- [x] **`db-runtime`: Pool Wait/Lock Waits waren Momentaufnahmen** und zeigten nach dem Lauf 0 → `max_over_time([$__range])`; echter Peak 3.578 wartende Acquirer. → [Details](notes/backlogs/baseline-c-dashboard-audit.md#db-runtime-pool-wait-und-lock-waits-als-momentaufnahme)
+- [x] **`order-lifecycle`: Pending, Ratio und Counts** auf `payments_confirmed_total` korrigiert.
+- [x] **`order-lifecycle`: „Checkout Abandon Rate" lieferte −7,33 %** — 5m-Fenster statt Lauf; jetzt `$__range` + `clamp_min`, live 12,1 % (modelliert 12 %).
+- [x] **`pubsub-queue`: Publish Rate und Queue Depth** lasen `accepted` statt Publish und ueberschaetzten die Tiefe; `worker_duplicate_deliveries_total` fehlte.
+- [x] **`api-performance`: `/pay` und `/cancel` ohne eigene Panels** — der Publish-Pfad war unsichtbar; RPS-Serien + Pay-Latenz-Panel ergaenzt (p95 4,55 s im Crunch).
+- [x] **`api-performance`: Error Rate ignorierte `425`** (29.965 Warm-up-Versuche) und mischte die mehrdeutigen 409 global.
+- [x] **`reservation-consistency`: „Current Drift" nutzte `abs()`** und verwarf das Vorzeichen — genau die Oversell-Information.
+- [x] **`reservation_ledger_active`/`_stale` in keinem Dashboard:** das Reaper-Signal war unsichtbar, obwohl es 4,3 % des Inventars band; neues Panel.
+- [x] **`worker-reliability`: Duplicate Deliveries fehlten,** Rate-Nenner war `accepted` statt `payments_confirmed`.
+- [x] **`order-completion-latency`: Panel-Titel seit ADR-028 falsch** — gemessen wird Publish→Persist, nicht `/buy`→completed.
+- [x] **`redis-performance`: „Memory Usage" plottete `redis_memory_max_bytes`** (ohne `maxmemory` konstant 0, sah wie ein Defekt aus) → Serie entfernt, bewusst kein `maxmemory`.
+- [x] **`db-runtime`: Pool Wait/Lock Waits waren Momentaufnahmen** und zeigten nach dem Lauf 0 → `max_over_time([$__range])`; echter Peak 3.578 wartende Acquirer.
 
 ## Phase 4.7: API-Performance-Dashboard — fehlende Order-Routen
 
@@ -318,7 +330,7 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 - [x] **Sold-count Projector:** Auditor und Projektion teilen genau einen `COUNT(tickets)`-Snapshot je 60-s-Zyklus; Laufzeit/Fehler/letzter Erfolg sind instrumentiert, Redis ist keine Dependency.
 - [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
 - [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
-- [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten. → [Details](notes/phases/phase-4-9-inventory-integrity.md#umsetzungsstand-2026-07-30)
+- [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten.
 - [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
 - [x] **DB-Dashboard:** `db-runtime` zeigt Projector-Query-Dauer, Write-back-Dauer, Health (Fehler, letzter Erfolg) und „Pool Wait during Projector Activity".
 - [x] **Abschluss-Lasttest:** erbracht durch den Lauf 2026-08-03 — alle 5 Invarianten, Capacity-Delta 0 nach Drain, keine Projector-Interferenz auf Pool-Wait (ADR-031 beantwortet). → [Beleg](reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md)
@@ -328,27 +340,32 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 Reservierungs-Timer im Frontend, 2-min-Deadline und ein Funnel-Lastprofil, das
 den Reaper erstmals unter Last ausübt und exakten Sellout beweist.
 
+Details: [checkout-expiry-funnel](notes/backlogs/checkout-expiry-funnel.md)
+
 - [ ] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge. → [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
 
 ## Phase 4.11: Report-Automation cloud-faehig machen (Vorbedingung fuer den GCP-Lasttest)
 
 Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. → [Details](notes/backlogs/cloud-report-automation.md#backlog-report-automation-cloud-faehig-vorspann)
 
-- [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `snapshots.mjs` ist auf `docker exec hts-postgres`/`hts-redis` hart verdrahtet; braucht einen austauschbaren Zugriffspfad. → [Details](notes/backlogs/cloud-report-automation.md#state-snapshots-gegen-cloud-sql-und-memorystore)
-- [ ] **Preflight umgebungsabhaengig machen:** `preflight()` verlangt die lokalen Container und bricht im Cloud-Lauf ab; `requiredContainers` gibt es schon, ein Cloud-Profil fehlt. → [Details](notes/backlogs/cloud-report-automation.md#preflight-umgebungsabhaengig-machen)
-- [ ] **Seed-Pfad fuer die Cloud:** `reset-seed.mjs` nutzt Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf. → [Details](notes/backlogs/cloud-report-automation.md#seed-pfad-fuer-die-cloud)
-- [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.12). → [Details](notes/backlogs/cloud-report-automation.md#verteilten-k6-runner-orchestrieren)
-- [ ] **Monitoring-Quelle fuer den Cloud-Lauf entscheiden:** Managed Prometheus, selbst betriebener Prometheus im Cluster oder Cloud Monitoring — und wie `targetUp`/Range-Queries darauf abbilden. → [Details](notes/backlogs/cloud-report-automation.md#monitoring-quelle-fuer-den-cloud-lauf)
+- [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `snapshots.mjs` ist auf `docker exec hts-postgres`/`hts-redis` hart verdrahtet; braucht einen austauschbaren Zugriffspfad.
+- [ ] **Preflight umgebungsabhaengig machen:** `preflight()` verlangt die lokalen Container und bricht im Cloud-Lauf ab; `requiredContainers` gibt es schon, ein Cloud-Profil fehlt.
+- [ ] **Seed-Pfad fuer die Cloud:** `reset-seed.mjs` nutzt Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf.
+- [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.12).
+- [ ] **Monitoring-Quelle fuer den Cloud-Lauf entscheiden:** Managed Prometheus, selbst betriebener Prometheus im Cluster oder Cloud Monitoring — und wie `targetUp`/Range-Queries darauf abbilden.
 
 ## Phase 4.12: Lokale Baseline C mit getrenntem Lastgenerator (Zwei-Maschinen-Setup)
 
 Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC, SUT allein auf dem MacBook, Ziel 5k RPS sustained (REQ-P01). → [Details](notes/backlogs/local-generator-split.md#backlog-lokaler-generator-sut-split-vorspann)
 
-- [ ] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [Details](notes/backlogs/local-generator-split.md#sut-host-vorbereiten)
-- [ ] **Generator-Host (Ryzen-PC) anbinden:** k6 installieren, `BASE_URL` auf die SUT-IP; Minimalpfad manueller/ssh-Lauf + `--summary-export`-Import in `spike:report`. Ethernet, WLAN nur Fallback. → [Details](notes/backlogs/local-generator-split.md#generator-host-anbinden)
-- [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe. → [Details](notes/backlogs/local-generator-split.md#baseline-c-mit-getrenntem-generator-fahren)
+- [ ] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren.
+- [ ] **Generator-Host (Ryzen-PC) anbinden:** k6 installieren, `BASE_URL` auf die SUT-IP; Minimalpfad manueller/ssh-Lauf + `--summary-export`-Import in `spike:report`. Ethernet, WLAN nur Fallback.
+- [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe.
+- [ ] **Transportfehler nach Endpunkt aufschluesseln:** `--summary-export` wirft die `endpoint`-Tags weg; per Threshold-Sub-Metriken retten, nicht per Prometheus-RW. Noetig vor dem 4.12-Lauf.
 
 ## Phase 5: Cloud Deployment (GCP)
+
+Details: [phase-5-cloud-deployment](notes/phases/phase-5-cloud-deployment.md)
 
 - [ ] Erstelle Terraform-Skripte für VPC, Cloud SQL, Memorystore und GKE.
 - [ ] Erstelle Dockerfiles für API, Worker und Web.
@@ -357,6 +374,8 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 - [ ] **Sale-Unlock bei mehreren API-Replikas:** Redis-Zeit statt Pod-Uhren prüfen. → ADR-024, [Details](notes/phases/phase-5-cloud-deployment.md#sale-unlock-zeitquelle-bei-mehreren-api-replicas)
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
+
+Details: [baseline-b-storage-review](notes/backlogs/baseline-b-storage-review.md)
 
 - [ ] Fuehre danach ein Storage-Review fuer den Order-Flow durch: Redis-/DB-Footprint pro Order messen, TTL-/Key-Strategie bewerten, Optimierungen priorisieren. → [Datenbasis aus Baseline B](notes/backlogs/baseline-b-storage-review.md#datenbasis-aus-baseline-b-fuer-das-storage-review)
 - [ ] Implementiere Dead Letter Queue (DLQ) in Pub/Sub und einen Retry/Replay-Mechanismus im Worker.

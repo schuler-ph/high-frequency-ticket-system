@@ -22,8 +22,13 @@ Sammeldatei.
 - Getroffene Entscheidungen mit Alternativen gehören als Einzel-ADR nach
   `docs/decisions/`.
 - Messungen und Audits gehören nach `docs/reports/`.
-- Im Todo bleibt nur eine kurze Zeile mit direktem Link auf den relevanten
-  Abschnitt der Notiz.
+- Im Todo bleibt nur eine kurze Zeile. Die Notizen einer Phase stehen einmal
+  unter der Phasenüberschrift — im Vorspann oder als eigene `Details:`-Zeile.
+  Ein einzelnes Todo verlinkt nur dann zusätzlich seinen Abschnitt, wenn die
+  Phasenzeile die Notiz nicht ohnehin abdeckt oder der Anker beim Abarbeiten
+  wirklich hilft. Zeigt eine ganze Phase auf dieselbe Notiz, entfällt der
+  Verweis in den Todos: die Wiederholung desselben Pfads pro Zeile war der
+  grösste Einzelposten im Grössenbudget von `docs/TODO.md`.
 
 Eine Notiz bleibt erhalten, solange Todo oder ADR sie als Detailquelle nutzt.
 Wird ihr Inhalt zur aktuellen Wahrheit, wird er in die zuständige Quelle
