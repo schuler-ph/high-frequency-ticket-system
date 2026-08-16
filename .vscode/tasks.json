@@ -90,10 +90,20 @@
       "problemMatcher": []
     },
     {
-      "label": "stack:seed",
-      "detail": "Schema + Test-Event + Redis-Counter + Pub/Sub-Topic/Subscription. MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
+      "label": "dev:seed",
+      "detail": "Schema + Test-Event + Redis-Counter + Pub/Sub-Topic/Subscription fuer das gewaehlte Dev-Profil. MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run seed",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:devEnvProfile}' pnpm run seed",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "problemMatcher": []
+    },
+    {
+      // Getrennt von dev:seed, weil beide Ketten ein anderes Profil-Menue
+      // brauchen: ein Task kann nur einen `${input:...}` referenzieren.
+      "label": "loadtest:seed",
+      "detail": "Wie dev:seed, aber mit dem Lasttest-Profil — SEED_CAPACITY und SALE_OPENS_IN_SECONDS kommen aus dessen Datei.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run seed",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "problemMatcher": []
     },
@@ -110,7 +120,7 @@
       "label": "loadtest:api",
       "detail": "API auf gebautem Stand (:10002), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben, sonst beendet VS Code den Prozess.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter api run start:loadtest",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter api run start:loadtest",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
@@ -120,7 +130,7 @@
       "label": "loadtest:worker",
       "detail": "Worker auf gebautem Stand (:10003), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter worker run start:loadtest",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter worker run start:loadtest",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
@@ -130,7 +140,7 @@
       "label": "loadtest:web",
       "detail": "Web im Dev-Modus (:10001) mit Hot-Reload, eigenes Terminal. Bewusst Dev statt Build: das Frontend ist am Lasttest nicht beteiligt, dient nur zur Beobachtung. Laeuft dauerhaft — Terminal MUSS offen bleiben.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm --filter web run dev",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter web run dev",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
@@ -147,7 +157,7 @@
       "label": "dev:services",
       "detail": "Web + API + Worker im Dev-Modus (Hot-Reload).",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run dev",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:devEnvProfile}' pnpm run dev",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
@@ -161,14 +171,14 @@
       "label": "dev:stack up",
       "detail": "RUNBOOK §2 — Infra → Seed → pnpm dev. Reihenfolge ist Pflicht: der Worker scheitert hart, wenn die Pub/Sub-Subscription beim Boot fehlt.",
       "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "stack:seed", "dev:services"],
+      "dependsOn": ["infra:up", "dev:seed", "dev:services"],
       "problemMatcher": []
     },
     {
       "label": "loadtest:stack up",
       "detail": "RUNBOOK §3 — Infra → Seed → API + Worker + Web (Dev, je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "stack:seed", "loadtest:services"],
+      "dependsOn": ["infra:up", "loadtest:seed", "loadtest:services"],
       "problemMatcher": []
     },
     {
@@ -184,7 +194,7 @@
       "label": "loadtest:report",
       "detail": "Nur der Lauf selbst (setzt einen bereiten Stack voraus), Lastprofil wird abgefragt. Normalerweise ueber 'loadtest:run+report' aufrufen, das vorher die Bereitschaft prueft.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && LOAD_PROFILE='${input:loadProfile}' pnpm run spike:report",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run spike:report",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
       "problemMatcher": []
@@ -260,10 +270,14 @@
       "args": "http://localhost:10008"
     },
     {
-      // Lastprofil des k6-Funnels (load-tests/lib/scenario-helpers.js).
-      "id": "loadProfile",
+      // Env-Profil eines Lasttest-Laufs (config/env/<profil>.env, ADR-034).
+      // Loest den frueheren `loadProfile`-Input ab: die Datei traegt jetzt
+      // sowohl LOAD_PROFILE fuer k6 als auch die Service-Werte (Deadline,
+      // Reaper-Batch, Kapazitaet). Damit koennen Generator und Services nicht
+      // mehr mit unterschiedlichen Annahmen laufen.
+      "id": "loadtestEnvProfile",
       "type": "pickString",
-      "description": "Lastprofil für den Lauf",
+      "description": "Env-Profil für den Lasttest",
       "default": "capacity",
       "options": [
         {
@@ -281,6 +295,24 @@
         {
           "label": "funnel — Denkzeit ~60 s gegen kurzes Checkout-Fenster (Ablauf/Reaper)",
           "value": "funnel"
+        }
+      ]
+    },
+    {
+      // Env-Profil des Dev-Stacks. Bewusst ohne die Lasttest-Profile: ein
+      // Dev-Stack mit Produktions-Logging und 120-s-Deadline waere ein Unfall.
+      "id": "devEnvProfile",
+      "type": "pickString",
+      "description": "Env-Profil für den Dev-Stack",
+      "default": "dev",
+      "options": [
+        {
+          "label": "dev — lokale Entwicklung (Hot-Reload, Log-Level info)",
+          "value": "dev"
+        },
+        {
+          "label": "test — Testkonfiguration, zum Nachstellen von Testlaeufen",
+          "value": "test"
         }
       ]
     },

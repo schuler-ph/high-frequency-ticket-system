@@ -60,7 +60,7 @@
       {
         "name": "$(play) Dev Stack",
         "color": "#61AFEF",
-        "tooltip": "RUNBOOK §2: Infra → Seed → pnpm dev (Reihenfolge ist Pflicht)",
+        "tooltip": "RUNBOOK §2: Infra → Seed → pnpm dev (Reihenfolge ist Pflicht). Fragt zuerst das Env-Profil ab: dev / test.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["dev:stack up"]
@@ -68,7 +68,7 @@
       {
         "name": "$(rocket) LT Stack",
         "color": "#98C379",
-        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Seed → API + Worker + Web im Dev-Modus, je eigenes Terminal). Die Service-Terminals müssen offen bleiben.",
+        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Seed → API + Worker + Web im Dev-Modus, je eigenes Terminal). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel — dasselbe Profil versorgt Seed und Services. Die Service-Terminals müssen offen bleiben.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:stack up"]
@@ -84,7 +84,7 @@
       {
         "name": "$(dashboard) Spike Report",
         "color": "#FF8C00",
-        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Lastprofil ab: capacity / realism / checkout. Die Auswertung läuft im Anschluss automatisch.",
+        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel. Die Auswertung läuft im Anschluss automatisch.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report"]

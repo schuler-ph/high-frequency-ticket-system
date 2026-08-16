@@ -64,7 +64,7 @@ pnpm dev                      # Web + API + Worker parallel (Turbo)
 
 > `pnpm dev` fährt `fastify start -P` (pino-pretty) plus `tsc-watch`. Für Lasttests ist das **ungeeignet** — siehe §3.
 
-**Task:** `dev:stack up` · **Button:** `Dev Stack`
+**Task:** `dev:stack up` · **Button:** `Dev Stack` — fragt zuerst das Env-Profil ab (`dev` / `test`) und reicht es an Seed und Services durch.
 
 ---
 
@@ -106,7 +106,9 @@ until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` (für `stack:wait-ready` gibt es keinen eigenen Button mehr — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar)
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` — fragt zuerst das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`); dasselbe Profil versorgt Seed **und** Services, sodass Generator und Backend nicht mehr mit verschiedenen Annahmen laufen können. (Für `stack:wait-ready` gibt es keinen eigenen Button — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar.)
+
+> **Wenn VS Code das Profil mehrfach abfragt:** `loadtest:services` startet API, Worker und Web parallel, und jeder dieser Tasks referenziert den Input. VS Code löst denselben Input pro Lauf normalerweise einmal auf. Fragt es dennoch mehrfach, überall dasselbe Profil wählen — oder die Services einzeln mit `HTS_ENV_PROFILE=<profil> pnpm --filter <service> run start:loadtest` starten.
 
 ### Warum der Readiness-Check ein eigener Schritt ist (Falle 4)
 
@@ -249,7 +251,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 > **k6-Remote-Write ist standardmäßig aus.** Der Report liest keine k6-Serien aus Prometheus — alle Queries gehen gegen `job="api"`/`job="worker"`. Das Remote-Write diente nur dem Live-Blick, trieb Prometheus aber auf 5,5 GiB bis zum `503` und nahm dabei genau die Daten mit, die der Report braucht.
 
-**Task:** `loadtest:run+report` — fragt das Lastprofil ab (`capacity` / `realism` / `checkout`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
+**Task:** `loadtest:run+report` — fragt das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
 ---
 
