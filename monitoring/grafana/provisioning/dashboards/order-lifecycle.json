@@ -387,9 +387,15 @@
           "expr": "sum(rate(checkouts_cancelled_total{job=\"api\"}[1m])) or vector(0)",
           "legendFormat": "cancelled / s",
           "refId": "C"
+        },
+        {
+          "expr": "sum(rate(payments_rejected_total{job=\"api\", reason=\"expired\"}[1m])) or vector(0)",
+          "legendFormat": "rejected: expired / s",
+          "refId": "D"
         }
       ],
-      "title": "Checkout Funnel (reserved / paid / cancelled per second)",
+      "description": "Der vierte Ausgang eines Checkouts neben bezahlt und storniert: die Eligibility Deadline ist verstrichen und /pay lehnt ab (410, ADR-033). Bleibt diese Serie waehrend eines Funnel-Laufs auf 0, wurde der Ablauf-Pfad nicht ausgeuebt und der Lauf beweist ihn nicht.",
+      "title": "Checkout Funnel (reserved / paid / cancelled / expired per second)",
       "type": "timeseries"
     },
     {
@@ -442,12 +448,13 @@
       },
       "targets": [
         {
-          "expr": "clamp_min(1 - ((sum(increase(payments_confirmed_total{job=\"api\"}[$__range])) or vector(0)) / (sum(increase(reservations_created_total{job=\"api\"}[$__range])) > 0)), 0)",
+          "expr": "clamp_min(1 - (((sum(increase(payments_confirmed_total{job=\"api\"}[$__range])) or vector(0)) + (sum(increase(payments_rejected_total{job=\"api\", reason=\"expired\"}[$__range])) or vector(0))) / (sum(increase(reservations_created_total{job=\"api\"}[$__range])) > 0)), 0)",
           "legendFormat": "Abandon Rate",
           "refId": "A"
         }
       ],
-      "title": "Checkout Abandon Rate (1 \u2013 paid/reserved, Zeitraum)",
+      "description": "Reservierungen, die weder bezahlt wurden noch an ihrer Deadline verfallen sind \u2014 also Cancel plus stiller Abbruch. Abgelaufene Checkouts stehen bewusst im Zaehler: sie sind ein eigener, sichtbarer Ausgang (ADR-033) und wuerden sonst stumm als Abbruch mitgezaehlt und die Rate mit dem Funnel-Profil kuenstlich nach oben treiben.",
+      "title": "Checkout Abandon Rate (1 \u2013 (paid + expired)/reserved, Zeitraum)",
       "type": "gauge"
     }
   ],

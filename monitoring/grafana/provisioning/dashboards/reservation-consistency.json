@@ -691,6 +691,50 @@
       ],
       "title": "Reaper Activity & Auditor Errors",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Wie lange ein Reaper-Durchlauf dauert. Relevant, seit die Batch-Groesse profilabhaengig ist: ein groesserer Batch faengt mehr Ablaeufe pro Zyklus ab, kostet aber Redis-Roundtrips im Durchlauf. Naehert sich p95 dem Zyklusintervall, ist der Batch zu gross gewaehlt.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineWidth": 1
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 54 },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(reservation_reaper_run_duration_seconds_bucket{job=\"worker\"}[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(reservation_reaper_run_duration_seconds_bucket{job=\"worker\"}[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Reaper Run Duration (p50 / p95)",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
