@@ -59,9 +59,19 @@ return 0
  * demselben Redis-Script; Pay/Cancel/Worker konkurrieren daher ohne
  * Check-then-act-Fenster (ADR-031).
  *
+ * Statt den Order-Record ersatzlos zu loeschen hinterlaesst die Freigabe einen
+ * terminalen `expired`-Grabstein mit derselben Cleanup-TTL wie `completed`
+ * und `failed`. Ohne ihn liefern Pay und Status-Poll ein nacktes 404, das fuer
+ * Client und Metriken nicht von „diese Order gab es nie" zu unterscheiden ist
+ * (ADR-033). Die Freigabe selbst — `ZREM` + `INCR` — bleibt unveraendert.
+ *
+ * Die Deadline im Grabstein kommt aus dem ZSet-Score und nicht aus dem Record:
+ * der Score ist die Autoritaet, an der die Faelligkeit gerade entschieden
+ * wurde, und existiert auch fuer Records ohne `expiresAt`.
+ *
  * KEYS[1] = reservationsLedger, KEYS[2] = availableKey,
  * KEYS[3] = orderCacheKey
- * ARGV[1] = orderId, ARGV[2] = nowMs
+ * ARGV[1] = orderId, ARGV[2] = nowMs, ARGV[3] = expiredTtlSeconds
  *
  * Return:
  *   1 released, 0 already gone, 2 not due, 3 missing state,
@@ -105,7 +115,13 @@ if removed == 0 then
   return 0
 end
 redis.call("INCR", KEYS[2])
-redis.call("DEL", KEYS[3])
+local tombstone = cjson.encode({
+  orderId = order["orderId"],
+  eventId = order["eventId"],
+  status = "expired",
+  expiresAt = tonumber(deadline)
+})
+redis.call("SET", KEYS[3], tombstone, "EX", tonumber(ARGV[3]))
 return 1
 `;
 
@@ -130,6 +146,7 @@ export type WorkerRedisScripts = {
     orderCacheKey: string,
     orderId: string,
     nowMs: number,
+    expiredTtlSeconds: number,
   ): Promise<number>;
 };
 

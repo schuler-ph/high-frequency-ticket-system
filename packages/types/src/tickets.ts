@@ -141,20 +141,58 @@ export const failedOrderCacheEntrySchema = z.object({
 
 export type FailedOrderCacheEntry = z.infer<typeof failedOrderCacheEntrySchema>;
 
+/**
+ * Grabstein des Pending-Reapers: die Reservierung ist an ihrer Eligibility
+ * Deadline verfallen und das Inventar wurde freigegeben. Der Record ersetzt das
+ * frueher ersatzlose `DEL` und bekommt dieselbe Cleanup-TTL wie
+ * `completed|failed`, damit ein Client den Ablauf noch lesen kann statt nur ein
+ * nacktes 404 zu sehen (ADR-033).
+ */
+export const expiredOrderCacheEntrySchema = z.object({
+  orderId: z.uuid(),
+  eventId: z.uuid(),
+  status: z.literal("expired"),
+  expiresAt: z.number().int().positive(),
+});
+
+export type ExpiredOrderCacheEntry = z.infer<
+  typeof expiredOrderCacheEntrySchema
+>;
+
 export const orderCacheEntrySchema = z.discriminatedUnion("status", [
   pendingOrderCacheEntrySchema,
   completedOrderCacheEntrySchema,
   failedOrderCacheEntrySchema,
+  expiredOrderCacheEntrySchema,
 ]);
 
 export type OrderCacheEntry = z.infer<typeof orderCacheEntrySchema>;
 
+/**
+ * Was der Worker als Abschluss schreibt. Der Reaper-Grabstein gehoert bewusst
+ * NICHT dazu: `finalizeOrder` darf nur `completed|failed` erzeugen.
+ */
 export const finalOrderCacheEntrySchema = z.discriminatedUnion("status", [
   completedOrderCacheEntrySchema,
   failedOrderCacheEntrySchema,
 ]);
 
 export type FinalOrderCacheEntry = z.infer<typeof finalOrderCacheEntrySchema>;
+
+/**
+ * Alle Zustaende, aus denen ein Checkout nicht mehr herauskommt — inklusive
+ * Ablauf. Das ist die Menge, die die Status-Route hinter dem
+ * Checkout-Zustandsautomaten noch antreffen kann.
+ */
+export const terminalOrderCacheEntrySchema = z.discriminatedUnion("status", [
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+  expiredOrderCacheEntrySchema,
+]);
+
+export type TerminalOrderCacheEntry = z.infer<
+  typeof terminalOrderCacheEntrySchema
+>;
 
 /**
  * Der oeffentliche `pending`-Status traegt zusaetzlich zur Deadline die
@@ -174,6 +212,7 @@ export const orderStatusResponseSchema = z.discriminatedUnion("status", [
   pendingOrderStatusResponseSchema,
   completedOrderCacheEntrySchema,
   failedOrderCacheEntrySchema,
+  expiredOrderCacheEntrySchema,
 ]);
 
 export type OrderStatusResponse = z.infer<typeof orderStatusResponseSchema>;
@@ -209,6 +248,10 @@ export const notFoundErrorResponseSchema = httpErrorResponseSchema(
 export const conflictErrorResponseSchema = httpErrorResponseSchema(
   409,
   "ConflictError",
+);
+export const goneErrorResponseSchema = httpErrorResponseSchema(
+  410,
+  "GoneError",
 );
 export const tooEarlyErrorResponseSchema = httpErrorResponseSchema(
   425,

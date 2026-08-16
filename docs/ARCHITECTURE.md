@@ -151,8 +151,11 @@ sequenceDiagram
     participant PubSub
 
     Web->>API: POST /api/orders/:orderId/pay
-    API->>Redis: Lua-Claim pending -> publishing (+ queuedAt)
-    alt Claim verloren oder Zustand unerwartet
+    API->>Redis: Lua-Claim pending -> publishing (+ queuedAt, Deadline-Check)
+    alt Deadline verstrichen
+        Redis-->>API: expired
+        API-->>Web: 410 Gone, kein Publish
+    else Claim verloren oder Zustand unerwartet
         Redis-->>API: Konflikt
         API-->>Web: Fehler, kein Publish
     else Claim gewonnen
@@ -167,6 +170,13 @@ sequenceDiagram
         end
     end
 ```
+
+Dasselbe Script setzt die Eligibility Deadline durch: ein fälliger Anspruch
+wechselt nicht mehr nach `publishing`, sondern wird mit `410 Gone` abgelehnt. Die
+Grenze ist identisch mit der des Reapers, damit es keinen Moment gibt, in dem
+Pay noch zusagt und der Reaper schon freigeben dürfte. Die Ablehnung gibt selbst
+kein Inventar frei — der Anspruch bleibt im Ledger, bis der Reaper ihn regulär
+einsammelt (ADR-033).
 
 Der Zustandsübergang `pending → publishing` ist der Serialisierungspunkt des
 Checkouts: nur der Gewinner dieses atomaren Claims publiziert, und er setzt dabei
@@ -205,11 +215,12 @@ fehlgeschlagene Kompensation führen zu NACK und Redelivery.
 - `POST /api/orders/:orderId/cancel` gibt ausschließlich ein Checkout im Zustand
   `pending` idempotent frei. Gewinnt Pay das Rennen, sieht Cancel den
   Zustandskonflikt und lässt den Anspruch stehen.
-- `GET /api/orders/:orderId` liest `pending`, `completed` oder `failed` aus
-  `orders:{orderId}` in Redis. Ein `pending` liefert zusätzlich `expiresAt` aus
-  dem Record und `serverTime` als Uhr des Reads; die internen Zustände
-  `publishing` und `paid` behalten dabei ihre Deadline, bleiben nach außen aber
-  `pending`.
+- `GET /api/orders/:orderId` liest `pending`, `completed`, `failed` oder
+  `expired` aus `orders:{orderId}` in Redis. Ein `pending` liefert zusätzlich
+  `expiresAt` aus dem Record und `serverTime` als Uhr des Reads; die internen
+  Zustände `publishing` und `paid` behalten dabei ihre Deadline, bleiben nach
+  außen aber `pending`. `expired` ist der Grabstein des Reapers und macht einen
+  abgelaufenen Checkout von einer unbekannten `orderId` unterscheidbar.
 - Das Frontend pollt bis zu einem terminalen Zustand; es gibt keinen
   WebSocket- oder SSE-Kanal.
 
@@ -218,16 +229,14 @@ fehlgeschlagene Kompensation führen zu NACK und Redelivery.
 Alle Keys sind event- oder order-spezifisch und werden zentral in
 `packages/types/src/redis-keys.ts` erzeugt.
 
-| Muster                                        | Inhalt                                      | Lebenszyklus                                                        |
-| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
-| Muster                                        | Inhalt                                      | Lebenszyklus                                                        |
-| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
-| `tickets:event:{eventId}:available`           | freie, reservierbare Tickets                | Seed/Reset; danach nur atomare Reserve-/Release-Skripte             |
-| `tickets:event:{eventId}:total`               | Event-Kapazität                             | Seed/Reset                                                          |
-| `tickets:event:{eventId}:opensAt`             | Sale-Unlock in Epoch-ms                     | Seed/Reset                                                          |
-| `tickets:event:{eventId}:reservations`        | ZSet `orderId → Eligibility Deadline`       | bis Finalisierung, Kompensation oder Reaper-Freigabe; keine TTL     |
-| `tickets:event:{eventId}:processed:{orderId}` | Worker-Idempotenzmarker                     | TTL-basiertes technisches Cleanup                                   |
-| `orders:{orderId}`                            | Checkout-State, danach finales Order-Modell | aktiv ohne TTL; nur der finale Zustand bekommt eine Cleanup-TTL     |
+| Muster                                        | Inhalt                                      | Lebenszyklus                                                                               |
+| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `tickets:event:{eventId}:available`           | freie, reservierbare Tickets                | Seed/Reset; danach nur atomare Reserve-/Release-Skripte                                    |
+| `tickets:event:{eventId}:total`               | Event-Kapazität                             | Seed/Reset                                                                                 |
+| `tickets:event:{eventId}:opensAt`             | Sale-Unlock in Epoch-ms                     | Seed/Reset                                                                                 |
+| `tickets:event:{eventId}:reservations`        | ZSet `orderId → Eligibility Deadline`       | bis Finalisierung, Kompensation oder Reaper-Freigabe; keine TTL                            |
+| `tickets:event:{eventId}:processed:{orderId}` | Worker-Idempotenzmarker                     | TTL-basiertes technisches Cleanup                                                          |
+| `orders:{orderId}`                            | Checkout-State, danach finales Order-Modell | aktiv ohne TTL; jeder Endzustand (`completed`/`failed`/`expired`) bekommt eine Cleanup-TTL |
 
 Ein TTL-Ablauf ist technisches Cleanup und keine fachliche Berechtigung,
 Inventar freizugeben. Ledger und aktive Checkout-Zustände haben deshalb keine
@@ -267,11 +276,11 @@ COUNT(tickets)-Snapshot
     └─ Pending-Reaper       → gibt nur fälliges pending frei
 ```
 
-| Komponente           | Darf                                                             | Darf nicht                                           |
-| -------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
-| Sold-count Projector | `COUNT(tickets)` nach `events.sold_count` materialisieren        | nach Redis schreiben                                 |
-| Inventory Auditor    | Capacity-Komponenten und signiertes Delta messen                 | korrigieren oder fehlende Keys anlegen               |
-| Pending-Reaper       | einen fälligen `pending`-Anspruch per `orderId` atomar freigeben | `publishing`, `paid` oder terminale Orders freigeben |
+| Komponente           | Darf                                                                                         | Darf nicht                                           |
+| -------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Sold-count Projector | `COUNT(tickets)` nach `events.sold_count` materialisieren                                    | nach Redis schreiben                                 |
+| Inventory Auditor    | Capacity-Komponenten und signiertes Delta messen                                             | korrigieren oder fehlende Keys anlegen               |
+| Pending-Reaper       | einen fälligen `pending`-Anspruch per `orderId` atomar freigeben und als `expired` markieren | `publishing`, `paid` oder terminale Orders freigeben |
 
 Ein `setTimeout` wird erst nach Abschluss neu geplant, sodass lange DB-Scans nie
 überlappen. Die drei Komponenten laufen nach dem geteilten Snapshot unabhängig

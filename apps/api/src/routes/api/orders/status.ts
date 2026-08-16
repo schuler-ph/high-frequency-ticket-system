@@ -1,6 +1,6 @@
 import {
   checkoutOrderReservationSchema,
-  finalOrderCacheEntrySchema,
+  terminalOrderCacheEntrySchema,
   orderIdParamsSchema,
   orderStatusNotFoundResponseSchema,
   orderStatusResponseSchema,
@@ -34,9 +34,10 @@ const parseOrderCacheEntry = (value: string, serverTime: number) => {
     };
   }
 
-  // Alles, was kein Checkout-Zustand ist, muss ein finaler Record des Workers
-  // sein; ein `pending` ohne Kaeuferdaten kann in Redis nicht entstehen.
-  return finalOrderCacheEntrySchema.parse(raw);
+  // Alles, was kein Checkout-Zustand ist, ist terminal: `completed|failed` vom
+  // Worker oder `expired` als Reaper-Grabstein. Ein `pending` ohne
+  // Kaeuferdaten kann in Redis nicht entstehen.
+  return terminalOrderCacheEntrySchema.parse(raw);
 };
 
 const orderStatusRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {

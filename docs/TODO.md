@@ -344,7 +344,7 @@ Details: [Plan](notes/phases/phase-4-10-checkout-expiry.md), Herkunft: [Gedanken
 
 - [x] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge. → [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
 - [x] **Vertrag `expiresAt` exponieren:** Deadline zusaetzlich in Pending-Record, Buy-Response und Status-Response, plus Serverzeit gegen Clock-Skew; rein additiv. → [Schnitt 1](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
-- [ ] **ADR und Ablauf-Semantik:** `expired`-Grabstein statt `DEL`, Deadline-Enforcement im `claimPayment`-Lua, typed Error 410, `payments_rejected_total{reason}`. → [Schnitt 2](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [x] **ADR und Ablauf-Semantik:** `expired`-Grabstein statt `DEL`, Deadline-Enforcement im `claimPayment`-Lua, typed Error 410, `payments_rejected_total{reason}`. → ADR-033, [Schnitt 2](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **Frontend `/checkout/[orderId]`:** eigene Route mit Countdown und terminalem `expired`-Zustand; loest den 404-Rateschluss in `apps/web/lib/api.ts` ab. → [Schnitt 3](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **k6-Profil `funnel`:** vierter `LOAD_PROFILE` mit Profiltabelle statt verstreuter `if`-Zweige, truncated Normal per Box-Muller, neue Counter, `CONFIG_ALLOWLIST`. → [Schnitt 4](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **Reaper-Dimensionierung fuer das Profil:** Batch-Groesse und Zyklus gegen die erwartete Ablaufrate rechnen; hier faellt auch σ. → [Schnitt 5](notes/phases/phase-4-10-checkout-expiry.md#schnitt)

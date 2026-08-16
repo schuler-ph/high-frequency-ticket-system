@@ -50,10 +50,22 @@ return remaining
  * altersbedingt verschwinden oder freigegeben werden. Der Worker ersetzt den
  * Key nach Finalisierung durch das begrenzte finale Read-Model.
  *
+ * Die Eligibility Deadline wird hier hart durchgesetzt: eine faellige
+ * Reservierung wird nicht mehr geclaimt, auch wenn der Reaper sie noch nicht
+ * eingesammelt hat. Ohne diese Pruefung gaebe es ein Gnadenfenster bis zum
+ * naechsten Reaper-Zyklus, in dem ein bereits abgelaufener Checkout doch noch
+ * durchgeht — der Frontend-Timer wuerde luegen (ADR-033).
+ *
+ * Die Grenze ist identisch mit der des Reapers (`deadline <= now` ist faellig),
+ * damit es keinen Moment gibt, in dem Pay noch zusagt und der Reaper schon
+ * freigeben duerfte. Ein Record ohne `expiresAt` gilt als unbegrenzt — so
+ * bleiben Reservierungen aus der Zeit vor diesem Feld bedienbar.
+ *
  * KEYS[1] = orderCacheKey
- * ARGV[1] = queuedAt
+ * ARGV[1] = queuedAt, ARGV[2] = nowMs
  *
  * Return: {1, claimedJson} | {0, false} (missing) | {-1, raw} (conflict)
+ *       | {-2, raw} (expired)
  */
 const CLAIM_PAYMENT_SCRIPT = `
 local raw = redis.call("GET", KEYS[1])
@@ -64,6 +76,11 @@ end
 local decodedOk, order = pcall(cjson.decode, raw)
 if not decodedOk or order["status"] ~= "pending" then
   return {-1, raw}
+end
+
+local expiresAt = tonumber(order["expiresAt"])
+if expiresAt and tonumber(ARGV[2]) >= expiresAt then
+  return {-2, raw}
 end
 
 order["status"] = "publishing"
@@ -141,6 +158,7 @@ export type TicketRedisScripts = {
   claimPayment(
     orderCacheKey: string,
     queuedAt: number,
+    nowMs: number,
   ): Promise<[result: number, claimedJson: string | null]>;
   markPaymentPublished(orderCacheKey: string): Promise<number>;
   releaseTicketReservation(

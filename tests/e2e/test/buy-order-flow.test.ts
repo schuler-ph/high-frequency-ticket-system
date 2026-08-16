@@ -85,11 +85,15 @@ function createInMemoryRedis(
       store.set(orderCacheKey, orderCacheValue);
       return remaining;
     },
-    async claimPayment(orderCacheKey, queuedAt) {
+    async claimPayment(orderCacheKey, queuedAt, nowMs) {
       const raw = store.get(orderCacheKey);
       if (raw === undefined) return [0, null];
       const order = JSON.parse(raw) as Record<string, unknown>;
       if (order.status !== "pending") return [-1, raw];
+      // Spiegelt das Deadline-Enforcement des echten Lua-Scripts.
+      if (typeof order.expiresAt === "number" && nowMs >= order.expiresAt) {
+        return [-2, raw];
+      }
       const claimed = JSON.stringify({
         ...order,
         status: "publishing",

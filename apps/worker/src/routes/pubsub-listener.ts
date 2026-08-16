@@ -284,6 +284,9 @@ const runInventoryCycle = async (
         redis: deps.redis,
         nowMs: cycleNow,
         batchSize: env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
+        // Der Grabstein ist ein finales Read-Model und bekommt dieselbe
+        // Cleanup-TTL wie `completed|failed`.
+        expiredTtlSeconds: env.REDIS_FINAL_ORDER_TTL_SECONDS,
         onEventReaped: (result) => {
           reservationReaperCandidates.set(
             { event_id: result.eventId },

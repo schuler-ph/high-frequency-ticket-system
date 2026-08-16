@@ -60,6 +60,8 @@ async function seedDuePending(
       orderId,
       eventId,
       status: "pending",
+      // Record und Score tragen dieselbe Deadline, wie im echten Reserve-Pfad.
+      expiresAt: deadline,
       firstName: "Ada",
       lastName: "Lovelace",
     }),
@@ -72,6 +74,8 @@ async function seedDuePending(
   return { eventId, orderId, keys, orderKey };
 }
 
+const EXPIRED_TTL_SECONDS = 86_400;
+
 const reap = (fixture: Fixture, nowMs = Date.now()) =>
   workerScripts.reapPendingReservation(
     fixture.keys.reservations,
@@ -79,6 +83,7 @@ const reap = (fixture: Fixture, nowMs = Date.now()) =>
     fixture.orderKey,
     fixture.orderId,
     nowMs,
+    EXPIRED_TTL_SECONDS,
   );
 
 void test("reaper never releases before the exact deadline", async (t) => {
@@ -92,12 +97,21 @@ void test("reaper never releases before the exact deadline", async (t) => {
 });
 
 void test("reaper retains publishing and paid claims", async (t) => {
-  const fixture = await seedDuePending(t);
+  // Realistischer Ablauf: der Checkout geht VOR seiner Deadline in `publishing`,
+  // erst danach verstreicht sie. Nach dem Deadline-Enforcement kann ein bereits
+  // faelliger Checkout nicht mehr in `publishing` wechseln.
+  const fixture = await seedDuePending(t, Date.now() + 60_000);
   const [claimed] = await checkoutScripts.claimPayment(
     fixture.orderKey,
     Date.now(),
+    Date.now(),
   );
   assert.equal(claimed, 1);
+  await checkoutRedis.zadd(
+    fixture.keys.reservations,
+    Date.now() - 1,
+    fixture.orderId,
+  );
 
   assert.equal(await reap(fixture), 4, "publishing is a recovery candidate");
   assert.ok(
@@ -117,33 +131,69 @@ void test("reaper retains publishing and paid claims", async (t) => {
   assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 1);
 });
 
-void test("pay and reaper race: exactly one owns the pending claim", async (t) => {
+void test("a due reservation can never be paid, only reaped", async (t) => {
+  // Vor dem Deadline-Enforcement war das ein echtes Rennen: Pay konnte einen
+  // laengst faelligen Anspruch noch gewinnen, solange der Reaper ihn nicht
+  // eingesammelt hatte. Jetzt entscheidet die Deadline, nicht das Timing.
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const fixture = await seedDuePending(t);
     const [payResult, reaperResult] = await Promise.all([
-      checkoutScripts.claimPayment(fixture.orderKey, Date.now()),
+      checkoutScripts.claimPayment(fixture.orderKey, Date.now(), Date.now()),
       reap(fixture),
     ]);
 
-    const payWon = payResult[0] === 1;
-    const reaperWon = reaperResult === 1;
-    assert.notEqual(payWon, reaperWon, "exactly one transition must win");
-
-    if (payWon) {
-      assert.equal(reaperResult, 4);
-      assert.equal(await checkoutRedis.get(fixture.keys.available), "0");
-      assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 1);
-      assert.equal(
-        JSON.parse((await checkoutRedis.get(fixture.orderKey)) ?? "{}").status,
-        "publishing",
-      );
-    } else {
-      assert.equal(payResult[0], 0);
-      assert.equal(await checkoutRedis.get(fixture.keys.available), "1");
-      assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 0);
-      assert.equal(await checkoutRedis.exists(fixture.orderKey), 0);
-    }
+    assert.equal(payResult[0], -2, "pay must be refused as expired");
+    assert.equal(reaperResult, 1, "the reaper owns the due claim");
+    assert.equal(await checkoutRedis.get(fixture.keys.available), "1");
+    assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 0);
+    assert.equal(
+      JSON.parse((await checkoutRedis.get(fixture.orderKey)) ?? "{}").status,
+      "expired",
+      "the released claim leaves a tombstone instead of vanishing",
+    );
   }
+});
+
+void test("pay before the deadline wins and the reaper stands down", async (t) => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const fixture = await seedDuePending(t, Date.now() + 60_000);
+    const [payResult, reaperResult] = await Promise.all([
+      checkoutScripts.claimPayment(fixture.orderKey, Date.now(), Date.now()),
+      reap(fixture),
+    ]);
+
+    assert.equal(payResult[0], 1, "pay owns a claim that is not yet due");
+    assert.equal(reaperResult, 2, "the reaper sees it as not due");
+    assert.equal(await checkoutRedis.get(fixture.keys.available), "0");
+    assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 1);
+    assert.equal(
+      JSON.parse((await checkoutRedis.get(fixture.orderKey)) ?? "{}").status,
+      "publishing",
+    );
+  }
+});
+
+void test("the expired tombstone carries the deadline and a cleanup TTL", async (t) => {
+  const deadline = Date.now() - 1;
+  const fixture = await seedDuePending(t, deadline);
+
+  assert.equal(await reap(fixture), 1);
+
+  const tombstone = JSON.parse(
+    (await checkoutRedis.get(fixture.orderKey)) ?? "{}",
+  );
+  assert.deepEqual(tombstone, {
+    orderId: fixture.orderId,
+    eventId: fixture.eventId,
+    status: "expired",
+    expiresAt: deadline,
+  });
+
+  const ttl = await checkoutRedis.ttl(fixture.orderKey);
+  assert.ok(
+    ttl > 0 && ttl <= EXPIRED_TTL_SECONDS,
+    `tombstone must expire eventually, got ttl ${String(ttl)}`,
+  );
 });
 
 void test("cancel and reaper race without double increment", async (t) => {
@@ -167,7 +217,16 @@ void test("cancel and reaper race without double increment", async (t) => {
     );
     assert.equal(await checkoutRedis.get(fixture.keys.available), "1");
     assert.equal(await checkoutRedis.zcard(fixture.keys.reservations), 0);
-    assert.equal(await checkoutRedis.exists(fixture.orderKey), 0);
+    // Cancel loescht den Record, der Reaper hinterlaesst einen Grabstein —
+    // welcher Pfad gewonnen hat, entscheidet also ueber den Endzustand.
+    if (reaperResult === 1) {
+      assert.equal(
+        JSON.parse((await checkoutRedis.get(fixture.orderKey)) ?? "{}").status,
+        "expired",
+      );
+    } else {
+      assert.equal(await checkoutRedis.exists(fixture.orderKey), 0);
+    }
 
     assert.equal(await reap(fixture), 0);
     assert.equal(

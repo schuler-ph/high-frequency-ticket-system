@@ -32,6 +32,8 @@ export type ReapPendingReservationsDeps = {
   redis: PendingReservationReaperRedis;
   nowMs: number;
   batchSize: number;
+  /** Cleanup-TTL des `expired`-Grabsteins — dieselbe wie fuer finale Orders. */
+  expiredTtlSeconds: number;
   onEventReaped?: (result: EventReaperResult) => void;
   onError?: (eventId: string, orderId: string | null, error: unknown) => void;
 };
@@ -124,6 +126,7 @@ export async function reapPendingReservations(
             orderRedisKeys.entry(orderId),
             orderId,
             deps.nowMs,
+            deps.expiredTtlSeconds,
           );
 
           if (releaseResult === 1) {

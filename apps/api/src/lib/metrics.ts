@@ -67,6 +67,18 @@ export const paymentsConfirmedTotal = new Counter({
   registers: [apiRegistry],
 });
 
+// Checkout-Funnel: abgelehnte Zahlversuche. Bisher waren Ablehnungen nur als
+// Statuscode im HTTP-Histogramm sichtbar und damit nicht nach Ursache trennbar.
+// `expired` ist die Serie, die belegt, dass der Ablauf-Pfad unter Last wirklich
+// ausgeuebt wurde (ADR-033). `event_id` ist bei `not-found` unbekannt, weil es
+// dann keinen Record mehr gibt, aus dem es zu lesen waere.
+export const paymentsRejectedTotal = new Counter({
+  name: "payments_rejected_total",
+  help: "Payment attempts rejected, by reason (expired, not-found, conflict)",
+  labelNames: ["event_id", "reason"] as const,
+  registers: [apiRegistry],
+});
+
 // Checkout-Funnel: abgebrochene Checkouts (POST /orders/:orderId/cancel), die
 // eine aktive Reservierung freigegeben haben. Abandon-Rate per PromQL aus
 // reservations_created - payments_confirmed ableitbar (ADR-028).

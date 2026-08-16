@@ -44,6 +44,11 @@ werden. Erst dieser Schritt publiziert den Kauf-Intent zur asynchronen
 Persistenz. Ein Publish-Fehler muss den gehaltenen Inventaranspruch vollständig
 und idempotent freigeben.
 
+Eine Reservierung, deren Checkout-Deadline verstrichen ist, darf nicht mehr
+bestätigt werden; das System antwortet mit `410 Gone`. Die Ablehnung gibt selbst
+kein Inventar frei — das bleibt der identitätsbasierten Recovery aus REQ-C04
+vorbehalten. Ablehnungsgründe müssen unterscheidbar messbar sein.
+
 ### REQ-F04 — Checkout-Abbruch
 
 Eine noch nicht finalisierte Reservierung kann abgebrochen werden. Wiederholtes
@@ -53,8 +58,13 @@ darf nicht zurück in den Checkout-Zustand wechseln.
 ### REQ-F05 — Order-Status
 
 Clients können eine Order über `orderId` pollen. Unterstützte fachliche
-Zustände sind mindestens `pending`, `completed` und `failed`. Der API-Read-Pfad
-nutzt ein Redis-Read-Model und keinen PostgreSQL-Read.
+Zustände sind mindestens `pending`, `completed`, `failed` und `expired`. Der
+API-Read-Pfad nutzt ein Redis-Read-Model und keinen PostgreSQL-Read.
+
+Ein abgelaufener Checkout muss als eigener Endzustand lesbar sein und darf nicht
+als „nicht gefunden" erscheinen. Ein `pending` liefert zusätzlich seine Deadline
+und die Serverzeit des Reads, damit ein Client eine verbleibende Restzeit ohne
+Vertrauen in die eigene Uhr berechnen kann.
 
 ### REQ-F06 — Dauerhafte Finalisierung
 

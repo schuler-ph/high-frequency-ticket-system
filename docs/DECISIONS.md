@@ -33,6 +33,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-030 Automatisierter Grafana-Panel-Export](decisions/ADR-030-grafana-panel-export-als-png-grafana-image-renderer-statt-hand-screenshots.md)
 - [ADR-031 Redis-authoritatives Inventory](decisions/ADR-031-redis-authoritatives-inventory-auditor-und-reaper-statt-schreibendem-reconcile.md)
 - [ADR-032 Progressive Dokumentationsarchitektur](decisions/ADR-032-progressive-dokumentationsarchitektur.md)
+- [ADR-033 Abgelaufener Checkout ist ein eigener Endzustand](decisions/ADR-033-abgelaufener-checkout-ist-ein-eigener-endzustand.md)
 
 ## Teilweise umgesetzt
 

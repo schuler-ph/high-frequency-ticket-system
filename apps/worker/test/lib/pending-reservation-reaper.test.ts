@@ -24,6 +24,7 @@ void test("reaper processes only due candidates and reports every outcome", asyn
     snapshots: [{ eventId: EVENT_ID, totalCapacity: 100, soldCount: 20 }],
     nowMs: 10_000,
     batchSize: 100,
+    expiredTtlSeconds: 86400,
     redis: {
       async zcount() {
         return 2;
@@ -83,6 +84,7 @@ void test("one candidate error does not block later releases", async () => {
     snapshots: [{ eventId: EVENT_ID, totalCapacity: 2, soldCount: 0 }],
     nowMs: 10_000,
     batchSize: 100,
+    expiredTtlSeconds: 86400,
     redis: {
       async zcount() {
         return 2;
@@ -113,6 +115,7 @@ void test("empty event ledger is a successful no-op", async () => {
     snapshots: [{ eventId: EVENT_ID, totalCapacity: 10, soldCount: 10 }],
     nowMs: 10_000,
     batchSize: 100,
+    expiredTtlSeconds: 86400,
     redis: {
       async zcount() {
         return 0;

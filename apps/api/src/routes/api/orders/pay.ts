@@ -2,6 +2,7 @@ import {
   buyTicketEventSchema,
   conflictErrorResponseSchema,
   checkoutOrderReservationSchema,
+  goneErrorResponseSchema,
   notFoundErrorResponseSchema,
   orderIdParamsSchema,
   paymentRequestSchema,
@@ -9,7 +10,7 @@ import {
   type BuyTicketEvent,
   type PaymentResponse,
 } from "@repo/types/tickets";
-import { ConflictError, NotFoundError } from "@repo/types/errors";
+import { ConflictError, GoneError, NotFoundError } from "@repo/types/errors";
 import type {
   FastifyPluginAsyncZod,
   ZodTypeProvider,
@@ -17,6 +18,7 @@ import type {
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import {
   paymentsConfirmedTotal,
+  paymentsRejectedTotal,
   publishRollbacksTotal,
 } from "../../../lib/metrics.ts";
 import {
@@ -35,6 +37,8 @@ type PayReservationRedis = Pick<
   "claimPayment" | "markPaymentPublished" | "releaseTicketReservation"
 >;
 
+export type PaymentRejectionReason = "expired" | "not-found" | "conflict";
+
 type ConfirmPaymentInput = {
   orderId: string;
   redis: PayReservationRedis;
@@ -42,6 +46,26 @@ type ConfirmPaymentInput = {
   createQueuedAt?: () => number;
   onPaymentConfirmed?: (eventId: string) => void;
   onPublishRollback?: (eventId: string) => void;
+  onPaymentRejected?: (
+    reason: PaymentRejectionReason,
+    eventId: string | null,
+  ) => void;
+};
+
+/**
+ * Liest die `eventId` aus dem Rohsatz, den das Lua-Script zurueckgegeben hat.
+ * Nur fuer Metrik-Labels: schlaegt das Parsen fehl, faellt das Label auf
+ * „unbekannt" zurueck statt den Request scheitern zu lassen.
+ */
+const eventIdFromRaw = (raw: string | null): string | null => {
+  if (raw == null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const eventId = (parsed as { eventId?: unknown }).eventId;
+    return typeof eventId === "string" ? eventId : null;
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -61,8 +85,13 @@ type ConfirmPaymentInput = {
  * Vor dem Publish claimt ein Lua-Script den Checkout atomar von `pending` nach
  * `publishing`. Cancel und Reaper duerfen diesen Zustand nicht freigeben. Nach
  * bestaetigtem Publish wird er zu `paid`; der Worker ersetzt ihn spaeter durch
- * `completed|failed`. Fehlt der Record → `404`; ist er nicht mehr `pending`
- * → `409`.
+ * `completed|failed`. Fehlt der Record → `404`; ist die Eligibility Deadline
+ * verstrichen → `410`; ist er aus anderem Grund nicht mehr `pending` → `409`.
+ *
+ * Die Deadline setzt das Claim-Script durch, nicht diese Route: nur so gibt es
+ * kein Fenster zwischen Pruefung und Zustandswechsel. Ein abgelehnter
+ * Zahlversuch gibt niemals Inventar frei — der Anspruch bleibt im Ledger, bis
+ * der Reaper ihn regulaer einsammelt (ADR-033).
  */
 export async function confirmPayment({
   orderId,
@@ -71,19 +100,33 @@ export async function confirmPayment({
   createQueuedAt = Date.now,
   onPaymentConfirmed,
   onPublishRollback,
+  onPaymentRejected,
 }: ConfirmPaymentInput): Promise<PaymentResponse> {
   const orderCacheKey = orderRedisKeys.entry(orderId);
   const queuedAt = createQueuedAt();
+  // `queuedAt` ist der Pay-Zeitpunkt und damit zugleich die Uhr, gegen die das
+  // Script die Deadline prueft — eine zweite `Date.now()`-Lesung koennte davon
+  // abweichen.
   const [claimResult, claimedRaw] = await redis.claimPayment(
     orderCacheKey,
+    queuedAt,
     queuedAt,
   );
 
   if (claimResult === 0) {
+    onPaymentRejected?.("not-found", null);
     throw new NotFoundError(`Reservation ${orderId} not found`);
   }
 
+  // Die Deadline ist verstrichen. Der Anspruch bleibt im Ledger, bis der Reaper
+  // ihn regulaer freigibt — diese Route gibt niemals Inventar frei.
+  if (claimResult === -2) {
+    onPaymentRejected?.("expired", eventIdFromRaw(claimedRaw));
+    throw new GoneError(`Reservation ${orderId} has expired`);
+  }
+
   if (claimResult !== 1 || claimedRaw == null) {
+    onPaymentRejected?.("conflict", eventIdFromRaw(claimedRaw));
     throw new ConflictError(`Order ${orderId} is not awaiting payment`);
   }
 
@@ -91,6 +134,7 @@ export async function confirmPayment({
     JSON.parse(claimedRaw),
   );
   if (!reservation.success || reservation.data.status !== "publishing") {
+    onPaymentRejected?.("conflict", eventIdFromRaw(claimedRaw));
     throw new ConflictError(`Order ${orderId} is not awaiting payment`);
   }
 
@@ -156,6 +200,8 @@ const orderPayRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
         200: paymentResponseSchema,
         // Keine (aktive) Reservierung unter dieser orderId → NotFoundError.
         404: notFoundErrorResponseSchema,
+        // Eligibility Deadline verstrichen → GoneError (ADR-033).
+        410: goneErrorResponseSchema,
         // Order ist nicht mehr `pending` (bereits finalisiert) → ConflictError.
         409: conflictErrorResponseSchema,
       },
@@ -170,6 +216,8 @@ const orderPayRoute: FastifyPluginAsyncZod = async (fastify, _opts) => {
           paymentsConfirmedTotal.inc({ event_id: eventId }),
         onPublishRollback: (eventId) =>
           publishRollbacksTotal.inc({ event_id: eventId }),
+        onPaymentRejected: (reason, eventId) =>
+          paymentsRejectedTotal.inc({ event_id: eventId ?? "unknown", reason }),
       });
 
       return res.status(200).send(response);

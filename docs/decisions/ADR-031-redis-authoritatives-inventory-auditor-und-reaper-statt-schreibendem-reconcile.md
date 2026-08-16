@@ -28,6 +28,19 @@
 - **Bewusst ausserhalb des Scopes:** Redis-HA, Persistenz und Wiederherstellung nach vollstaendigem Redis-Datenverlust; DLQ-/Outbox-Recovery fuer unklare `publishing`-Zustaende; Cloud-Deployment. Diese Phase nimmt einen durch Seed korrekt initialisierten Redis-Zustand an.
 - **Umsetzungsplan:** `docs/TODO.md` Phase 4.9; Detailplan und Dashboard-Zuordnung in `docs/notes/phases/phase-4-9-inventory-integrity.md`.
 
+## Nachtrag 2026-08-16: Ablauf wird sichtbar und im Pay-Pfad durchgesetzt
+
+Ziffer 6 und 7 bleiben unveraendert gueltig: die Freigabe ist weiterhin
+identitaetsbasiert (`ZREM` + `INCR`), der ZSet-Score bleibt die Autoritaet fuer
+die Faelligkeit, und `publishing|paid` werden nie altersbedingt freigegeben.
+
+Praezisiert wird zweierlei. Der Reaper loescht den Order-Record nicht mehr
+ersatzlos, sondern hinterlaesst einen terminalen `expired`-Grabstein mit der
+Cleanup-TTL finaler Orders. Und `POST /pay` setzt die Deadline jetzt hart durch,
+statt sie zu ignorieren — mit derselben Grenze, die auch der Reaper anlegt.
+Beides steht in
+[ADR-033](ADR-033-abgelaufener-checkout-ist-ein-eigener-endzustand.md).
+
 ## Nachtrag 2026-07-30: umgesetzt
 
 Die Entscheidungen 1–9 sind implementiert und durch Unit-, Integrations-,

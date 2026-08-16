@@ -39,6 +39,7 @@ type Fixture = {
   keys: ReturnType<typeof ticketRedisKeys>;
   orderCacheKey: string;
   orderCacheValue: string;
+  expiresAt: number;
   cleanup: () => Promise<void>;
 };
 
@@ -56,10 +57,13 @@ async function seedFixture(
   const orderId = randomUUID();
   const keys = ticketRedisKeys(eventId);
   const orderCacheKey = orderRedisKeys.entry(orderId);
+  // Score und Record tragen dieselbe Deadline — genau wie in der Buy-Route.
+  const expiresAt = Date.now() + PENDING_TIMEOUT_SECONDS * 1000;
   const orderCacheValue = JSON.stringify({
     orderId,
     eventId,
     status: "pending",
+    expiresAt,
     firstName: "Ada",
     lastName: "Lovelace",
   });
@@ -79,11 +83,19 @@ async function seedFixture(
   };
   t.after(cleanup);
 
-  return { eventId, orderId, keys, orderCacheKey, orderCacheValue, cleanup };
+  return {
+    eventId,
+    orderId,
+    keys,
+    orderCacheKey,
+    orderCacheValue,
+    expiresAt,
+    cleanup,
+  };
 }
 
-// Die Deadline rechnet der Aufrufer, nicht das Script — hier dieselbe Formel
-// wie in der Buy-Route.
+// Die Deadline rechnet der Aufrufer, nicht das Script — hier derselbe Wert, der
+// auch im Record steht.
 const reserve = (fx: Fixture, nowMs: number) =>
   scripts.reserveTicket(
     fx.keys.available,
@@ -92,7 +104,7 @@ const reserve = (fx: Fixture, nowMs: number) =>
     fx.keys.opensAt,
     fx.orderId,
     fx.orderCacheValue,
-    nowMs + PENDING_TIMEOUT_SECONDS * 1000,
+    fx.expiresAt,
     nowMs,
   );
 
@@ -147,8 +159,8 @@ void test("reserve succeeds when the opensAt key is absent (event immediately op
   await assertReserved(fx, 4);
   assert.equal(
     await redis.zscore(fx.keys.reservations, fx.orderId),
-    String(now + PENDING_TIMEOUT_SECONDS * 1000),
-    "ledger score should equal the exact eligibility deadline",
+    String(fx.expiresAt),
+    "ledger score should equal the exact eligibility deadline from the record",
   );
 });
 
@@ -198,6 +210,7 @@ void test("pay atomically claims pending → publishing and then marks paid", as
   const [claimed, claimedRaw] = await scripts.claimPayment(
     fx.orderCacheKey,
     queuedAt,
+    Date.now(),
   );
 
   assert.equal(claimed, 1);
@@ -206,6 +219,7 @@ void test("pay atomically claims pending → publishing and then marks paid", as
     orderId: fx.orderId,
     eventId: fx.eventId,
     status: "publishing",
+    expiresAt: fx.expiresAt,
     firstName: "Ada",
     lastName: "Lovelace",
     queuedAt,
@@ -219,6 +233,7 @@ void test("pay atomically claims pending → publishing and then marks paid", as
   const duplicateClaim = await scripts.claimPayment(
     fx.orderCacheKey,
     queuedAt + 1,
+    Date.now(),
   );
   assert.equal(duplicateClaim[0], -1, "a second pay must not publish again");
 
@@ -230,10 +245,72 @@ void test("pay atomically claims pending → publishing and then marks paid", as
   assert.equal(await scripts.markPaymentPublished(fx.orderCacheKey), 0);
 });
 
+void test("pay is refused once the eligibility deadline has passed", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  await reserve(fx, Date.now());
+
+  // Exakt auf der Deadline gilt der Anspruch bereits als faellig — dieselbe
+  // Grenze, die auch der Reaper anlegt. Es darf keinen Moment geben, in dem Pay
+  // noch zusagt und der Reaper schon freigeben duerfte.
+  const [onDeadline] = await scripts.claimPayment(
+    fx.orderCacheKey,
+    fx.expiresAt,
+    fx.expiresAt,
+  );
+  assert.equal(onDeadline, -2, "claim exactly at the deadline must be refused");
+
+  const [afterDeadline, raw] = await scripts.claimPayment(
+    fx.orderCacheKey,
+    fx.expiresAt + 60_000,
+    fx.expiresAt + 60_000,
+  );
+  assert.equal(afterDeadline, -2);
+  assert.ok(raw, "the refused claim returns the untouched record");
+  assert.equal(JSON.parse(raw).status, "pending");
+
+  // Die Ablehnung gibt nichts frei: das bleibt allein Sache des Reapers.
+  assert.equal(
+    await redis.get(fx.orderCacheKey),
+    fx.orderCacheValue,
+    "a refused claim must not modify the record",
+  );
+  assert.equal(await redis.get(fx.keys.available), "4");
+  assert.equal(await redis.zcard(fx.keys.reservations), 1);
+});
+
+void test("pay still works for a record without expiresAt", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  // Reservierung aus der Zeit vor dem Feld: Ledger-Score ja, Record-Feld nein.
+  const legacyValue = JSON.stringify({
+    orderId: fx.orderId,
+    eventId: fx.eventId,
+    status: "pending",
+    firstName: "Ada",
+    lastName: "Lovelace",
+  });
+  await scripts.reserveTicket(
+    fx.keys.available,
+    fx.keys.reservations,
+    fx.orderCacheKey,
+    fx.keys.opensAt,
+    fx.orderId,
+    legacyValue,
+    fx.expiresAt,
+    Date.now(),
+  );
+
+  const [claimed] = await scripts.claimPayment(
+    fx.orderCacheKey,
+    Date.now(),
+    fx.expiresAt + 60_000,
+  );
+  assert.equal(claimed, 1, "a record without a deadline is treated as open");
+});
+
 void test("cancel cannot release a publishing or paid reservation", async (t) => {
   const fx = await seedFixture(t, 5, 0);
   await reserve(fx, Date.now());
-  await scripts.claimPayment(fx.orderCacheKey, Date.now());
+  await scripts.claimPayment(fx.orderCacheKey, Date.now(), Date.now());
 
   const cancelPublishing = await scripts.releaseTicketReservation(
     fx.keys.reservations,
@@ -262,7 +339,7 @@ void test("cancel cannot release a publishing or paid reservation", async (t) =>
 void test("publish rollback releases only the owned publishing claim once", async (t) => {
   const fx = await seedFixture(t, 5, 0);
   await reserve(fx, Date.now());
-  await scripts.claimPayment(fx.orderCacheKey, Date.now());
+  await scripts.claimPayment(fx.orderCacheKey, Date.now(), Date.now());
 
   const released = await scripts.releaseTicketReservation(
     fx.keys.reservations,

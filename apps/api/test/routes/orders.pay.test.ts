@@ -5,7 +5,7 @@ import {
   completedOrderCacheEntrySchema,
   type BuyTicketEvent,
 } from "@repo/types/tickets";
-import { ConflictError, NotFoundError } from "@repo/types/errors";
+import { ConflictError, GoneError, NotFoundError } from "@repo/types/errors";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import { confirmPayment } from "../../src/routes/api/orders/pay.ts";
 
@@ -42,6 +42,7 @@ function createRedisMock(
   claimPayment: (
     orderCacheKey: string,
     queuedAt: number,
+    nowMs: number,
   ) => Promise<[number, string | null]>;
   markPaymentPublished: (orderCacheKey: string) => Promise<number>;
   releaseTicketReservation: (
@@ -63,12 +64,18 @@ function createRedisMock(
     claimCalls,
     markPublishedCalls,
     releaseCalls,
-    async claimPayment(orderCacheKey, queuedAt) {
+    async claimPayment(orderCacheKey, queuedAt, nowMs) {
       claimCalls.push({ orderCacheKey, queuedAt });
       if (cachedValue == null) return [0, null];
 
       const cached = JSON.parse(cachedValue) as Record<string, unknown>;
       if (cached.status !== "pending") return [-1, cachedValue];
+
+      // Spiegelt die Deadline-Pruefung des Lua-Scripts.
+      const expiresAt = cached.expiresAt;
+      if (typeof expiresAt === "number" && nowMs >= expiresAt) {
+        return [-2, cachedValue];
+      }
 
       return [1, JSON.stringify({ ...cached, status: "publishing", queuedAt })];
     },
@@ -160,6 +167,76 @@ void test("confirmPayment throws NotFoundError when the reservation is missing",
   assert.equal(redis.markPublishedCalls.length, 0);
 
   assert.equal(redis.releaseCalls.length, 0);
+});
+
+void test("confirmPayment throws GoneError and releases nothing once the deadline passed", async () => {
+  // Reservierung, deren Deadline bereits verstrichen ist, die der Reaper aber
+  // noch nicht eingesammelt hat — genau das frueher stille Gnadenfenster.
+  const redis = createRedisMock(
+    JSON.stringify(
+      pendingOrderReservationSchema.parse({
+        orderId: ORDER_ID,
+        eventId: EVENT_ID,
+        status: "pending",
+        expiresAt: Date.now() - 1_000,
+        firstName: "Ada",
+        lastName: "Lovelace",
+      }),
+    ),
+  );
+  const rejections: { reason: string; eventId: string | null }[] = [];
+
+  await assert.rejects(
+    () =>
+      confirmPayment({
+        orderId: ORDER_ID,
+        redis,
+        pubsubPublisher: {
+          async publishBuyTicket() {
+            throw new Error("should not be called");
+          },
+        },
+        onPaymentRejected: (reason, eventId) =>
+          rejections.push({ reason, eventId }),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof GoneError);
+      assert.equal(error.statusCode, 410);
+      return true;
+    },
+  );
+
+  assert.deepEqual(rejections, [{ reason: "expired", eventId: EVENT_ID }]);
+  // Der Anspruch bleibt stehen; freigeben darf ihn nur der Reaper.
+  assert.equal(redis.releaseCalls.length, 0);
+  assert.equal(redis.markPublishedCalls.length, 0);
+});
+
+void test("confirmPayment reports a missing reservation without an event label", async () => {
+  const redis = createRedisMock(null);
+  const rejections: { reason: string; eventId: string | null }[] = [];
+
+  await assert.rejects(
+    () =>
+      confirmPayment({
+        orderId: ORDER_ID,
+        redis,
+        pubsubPublisher: {
+          async publishBuyTicket() {
+            throw new Error("should not be called");
+          },
+        },
+        onPaymentRejected: (reason, eventId) =>
+          rejections.push({ reason, eventId }),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof NotFoundError);
+      return true;
+    },
+  );
+
+  // Ohne Record gibt es keine eventId — das Label faellt auf "unknown" zurueck.
+  assert.deepEqual(rejections, [{ reason: "not-found", eventId: null }]);
 });
 
 void test("confirmPayment throws ConflictError when the order is not awaiting payment", async () => {

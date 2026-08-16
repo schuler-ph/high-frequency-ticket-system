@@ -57,6 +57,18 @@ export class ConflictError extends AppError {
   }
 }
 
+/**
+ * 410 Gone — die Reservierung hat existiert, ihre Eligibility Deadline ist aber
+ * abgelaufen. Bewusst nicht 404: der Client soll „abgelaufen" von „gab es nie"
+ * unterscheiden koennen, damit ein abgelaufener Checkout eine ehrliche Meldung
+ * bekommt statt einer Vermutung (ADR-033).
+ */
+export class GoneError extends AppError {
+  constructor(message: string = "Gone") {
+    super(message, 410);
+  }
+}
+
 // 425 Too Early (RFC 8470)
 export class TooEarlyError extends AppError {
   constructor(message: string = "Too Early") {
