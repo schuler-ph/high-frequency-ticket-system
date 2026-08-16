@@ -25,6 +25,7 @@ function pendingReservationJson(): string {
       orderId: ORDER_ID,
       eventId: EVENT_ID,
       status: "pending",
+      expiresAt: Date.now() + 900_000,
       firstName: "Ada",
       lastName: "Lovelace",
     }),

@@ -39,17 +39,35 @@ export const orderIdParamsSchema = z.object({
 
 export type OrderIdParams = z.infer<typeof orderIdParamsSchema>;
 
+/**
+ * `expiresAt` ist die Eligibility Deadline in Epoch-ms — derselbe Wert, den der
+ * Ledger als ZSet-Score traegt. `serverTime` kommt bewusst mit: der Client
+ * rechnet nur die Differenz `expiresAt - serverTime` weiter und ist damit
+ * unabhaengig von einer falsch gehenden lokalen Uhr. Beide Felder sind optional,
+ * weil das Schema — wie bei `orderId` — auch die Antworten ohne Reservierung
+ * abdeckt.
+ */
 export const buyTicketResponseSchema = z.object({
   message: z.string(),
   orderId: z.uuid().optional(),
+  expiresAt: z.number().int().positive().optional(),
+  serverTime: z.number().int().positive().optional(),
 });
 
 export type BuyTicketResponse = z.infer<typeof buyTicketResponseSchema>;
 
+/**
+ * `expiresAt` liegt zusaetzlich im Record und nicht nur im ZSet-Score. Der
+ * Score bleibt die Autoritaet fuer die Reaper-Auswahl; der Record traegt
+ * denselben Wert, damit Status-Route und Checkout-Scripts die Deadline ohne
+ * zweiten Key lesen koennen. Beide Werte entstehen aus derselben Berechnung im
+ * Reserve-Pfad und duerfen nie auseinanderlaufen.
+ */
 export const pendingOrderCacheEntrySchema = z.object({
   orderId: z.uuid(),
   eventId: z.uuid(),
   status: z.literal("pending"),
+  expiresAt: z.number().int().positive(),
 });
 
 export type PendingOrderCacheEntry = z.infer<
@@ -138,7 +156,25 @@ export const finalOrderCacheEntrySchema = z.discriminatedUnion("status", [
 
 export type FinalOrderCacheEntry = z.infer<typeof finalOrderCacheEntrySchema>;
 
-export const orderStatusResponseSchema = orderCacheEntrySchema;
+/**
+ * Der oeffentliche `pending`-Status traegt zusaetzlich zur Deadline die
+ * Serverzeit des Reads. Damit kann das Frontend den Countdown bei jedem Poll
+ * neu verankern, ohne der lokalen Uhr zu vertrauen.
+ */
+export const pendingOrderStatusResponseSchema =
+  pendingOrderCacheEntrySchema.extend({
+    serverTime: z.number().int().positive(),
+  });
+
+export type PendingOrderStatusResponse = z.infer<
+  typeof pendingOrderStatusResponseSchema
+>;
+
+export const orderStatusResponseSchema = z.discriminatedUnion("status", [
+  pendingOrderStatusResponseSchema,
+  completedOrderCacheEntrySchema,
+  failedOrderCacheEntrySchema,
+]);
 
 export type OrderStatusResponse = z.infer<typeof orderStatusResponseSchema>;
 

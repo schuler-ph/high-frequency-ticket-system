@@ -125,13 +125,21 @@ sequenceDiagram
         API-->>Web: 409 Conflict
     else reserviert
         Redis-->>API: remaining
-        API-->>Web: 202 orderId
+        API-->>Web: 202 orderId + expiresAt
     end
 ```
 
 Das Script prüft `opensAt` und `available`, dekrementiert den Counter, trägt
 `orderId` mit ihrer Eligibility Deadline in das ZSet-Ledger ein und schreibt das
 Pending-Read-Model. `/buy` publiziert noch kein Event.
+
+Die Deadline berechnet die Route, nicht das Script: derselbe Wert wird als
+ZSet-Score und als `expiresAt` im Pending-Record abgelegt. Score und Record
+dürfen nie auseinanderlaufen — der Score steuert die Reaper-Auswahl, der Record
+macht die Deadline für Status-Reads lesbar, ohne einen zweiten Key anzufassen.
+Die `202`-Antwort nennt `expiresAt` zusammen mit der Serverzeit `serverTime`,
+damit ein Client seinen Countdown gegen die Serveruhr verankern kann statt gegen
+die eigene.
 
 ### 3. Bezahlen und publizieren
 
@@ -198,7 +206,10 @@ fehlgeschlagene Kompensation führen zu NACK und Redelivery.
   `pending` idempotent frei. Gewinnt Pay das Rennen, sieht Cancel den
   Zustandskonflikt und lässt den Anspruch stehen.
 - `GET /api/orders/:orderId` liest `pending`, `completed` oder `failed` aus
-  `orders:{orderId}` in Redis.
+  `orders:{orderId}` in Redis. Ein `pending` liefert zusätzlich `expiresAt` aus
+  dem Record und `serverTime` als Uhr des Reads; die internen Zustände
+  `publishing` und `paid` behalten dabei ihre Deadline, bleiben nach außen aber
+  `pending`.
 - Das Frontend pollt bis zu einem terminalen Zustand; es gibt keinen
   WebSocket- oder SSE-Kanal.
 

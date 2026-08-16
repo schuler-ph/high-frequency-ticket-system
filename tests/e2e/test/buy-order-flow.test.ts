@@ -68,7 +68,7 @@ function createInMemoryRedis(
       _opensAtKey,
       orderId,
       orderCacheValue,
-      _pendingTimeoutSeconds,
+      _expiresAt,
       _nowMs,
     ) {
       const current = Number(store.get(availableKey) ?? "0");
@@ -196,17 +196,23 @@ void test("buy reserves, pay publishes, worker persists, and GET /api/orders/:or
     const buyBody = JSON.parse(buyResponse.body) as {
       orderId: string;
       message: string;
+      expiresAt: number;
+      serverTime: number;
     };
     assert.equal(buyBody.message, "Ticket reserved");
     assert.equal(publishedEvents.length, 0);
 
-    // Reservierungs-Record traegt die Kaeuferdaten.
+    // Reservierungs-Record traegt die Kaeuferdaten und die Deadline; die
+    // Antwort nennt exakt dieselbe Deadline plus die Serverzeit.
+    assert.ok(typeof buyBody.expiresAt === "number");
+    assert.ok(typeof buyBody.serverTime === "number");
     assert.deepEqual(
       JSON.parse((await redis.get(orderRedisKeys.entry(buyBody.orderId)))!),
       pendingOrderReservationSchema.parse({
         orderId: buyBody.orderId,
         eventId,
         status: "pending",
+        expiresAt: buyBody.expiresAt,
         firstName: "Ada",
         lastName: "Lovelace",
       }),

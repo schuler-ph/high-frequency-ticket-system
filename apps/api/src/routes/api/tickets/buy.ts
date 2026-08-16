@@ -59,17 +59,22 @@ export async function queueBuyTicketPurchase({
   const keys = ticketRedisKeys(eventId);
   const orderId = createOrderId();
   const orderCacheKey = orderRedisKeys.entry(orderId);
+  // Zeitstempel wird dreifach genutzt: Sale-Unlock-Check (opensAt), Basis der
+  // Eligibility Deadline und Serverzeit-Anker der Antwort. `queuedAt` fuer die
+  // E2E-Latenz setzt erst die Pay-Route beim Publish — der Buy misst keine
+  // Queue-Latenz mehr (ADR-028).
+  const now = Date.now();
+  // Genau eine Berechnung der Deadline: derselbe Wert geht in den Record und
+  // als Score in den Ledger.
+  const expiresAt = now + pendingTimeoutSeconds * 1000;
   const orderCacheValue = JSON.stringify({
     orderId,
     eventId,
     status: "pending",
+    expiresAt,
     firstName: body.firstName,
     lastName: body.lastName,
   } satisfies PendingOrderReservation);
-  // Zeitstempel wird zweifach genutzt: Ledger-Score (ZADD) und Sale-Unlock-
-  // Check (opensAt). `queuedAt` fuer die E2E-Latenz setzt erst die Pay-Route
-  // beim Publish — der Buy misst keine Queue-Latenz mehr (ADR-028).
-  const now = Date.now();
 
   const availableAfterReserve = await redis.reserveTicket(
     keys.available,
@@ -78,7 +83,7 @@ export async function queueBuyTicketPurchase({
     keys.opensAt,
     orderId,
     orderCacheValue,
-    pendingTimeoutSeconds,
+    expiresAt,
     now,
   );
 
@@ -95,6 +100,8 @@ export async function queueBuyTicketPurchase({
   return {
     message: "Ticket reserved",
     orderId,
+    expiresAt,
+    serverTime: now,
   };
 }
 

@@ -22,7 +22,7 @@ type ReserveCall = {
   opensAtKey: string;
   orderId: string;
   orderCacheValue: string;
-  pendingTimeoutSeconds: number;
+  expiresAt: number;
   nowMs: number;
 };
 
@@ -53,7 +53,7 @@ function createScriptsMock(
       opensAtKey,
       orderId,
       orderCacheValue,
-      pendingTimeoutSeconds,
+      expiresAt,
       nowMs,
     ) {
       reserveCalls.push({
@@ -63,7 +63,7 @@ function createScriptsMock(
         opensAtKey,
         orderId,
         orderCacheValue,
-        pendingTimeoutSeconds,
+        expiresAt,
         nowMs,
       });
       return 999_999;
@@ -104,6 +104,7 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and doe
       lastName: "Lovelace",
     },
     redis,
+    pendingTimeoutSeconds: 900,
     createOrderId: () => ORDER_ID,
   });
 
@@ -113,24 +114,26 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and doe
   const reserveCall = redis.reserveCalls[0];
   assert.ok(reserveCall);
   assert.deepEqual(
-    { ...reserveCall, nowMs: undefined },
+    { ...reserveCall, nowMs: undefined, expiresAt: undefined },
     {
       availableKey: ticketRedisKeys(EVENT_ID).available,
       reservationsLedgerKey: ticketRedisKeys(EVENT_ID).reservations,
       orderCacheKey: orderRedisKeys.entry(ORDER_ID),
       opensAtKey: ticketRedisKeys(EVENT_ID).opensAt,
       orderId: ORDER_ID,
-      // Der Reservierungs-Record traegt die Kaeuferdaten fuer die Pay-Route.
+      // Der Reservierungs-Record traegt die Kaeuferdaten fuer die Pay-Route
+      // und die Eligibility Deadline fuer Timer und Deadline-Pruefung.
       orderCacheValue: JSON.stringify(
         pendingOrderReservationSchema.parse({
           orderId: ORDER_ID,
           eventId: EVENT_ID,
           status: "pending",
+          expiresAt: reserveCall.expiresAt,
           firstName: "Ada",
           lastName: "Lovelace",
         }),
       ),
-      pendingTimeoutSeconds: 900,
+      expiresAt: undefined,
       nowMs: undefined,
     },
   );
@@ -138,6 +141,11 @@ void test("queueBuyTicketPurchase reserves atomically in one script call and doe
     typeof reserveCall.nowMs === "number" && reserveCall.nowMs > 0,
     `expected nowMs > 0, got ${String(reserveCall.nowMs)}`,
   );
+  // Genau eine Deadline-Berechnung: Ledger-Score, Record und Antwort tragen
+  // denselben Wert, abgeleitet aus demselben `now`.
+  assert.equal(reserveCall.expiresAt, reserveCall.nowMs + 900_000);
+  assert.equal(response.serverTime, reserveCall.nowMs);
+  assert.equal(response.expiresAt, reserveCall.expiresAt);
   // Buy publiziert nichts mehr und rollt daher auch nichts zurueck (ADR-028).
   assert.equal(redis.releaseCalls.length, 0);
 });

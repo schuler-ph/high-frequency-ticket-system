@@ -13,10 +13,16 @@ import type { RedisClient } from "@repo/types/redis-client";
  * lange Warteschlangen-Latenz keine noch offene Reservierung "ablaufen"
  * lassen und der Reconcile-Loop bucht kein Inventar faelschlich zurueck.
  *
+ * Die Eligibility Deadline wird NICHT hier gerechnet, sondern vom Aufrufer
+ * uebergeben. Sie steht sowohl im Ledger-Score als auch im Pending-Record
+ * (`expiresAt`); beide muessen exakt denselben Wert tragen, damit die
+ * Deadline-Pruefung im Pay-Pfad und die Reaper-Auswahl dieselbe Wahrheit sehen.
+ * Zwei getrennte Berechnungen koennten auseinanderlaufen.
+ *
  * KEYS[1] = available, KEYS[2] = reservationsLedger, KEYS[3] = orderCacheKey,
  * KEYS[4] = opensAtKey
  * ARGV[1] = orderId, ARGV[2] = orderCacheValue,
- * ARGV[3] = pendingTimeoutSeconds, ARGV[4] = nowMs
+ * ARGV[3] = expiresAt (Epoch-ms), ARGV[4] = nowMs
  */
 const RESERVE_TICKET_SCRIPT = `
 local opensAt = tonumber(redis.call("GET", KEYS[4]) or "0")
@@ -30,8 +36,7 @@ if current <= 0 then
 end
 
 local remaining = redis.call("DECR", KEYS[1])
-local deadline = tonumber(ARGV[4]) + tonumber(ARGV[3]) * 1000
-redis.call("ZADD", KEYS[2], deadline, ARGV[1])
+redis.call("ZADD", KEYS[2], tonumber(ARGV[3]), ARGV[1])
 redis.call("SET", KEYS[3], ARGV[2])
 return remaining
 `;
@@ -130,7 +135,7 @@ export type TicketRedisScripts = {
     opensAtKey: string,
     orderId: string,
     orderCacheValue: string,
-    pendingTimeoutSeconds: number,
+    expiresAt: number,
     nowMs: number,
   ): Promise<number>;
   claimPayment(

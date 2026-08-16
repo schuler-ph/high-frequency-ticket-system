@@ -82,6 +82,8 @@ async function seedFixture(
   return { eventId, orderId, keys, orderCacheKey, orderCacheValue, cleanup };
 }
 
+// Die Deadline rechnet der Aufrufer, nicht das Script — hier dieselbe Formel
+// wie in der Buy-Route.
 const reserve = (fx: Fixture, nowMs: number) =>
   scripts.reserveTicket(
     fx.keys.available,
@@ -90,7 +92,7 @@ const reserve = (fx: Fixture, nowMs: number) =>
     fx.keys.opensAt,
     fx.orderId,
     fx.orderCacheValue,
-    PENDING_TIMEOUT_SECONDS,
+    nowMs + PENDING_TIMEOUT_SECONDS * 1000,
     nowMs,
   );
 

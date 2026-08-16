@@ -20,16 +20,23 @@ const pendingOrderId = "1f7a58e2-e676-44a8-bc48-9c0d8a130a4f";
 const completedOrderId = "ca2c8ff9-f1f4-4f65-a7ff-1f10baf50ec0";
 const failedOrderId = "ff8324b1-fa61-4b43-b3eb-4db5f1d7769d";
 
+const EXPIRES_AT = 1_700_000_900_000;
+
 void test("GET /:orderId returns a pending order from Redis", async () => {
   const fastify = Fastify({ logger: false });
   const redis: RedisMock = {
     async get(key: string) {
       assert.equal(key, `orders:${pendingOrderId}`);
 
+      // Genau der Record, den die Buy-Route schreibt: Kaeuferdaten plus
+      // Eligibility Deadline.
       return JSON.stringify({
         orderId: pendingOrderId,
         eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
         status: "pending",
+        expiresAt: EXPIRES_AT,
+        firstName: "Ada",
+        lastName: "Lovelace",
       });
     },
   };
@@ -52,11 +59,22 @@ void test("GET /:orderId returns a pending order from Redis", async () => {
     const parsedBody = orderStatusResponseSchema.safeParse(body);
 
     assert.equal(parsedBody.success, true);
-    assert.deepEqual(body, {
-      orderId: pendingOrderId,
-      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
-      status: "pending",
-    });
+    // `serverTime` ist die Uhr des Reads und daher nicht vorhersagbar; sie wird
+    // separat geprueft.
+    assert.deepEqual(
+      { ...body, serverTime: undefined },
+      {
+        orderId: pendingOrderId,
+        eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
+        status: "pending",
+        expiresAt: EXPIRES_AT,
+        serverTime: undefined,
+      },
+    );
+    assert.ok(
+      typeof body.serverTime === "number" && body.serverTime > 0,
+      `expected serverTime > 0, got ${String(body.serverTime)}`,
+    );
   } finally {
     await fastify.close();
   }
@@ -70,6 +88,7 @@ void test("GET /:orderId keeps an internal publishing order publicly pending", a
         orderId: pendingOrderId,
         eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
         status: "publishing",
+        expiresAt: EXPIRES_AT,
         firstName: "Ada",
         lastName: "Lovelace",
         queuedAt: 1_700_000_000_000,
@@ -90,11 +109,18 @@ void test("GET /:orderId keeps an internal publishing order publicly pending", a
     });
 
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(JSON.parse(response.body), {
-      orderId: pendingOrderId,
-      eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
-      status: "pending",
-    });
+    const body = JSON.parse(response.body);
+    // Auch im internen `publishing` behaelt der Client seine Deadline.
+    assert.deepEqual(
+      { ...body, serverTime: undefined },
+      {
+        orderId: pendingOrderId,
+        eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
+        status: "pending",
+        expiresAt: EXPIRES_AT,
+        serverTime: undefined,
+      },
+    );
   } finally {
     await fastify.close();
   }
