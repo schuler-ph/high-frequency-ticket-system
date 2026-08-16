@@ -1,4 +1,5 @@
 import { execFileSync, execSync } from "node:child_process";
+import { requireEnv, requireEnvNumber } from "../lib/require-env.mjs";
 
 const POSTGRES_CONTAINER = "hts-postgres";
 const REDIS_CONTAINER = "hts-redis";
@@ -7,20 +8,12 @@ const PROMETHEUS_CONTAINER = "hts-prometheus";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 
-const DEFAULT_PROJECT_ID = "high-frequency-ticket-system";
-const DEFAULT_PUBSUB_TOPIC = "buy-ticket";
-const DEFAULT_PUBSUB_SUBSCRIPTION = "buy-ticket-worker";
-const DEFAULT_PUBSUB_HOST = "localhost:10005";
-const DEFAULT_DATABASE_URL =
-  "postgres://postgres:postgres@localhost:10006/high_frequency_tickets";
 const SEED_TIMESTAMP = "2026-01-01T00:00:00Z";
 
-// Kapazitaet des Haupt-Events. Default 1.000.000 (Lastprofil laut ARCHITECTURE.md
-// und ADR-025). Fuer schnelle Smoke-Tests der Sold-Out-Transition (z.B. den
-// reaktiven SIGINT-Stop in run-spike.mjs oder eine CI-Smoke-Profile) kann eine
-// kleine Kapazitaet via `SEED_CAPACITY` gesetzt werden, ohne das Fixture zu
-// veraendern.
-const SEED_CAPACITY = Number(process.env.SEED_CAPACITY ?? 1_000_000);
+// Kapazitaet des Haupt-Events — kommt aus dem Env-Profil, damit ein
+// 100k-Funnel-Lauf und ein 1-M-Kapazitaetslauf sich nicht in der Shell-History
+// unterscheiden, sondern in der Profil-Datei (ADR-034).
+const SEED_CAPACITY = requireEnvNumber("SEED_CAPACITY");
 
 if (!Number.isInteger(SEED_CAPACITY) || SEED_CAPACITY <= 0) {
   throw new Error(
@@ -48,17 +41,16 @@ const requiredContainers = [
   PUBSUB_CONTAINER,
 ];
 
-const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_PROJECT_ID;
-const topicName = process.env.PUBSUB_TOPIC_BUY_TICKET ?? DEFAULT_PUBSUB_TOPIC;
-const subscriptionName =
-  process.env.PUBSUB_SUBSCRIPTION_BUY_TICKET ?? DEFAULT_PUBSUB_SUBSCRIPTION;
-const pubsubHost = process.env.PUBSUB_EMULATOR_HOST ?? DEFAULT_PUBSUB_HOST;
+const projectId = requireEnv("GOOGLE_CLOUD_PROJECT");
+const topicName = requireEnv("PUBSUB_TOPIC_BUY_TICKET");
+const subscriptionName = requireEnv("PUBSUB_SUBSCRIPTION_BUY_TICKET");
+const pubsubHost = requireEnv("PUBSUB_EMULATOR_HOST");
 
-// Optionales Sale-Unlock-Gate fuer Lasttests: > 0 => Reservierungen sind erst
-// ab `Date.now() + N Sekunden` erlaubt (Redis-Key `opensAt`, siehe
-// packages/types/src/redis-keys.ts). 0/unset => Event ist sofort offen
-// (bestehendes Default-Verhalten fuer normalen Dev-/Testbetrieb).
-const SALE_OPENS_IN_SECONDS = Number(process.env.SALE_OPENS_IN_SECONDS ?? 0);
+// Sale-Unlock-Gate: > 0 => Reservierungen sind erst ab `Date.now() + N
+// Sekunden` erlaubt (Redis-Key `opensAt`, siehe packages/types/src/redis-keys.ts),
+// 0 => sofort offen. Frueher defaultete dieser Wert hier auf 0 und im
+// Report-Orchestrator auf 60 — zwei Wahrheiten fuer dieselbe Variable.
+const SALE_OPENS_IN_SECONDS = requireEnvNumber("SALE_OPENS_IN_SECONDS");
 const opensAt =
   SALE_OPENS_IN_SECONDS > 0 ? Date.now() + SALE_OPENS_IN_SECONDS * 1000 : 0;
 
@@ -95,7 +87,7 @@ const checkContainers = () => {
 const resetPostgres = () => {
   console.log("[local:reset-seed] Applying DB schema via drizzle push...");
   runCommand("pnpm --filter @repo/db run db:push", {
-    DATABASE_URL: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+    DATABASE_URL: requireEnv("DATABASE_URL"),
   });
 
   const eventValues = EVENT_FIXTURES.map(

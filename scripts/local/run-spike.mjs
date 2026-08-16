@@ -1,19 +1,20 @@
 import { execFileSync, spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
+import {
+  requireEnv,
+  requireEnvBoolean,
+  requireEnvNumber,
+} from "../lib/require-env.mjs";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:10002";
-const EVENT_ID = process.env.EVENT_ID ?? "00000000-0000-4000-8000-000000000000";
-const SALE_OPENS_IN_SECONDS = Number(process.env.SALE_OPENS_IN_SECONDS ?? 60);
-const POLL_INTERVAL_MS = Number(process.env.SPIKE_POLL_INTERVAL_MS ?? 3000);
-const SOLDOUT_CONFIRM_POLLS = Number(
-  process.env.SPIKE_SOLDOUT_CONFIRM_POLLS ?? 3,
+const BASE_URL = requireEnv("BASE_URL");
+const EVENT_ID = requireEnv("EVENT_ID");
+const SALE_OPENS_IN_SECONDS = requireEnvNumber("SALE_OPENS_IN_SECONDS");
+const POLL_INTERVAL_MS = requireEnvNumber("SPIKE_POLL_INTERVAL_MS");
+const SOLDOUT_CONFIRM_POLLS = requireEnvNumber("SPIKE_SOLDOUT_CONFIRM_POLLS");
+const GRACEFUL_STOP_TIMEOUT_MS = requireEnvNumber(
+  "SPIKE_GRACEFUL_STOP_TIMEOUT_MS",
 );
-const GRACEFUL_STOP_TIMEOUT_MS = Number(
-  process.env.SPIKE_GRACEFUL_STOP_TIMEOUT_MS ?? 40_000,
-);
-const PROMETHEUS_RW_URL =
-  process.env.K6_PROMETHEUS_RW_SERVER_URL ??
-  "http://localhost:10007/api/v1/write";
+const PROMETHEUS_RW_URL = requireEnv("K6_PROMETHEUS_RW_SERVER_URL");
 // Sold-Out wird an den TATSAECHLICH abgeschlossenen Orders erkannt (monotoner
 // Worker-Counter `orders_completed_total`), nicht mehr am reserve-getriebenen
 // `available`: seit der Abandonment-/Cancel-Modellierung (ADR-028) oszilliert
@@ -21,8 +22,7 @@ const PROMETHEUS_RW_URL =
 // steigen — das stoppte Phase A verfrueht. Der Completion-Counter kann nur
 // steigen; ein Plateau ueber mehrere Polls bedeutet, dass keine Verkaeufe mehr
 // durchgehen (Inventar durch Sales + Phantom-Reservierungen erschoepft).
-const WORKER_METRICS_URL =
-  process.env.WORKER_METRICS_URL ?? "http://localhost:10003/metrics";
+const WORKER_METRICS_URL = requireEnv("WORKER_METRICS_URL");
 
 const k6Env = {
   ...process.env,
@@ -41,7 +41,7 @@ const spawnK6 = (scriptPath) => {
   // auf 5,5 GiB, bis es mit `503` antwortete — und nahmen damit genau die
   // Health-/Peak-Auswertung mit, die der Report braucht (Report §4.1).
   const args = ["run"];
-  if (process.env.K6_PROMETHEUS_RW === "true") {
+  if (requireEnvBoolean("K6_PROMETHEUS_RW")) {
     args.push("--out", "experimental-prometheus-rw");
   }
   args.push(scriptPath);

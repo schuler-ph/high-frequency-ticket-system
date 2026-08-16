@@ -78,7 +78,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 `pnpm spike` ruft `scripts/local/run-spike.mjs` auf (siehe ADR-025), das:
 
-1. `scripts/local/reset-seed.mjs` mit `SALE_OPENS_IN_SECONDS` (Default: `60`) ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
+1. `scripts/local/reset-seed.mjs` mit dem `SALE_OPENS_IN_SECONDS` des Profils ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
 3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
@@ -142,7 +142,7 @@ Nach `buy` verzweigt jede Iteration (env-konfigurierbar):
 Da das Backend nach dem Reserve/Pay-Split **keine** kuenstliche Latenz mehr hat,
 lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
 
-- **`capacity`** (Default): keine Denkzeit, `buy`→`pay` back-to-back → misst rohe
+- **`capacity`**: keine Denkzeit, `buy`→`pay` back-to-back → misst rohe
   Infra-Kapazitaet (Vergleichsgrundlage fuer Baseline B).
 - **`realism`**: randomisierte Denkzeit ~2–8 s (`THINK_TIME_MIN`/`THINK_TIME_MAX`)
   → misst gleichzeitig gehaltene Ledger-Reservierungen + Redis-Memory. Die
@@ -151,8 +151,7 @@ lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
 - **`checkout`**: keine Availability-Reads (im capacity-Profil 60 % der
   Requests) und keine Denkzeit — jede Iteration geht direkt `buy`→`pay`. Zeigt
   den Write-Pfad (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle
-  im Mix. Der Funnel zahlt hier per Default vollstaendig (`PAY_RATE=1`,
-  `CANCEL_RATE=0`); explizit gesetzte Envs schlagen den Profil-Default.
+  im Mix. Der Funnel zahlt hier vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`).
 - **`funnel`**: menschliche Denkzeit als truncated Normal um 60 s
   (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
   `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster. Uebt
@@ -183,7 +182,7 @@ Fehlt das Profil, startet nichts.
 Die Spalte „Default" unten nennt deshalb keinen Fallback, sondern den Wert, den
 das `capacity`-Profil setzt; die anderen Profile weichen bewusst davon ab.
 
-| Variable                         | Default                                | Beschreibung                                                                |
+| Variable                         | Wert im `capacity`-Profil              | Beschreibung                                                                |
 | -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
 | `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                               |
 | `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                                |

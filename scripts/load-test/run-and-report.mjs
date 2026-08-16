@@ -45,14 +45,13 @@ import {
 import { parseOpenMetrics, sumSamples } from "./lib/openmetrics.mjs";
 import { exportDashboards } from "./lib/grafana.mjs";
 import { analyzeAndWrite } from "./analyze-run.mjs";
+import { requireEnv, requireEnvBoolean } from "../lib/require-env.mjs";
 
-const EVENT_ID = process.env.EVENT_ID ?? "00000000-0000-4000-8000-000000000000";
-const API_METRICS =
-  process.env.API_METRICS_URL ?? "http://localhost:10002/metrics";
-const WORKER_METRICS =
-  process.env.WORKER_METRICS_URL ?? "http://localhost:10003/metrics";
-const PROMETHEUS_URL = process.env.PROMETHEUS_URL ?? "http://localhost:10007";
-const SALE_OPENS_IN_SECONDS = process.env.SALE_OPENS_IN_SECONDS ?? "60";
+const EVENT_ID = requireEnv("EVENT_ID");
+const API_METRICS = requireEnv("API_METRICS_URL");
+const WORKER_METRICS = requireEnv("WORKER_METRICS_URL");
+const PROMETHEUS_URL = requireEnv("PROMETHEUS_URL");
+const SALE_OPENS_IN_SECONDS = requireEnv("SALE_OPENS_IN_SECONDS");
 /** Vorlauf/Nachlauf der exportierten Panels: Ruhelinie vor, Leerlaufen nach dem Ansturm. */
 const GRAPH_PAD_BEFORE_MS = 60_000;
 const GRAPH_PAD_AFTER_MS = 30_000;
@@ -130,11 +129,9 @@ const main = async () => {
 
   const k6Env = {
     ...process.env,
-    BASE_URL: process.env.BASE_URL ?? "http://localhost:10002",
+    BASE_URL: requireEnv("BASE_URL"),
     EVENT_ID,
-    K6_PROMETHEUS_RW_SERVER_URL:
-      process.env.K6_PROMETHEUS_RW_SERVER_URL ??
-      `${PROMETHEUS_URL}/api/v1/write`,
+    K6_PROMETHEUS_RW_SERVER_URL: requireEnv("K6_PROMETHEUS_RW_SERVER_URL"),
   };
 
   // 3. Reset / seed.
@@ -181,7 +178,7 @@ const main = async () => {
     // beenden. In den anderen Profilen halten Abandon-Kohorten ihre Ansprueche
     // bis zur 900-s-Deadline — dort wuerde dieselbe Bedingung nie greifen.
     readLedgerActive:
-      process.env.LOAD_PROFILE === "funnel"
+      requireEnv("LOAD_PROFILE") === "funnel"
         ? (eventId) => fetchLedgerActive(WORKER_METRICS, eventId)
         : undefined,
   });
@@ -287,7 +284,7 @@ const main = async () => {
   // 9b. Grafana panels as PNG for exactly this run's window (ADR-030).
   // Best-effort on purpose: the numeric evidence is already on disk, and a
   // missing renderer container must not turn a valid run into a failed one.
-  if (process.env.EXPORT_GRAPHS !== "0") {
+  if (requireEnvBoolean("EXPORT_GRAPHS")) {
     const from = Date.parse(timestamps.workloadStartedAt) - GRAPH_PAD_BEFORE_MS;
     const to =
       Date.parse(timestamps.drainEndedAt ?? timestamps.workloadEndedAt) +

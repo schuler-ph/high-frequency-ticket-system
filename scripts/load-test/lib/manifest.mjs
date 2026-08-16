@@ -14,6 +14,9 @@ export const MANIFEST_SCHEMA_VERSION = 1;
  * Anything not on this list is dropped by {@link redactConfig}.
  */
 export const CONFIG_ALLOWLIST = [
+  // Seit ADR-034 die wichtigste Zeile im Manifest: sie beantwortet die Frage
+  // "mit welcher Konfiguration lief das?" mit einem Wort.
+  "HTS_ENV_PROFILE",
   "NODE_ENV",
   "LOG_LEVEL",
   "DISABLE_REQUEST_LOGGING",
@@ -27,6 +30,7 @@ export const CONFIG_ALLOWLIST = [
   "LOAD_PROFILE",
   "PAY_RATE",
   "CANCEL_RATE",
+  "THINK_TIME_KIND",
   "THINK_TIME_MIN",
   "THINK_TIME_MAX",
   "THINK_TIME_MEAN",

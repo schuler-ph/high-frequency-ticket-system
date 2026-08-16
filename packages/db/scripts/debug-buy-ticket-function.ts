@@ -1,8 +1,7 @@
 import { Client } from "pg";
+import { env } from "@repo/env";
 
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:10006/high_frequency_tickets";
+const databaseUrl = env.DATABASE_URL;
 
 const fail = (message: string): never => {
   console.error(`[db:debug:buy-ticket-function] ${message}`);

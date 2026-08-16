@@ -16,6 +16,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { requireEnv } from "../../lib/require-env.mjs";
 
 /** Panel types that carry no time-series graph and are not worth a PNG. */
 const NON_GRAPH_PANEL_TYPES = new Set(["row", "text", "dashlist", "news"]);
@@ -358,13 +359,13 @@ const mapWithConcurrency = async (items, limit, worker) => {
 export const exportDashboards = async (opts) => {
   const {
     outDir,
-    baseUrl = process.env.GRAFANA_URL ?? "http://localhost:10008",
-    user = process.env.GRAFANA_USER ?? "admin",
-    password = process.env.GRAFANA_PASSWORD ?? "admin",
+    baseUrl = requireEnv("GRAFANA_URL"),
+    user = requireEnv("GRAFANA_USER"),
+    password = requireEnv("GRAFANA_PASSWORD"),
     width = 1200,
     height = 500,
     scale = 2,
-    timeZone = process.env.GRAFANA_TZ ?? "Europe/Vienna",
+    timeZone = requireEnv("GRAFANA_TZ"),
     theme = "dark",
     concurrency = 3,
     timeoutMs = 60_000,

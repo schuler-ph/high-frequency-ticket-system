@@ -1,10 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
+import { env } from "@repo/env";
 
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:10006/high_frequency_tickets";
+// Kein eigener Fallback mehr: `@repo/env` laedt das Profil und validiert
+// DATABASE_URL. Frueher trugen drei Skripte hier je eine eigene Kopie der
+// Verbindungszeichenfolge (ADR-034).
+const databaseUrl = env.DATABASE_URL;
 
 const ledgerTable = "drizzle_sql_migrations";
 

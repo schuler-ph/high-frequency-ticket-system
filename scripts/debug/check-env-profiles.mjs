@@ -29,7 +29,7 @@ const schemaVariables = () => {
   return [...server.matchAll(/^\s{4}([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1]);
 };
 
-/** Variablen, die nur der Lastgenerator und der Seed-Pfad brauchen. */
+/** Variablen, die nur der Lastgenerator und die Belegerhebung brauchen. */
 const LOADTEST_VARIABLES = [
   "LOAD_PROFILE",
   "BASE_URL",
@@ -45,7 +45,33 @@ const LOADTEST_VARIABLES = [
   "CHECKOUT_POLL",
   "CHECKOUT_POLL_MAX_ATTEMPTS",
   "CHECKOUT_POLL_INTERVAL",
+  "API_METRICS_URL",
+  "WORKER_METRICS_URL",
+  "PROMETHEUS_URL",
+  "GRAFANA_URL",
+  "GRAFANA_USER",
+  "GRAFANA_PASSWORD",
+  "GRAFANA_TZ",
+  "EXPORT_GRAPHS",
+  "SPIKE_POLL_INTERVAL_MS",
+  "SPIKE_SOLDOUT_CONFIRM_POLLS",
+  "SPIKE_GRACEFUL_STOP_TIMEOUT_MS",
+  "K6_PROMETHEUS_RW",
+  "K6_PROMETHEUS_RW_SERVER_URL",
 ];
+
+/** Variablen, die nur das Hot-Row-Werkzeug braucht. */
+const BENCH_VARIABLES = [
+  "BENCH_EVENT_ID",
+  "BENCH_WORKER_METRICS_URL",
+  "BENCH_MESSAGES",
+  "BENCH_PUBLISH_BATCH",
+  "BENCH_SAMPLE_INTERVAL_MS",
+  "BENCH_DRAIN_TIMEOUT_MS",
+];
+
+/** Seed-Variablen — jedes Profil, das seeden kann, braucht sie. */
+const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
 const LOADTEST_PROFILES = new Set([
   "capacity",
@@ -86,7 +112,15 @@ for (const entry of profiles) {
 
   for (const variable of required) {
     if (!keys.has(variable)) {
-      problems.push(`config/env/${entry}: ${variable} fehlt (Schema-Variable).`);
+      problems.push(
+        `config/env/${entry}: ${variable} fehlt (Schema-Variable).`,
+      );
+    }
+  }
+
+  for (const variable of SEED_VARIABLES) {
+    if (!keys.has(variable)) {
+      problems.push(`config/env/${entry}: ${variable} fehlt (Seed-Variable).`);
     }
   }
 
@@ -95,6 +129,16 @@ for (const entry of profiles) {
       if (!keys.has(variable)) {
         problems.push(
           `config/env/${entry}: ${variable} fehlt (Lasttest-Variable).`,
+        );
+      }
+    }
+  }
+
+  if (name === "bench") {
+    for (const variable of BENCH_VARIABLES) {
+      if (!keys.has(variable)) {
+        problems.push(
+          `config/env/${entry}: ${variable} fehlt (Benchmark-Variable).`,
         );
       }
     }

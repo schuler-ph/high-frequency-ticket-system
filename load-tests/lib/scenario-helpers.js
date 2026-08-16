@@ -22,83 +22,87 @@ const funnelPayRejected = new Counter("funnel_pay_rejected"); // getaggt nach { 
 const requestsByStatus = new Counter("requests_by_status");
 const transportErrors = new Counter("transport_errors");
 
-export const BASE_URL = __ENV.BASE_URL || "http://localhost:10002";
-// Default: Frequency Festival 20XX Main Sale (1M tickets, matches local seed)
-export const EVENT_ID =
-  __ENV.EVENT_ID || "00000000-0000-4000-8000-000000000000";
+/**
+ * k6 laeuft in einer eigenen Runtime und sieht weder `@repo/env` noch die
+ * Profil-Datei — es bekommt nur das Prozess-Env des Orchestrators. Damit fehlt
+ * hier die Zod-Validierung, weshalb frueher jeder Wert einen `||`-Fallback
+ * trug. Das war doppelt gefaehrlich: es verdeckte fehlende Werte, und `||`
+ * verschluckt zusaetzlich jede explizite `0` (falsy), sodass ein bewusst
+ * gesetztes `PAY_RATE=0` still zum Profil-Default wurde.
+ *
+ * Deshalb: harte Pflichtwerte mit Namensnennung (ADR-034).
+ */
+function requireEnv(name) {
+  const value = __ENV[name];
+  if (value === undefined || value === "") {
+    throw new Error(
+      `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (config/env/<profil>.env). Aktuelles Profil: ${
+        __ENV.HTS_ENV_PROFILE || "(keins)"
+      }`,
+    );
+  }
+  return value;
+}
 
-// Optionaler GET /orders/:orderId-Poll nach dem Pay (Default: aus). Der Poll
-// misst die Zeit bis der Worker die Order persistiert hat, treibt aber die
-// VU-Zahl und den Availability-/Orders-Read-Load nach oben. Fuer einen reinen
+function requireEnvNumber(name) {
+  const value = Number(requireEnv(name));
+  if (!isFinite(value)) {
+    throw new Error(`${name} ist keine Zahl: "${__ENV[name]}"`);
+  }
+  return value;
+}
+
+function requireEnvBoolean(name) {
+  const value = requireEnv(name);
+  if (value !== "true" && value !== "false") {
+    throw new Error(
+      `${name} muss "true" oder "false" sein, ist aber "${value}"`,
+    );
+  }
+  return value === "true";
+}
+
+export const BASE_URL = requireEnv("BASE_URL");
+export const EVENT_ID = requireEnv("EVENT_ID");
+
+// Optionaler GET /orders/:orderId-Poll nach dem Pay. Der Poll misst die Zeit
+// bis der Worker die Order persistiert hat, treibt aber die VU-Zahl und den
+// Availability-/Orders-Read-Load nach oben. Fuer einen reinen
 // Durchsatz-/Kapazitaetslauf reicht `buy`→`pay`; die Persistenz ist ueber die
 // Worker-Metriken und den Drain-Monitor ohnehin sichtbar.
-const CHECKOUT_POLL = (__ENV.CHECKOUT_POLL || "false") === "true";
-const POLL_MAX_ATTEMPTS = Number(__ENV.CHECKOUT_POLL_MAX_ATTEMPTS || 10);
-const POLL_INTERVAL_SECONDS = Number(__ENV.CHECKOUT_POLL_INTERVAL || 1);
+const CHECKOUT_POLL = requireEnvBoolean("CHECKOUT_POLL");
+const POLL_MAX_ATTEMPTS = requireEnvNumber("CHECKOUT_POLL_MAX_ATTEMPTS");
+const POLL_INTERVAL_SECONDS = requireEnvNumber("CHECKOUT_POLL_INTERVAL");
 
-// Lastprofile (ADR-028). Da das Backend nach dem Reserve/Pay-Split KEINE
+// Lastprofil (ADR-028/ADR-034). Da das Backend nach dem Reserve/Pay-Split KEINE
 // kuenstliche Latenz mehr hat (Worker-Sleep raus, `/pay` ohne Server-Sleep),
 // lebt die Checkout-Denkzeit als explizites `sleep()` hier im k6-Skript.
 //
-// Jedes Profil ist ein Eintrag in dieser Tabelle. Vorher lagen Mix, Denkzeit
-// und Kohorten als verstreute `if`-Zweige und Literale im Code — mit dem
-// vierten Profil war das nicht mehr haltbar.
-//
-//   - "capacity" (Default): keine Denkzeit, `buy`→`pay` back-to-back → misst
-//     rohe Infra-Kapazitaet (Vergleichsgrundlage fuer Baseline B).
-//   - "realism": randomisierte Denkzeit ~2–8 s → misst gleichzeitig gehaltene
-//     Ledger-Reservierungen + Redis-Memory.
-//   - "checkout": keine Availability-Reads und keine Denkzeit — jede Iteration
-//     geht direkt `buy`→`pay`. Isoliert den Write-Pfad von den Redis-Reads.
-//   - "funnel": menschliche Denkzeit (truncated Normal um 60 s) gegen ein
-//     kurzes Checkout-Fenster. Uebt Ablauf und Reaper aus und beweist exakten
-//     Sellout. Der Checkout-Anteil ist bewusst klein: gleichzeitige
-//     Reservierungen = Checkout-Rate x Denkzeit, also VU-teuer, waehrend
-//     Availability-Reads VU-billig sind. So traegt derselbe Lauf echte RPS
-//     UND ~150 Checkouts/s, ohne das VU-Budget zu sprengen.
-const PROFILES = {
-  capacity: {
-    checkoutShare: 0.4,
-    think: null,
-    payRate: 0.88,
-    cancelRate: 0.08,
-  },
-  realism: {
-    checkoutShare: 0.4,
-    think: { kind: "uniform", min: 2, max: 8 },
-    payRate: 0.88,
-    cancelRate: 0.08,
-  },
-  checkout: {
-    checkoutShare: 1,
-    think: null,
-    payRate: 1,
-    cancelRate: 0,
-  },
-  funnel: {
-    checkoutShare: 0.05,
-    think: { kind: "normal", mean: 60, sigma: 35, min: 10, max: 180 },
-    // Zu-spaet-Zahler zahlen bewusst TROTZDEM — genau das erzeugt die
-    // Rejected-Serie. Rest nach pay/cancel ist stiller Abbruch (Reaper-Futter).
-    payRate: 0.9,
-    cancelRate: 0.05,
-  },
-};
+// Die frueher hier stehende Profil-Tabelle ist entfallen: sie war eine zweite
+// Wahrheit neben der Profil-Datei und konnte von den Service-Werten abweichen —
+// genau der Fall, in dem der Generator ein Funnel-Profil fuhr und die Services
+// mit Default-Deadline liefen. `LOAD_PROFILE` ist jetzt nur noch ein Name fuers
+// Manifest; die Zahlen kommen einzeln aus dem Env.
+export const LOAD_PROFILE = requireEnv("LOAD_PROFILE");
 
-const LOAD_PROFILE = __ENV.LOAD_PROFILE || "capacity";
-const PROFILE = PROFILES[LOAD_PROFILE] || PROFILES.capacity;
-const CHECKOUT_ONLY = PROFILE.checkoutShare >= 1;
+const CHECKOUT_SHARE = requireEnvNumber("CHECKOUT_SHARE");
+const PAY_RATE = requireEnvNumber("PAY_RATE");
+const CANCEL_RATE = requireEnvNumber("CANCEL_RATE");
+const CHECKOUT_ONLY = CHECKOUT_SHARE >= 1;
 
-// Explizit gesetzte Envs schlagen den Profil-Default.
-const CHECKOUT_SHARE = Number(__ENV.CHECKOUT_SHARE || PROFILE.checkoutShare);
-const PAY_RATE = Number(__ENV.PAY_RATE || PROFILE.payRate);
-const CANCEL_RATE = Number(__ENV.CANCEL_RATE || PROFILE.cancelRate);
-const THINK_TIME_MIN = Number(__ENV.THINK_TIME_MIN || PROFILE.think?.min || 2);
-const THINK_TIME_MAX = Number(__ENV.THINK_TIME_MAX || PROFILE.think?.max || 8);
-const THINK_TIME_MEAN = Number(__ENV.THINK_TIME_MEAN || PROFILE.think?.mean || 0);
-const THINK_TIME_SIGMA = Number(
-  __ENV.THINK_TIME_SIGMA || PROFILE.think?.sigma || 0,
-);
+// "none" | "uniform" | "normal" — ohne Denkzeit laeuft `buy`→`pay`
+// back-to-back und misst rohe Infrastruktur statt menschliches Timing.
+const THINK_TIME_KIND = requireEnv("THINK_TIME_KIND");
+const THINK_TIME_MIN = requireEnvNumber("THINK_TIME_MIN");
+const THINK_TIME_MAX = requireEnvNumber("THINK_TIME_MAX");
+const THINK_TIME_MEAN = requireEnvNumber("THINK_TIME_MEAN");
+const THINK_TIME_SIGMA = requireEnvNumber("THINK_TIME_SIGMA");
+
+if (!["none", "uniform", "normal"].includes(THINK_TIME_KIND)) {
+  throw new Error(
+    `THINK_TIME_KIND muss none, uniform oder normal sein, ist aber "${THINK_TIME_KIND}"`,
+  );
+}
 
 const FIRST_NAMES = [
   "Anna",
@@ -313,15 +317,14 @@ function truncatedNormal(mean, sigma, min, max) {
 }
 
 /**
- * Simulierte Checkout-Denkzeit (Karteneingabe + 3DS). Ohne `think`-Eintrag im
- * Profil ein No-Op (back-to-back); sonst eine randomisierte Pause, die die
- * Reservierung sichtbar laenger im Ledger haelt.
+ * Simulierte Checkout-Denkzeit (Karteneingabe + 3DS). Bei `none` ein No-Op
+ * (back-to-back); sonst eine randomisierte Pause, die die Reservierung sichtbar
+ * laenger im Ledger haelt.
  */
 function thinkTime() {
-  const think = PROFILE.think;
-  if (!think) return;
+  if (THINK_TIME_KIND === "none") return;
 
-  if (think.kind === "normal") {
+  if (THINK_TIME_KIND === "normal") {
     sleep(
       truncatedNormal(
         THINK_TIME_MEAN,

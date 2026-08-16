@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
+import { requireEnv, requireEnvNumber } from "../lib/require-env.mjs";
 
 /**
  * Fokussierter Hot-Row-Mikro-Benchmark (Stage 2 / Backlog #7).
@@ -27,23 +28,17 @@ const POSTGRES_CONTAINER = "hts-postgres";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 
-const DEFAULT_PROJECT_ID = "high-frequency-ticket-system";
-const DEFAULT_PUBSUB_TOPIC = "buy-ticket";
-const DEFAULT_PUBSUB_HOST = "localhost:10005";
-const DEFAULT_EVENT_ID = "00000000-0000-4000-8000-000000000000";
-const DEFAULT_WORKER_METRICS_URL = "http://localhost:10003/metrics";
+// Alle Werte kommen aus dem `bench`-Profil (config/env/bench.env, ADR-034).
+const projectId = requireEnv("GOOGLE_CLOUD_PROJECT");
+const topicName = requireEnv("PUBSUB_TOPIC_BUY_TICKET");
+const pubsubHost = requireEnv("PUBSUB_EMULATOR_HOST");
+const eventId = requireEnv("BENCH_EVENT_ID");
+const workerMetricsUrl = requireEnv("BENCH_WORKER_METRICS_URL");
 
-const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_PROJECT_ID;
-const topicName = process.env.PUBSUB_TOPIC_BUY_TICKET ?? DEFAULT_PUBSUB_TOPIC;
-const pubsubHost = process.env.PUBSUB_EMULATOR_HOST ?? DEFAULT_PUBSUB_HOST;
-const eventId = process.env.BENCH_EVENT_ID ?? DEFAULT_EVENT_ID;
-const workerMetricsUrl =
-  process.env.BENCH_WORKER_METRICS_URL ?? DEFAULT_WORKER_METRICS_URL;
-
-const messageCount = Number(process.env.BENCH_MESSAGES ?? 20_000);
-const publishBatchSize = Number(process.env.BENCH_PUBLISH_BATCH ?? 1_000);
-const sampleIntervalMs = Number(process.env.BENCH_SAMPLE_INTERVAL_MS ?? 100);
-const drainTimeoutMs = Number(process.env.BENCH_DRAIN_TIMEOUT_MS ?? 300_000);
+const messageCount = requireEnvNumber("BENCH_MESSAGES");
+const publishBatchSize = requireEnvNumber("BENCH_PUBLISH_BATCH");
+const sampleIntervalMs = requireEnvNumber("BENCH_SAMPLE_INTERVAL_MS");
+const drainTimeoutMs = requireEnvNumber("BENCH_DRAIN_TIMEOUT_MS");
 
 if (!Number.isInteger(messageCount) || messageCount <= 0) {
   throw new Error(

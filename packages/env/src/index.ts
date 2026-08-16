@@ -24,69 +24,46 @@ export const env = createEnv({
     // mehr: der Worker persistiert direkt, daher deckelt dieser Wert die
     // gleichzeitig laufenden Persist-Operationen (Backpressure gegen den
     // DB-Pool), nicht mehr eine kuenstliche ~N-Kaeufe/s-Sleep-Rate.
-    PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(500),
+    PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce.number().int().positive(),
     // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
-    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(20),
+    DATABASE_POOL_MAX: z.coerce.number().int().positive(),
     // Startup-Fail-Fast: obere Schranke, wie lange API/Worker beim Boot auf
     // eine erreichbare Infrastruktur warten, bevor sie mit einer klaren,
     // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).
     // Bewusst unter dem Fastify/avvio-Default (10 s) gehalten.
-    REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+    REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive(),
     // Fachliches Checkout-Fenster. Der ZSet-Score traegt `now + timeout` als
     // Eligibility Deadline; der Pending-Key selbst hat KEIN TTL, damit der
     // Reaper seinen Zustand sicher pruefen kann (ADR-031).
-    CHECKOUT_PENDING_TIMEOUT_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(900),
-    WORKER_RESERVATION_REAPER_BATCH_SIZE: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(1000),
-    REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(86400),
-    REDIS_WORKER_PROCESSED_TTL_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(86400),
+    CHECKOUT_PENDING_TIMEOUT_SECONDS: z.coerce.number().int().positive(),
+    WORKER_RESERVATION_REAPER_BATCH_SIZE: z.coerce.number().int().positive(),
+    REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce.number().int().positive(),
+    REDIS_WORKER_PROCESSED_TTL_SECONDS: z.coerce.number().int().positive(),
     // Read-only inventory cycle (ADR-031): one grouped ticket count is shared
     // by the sold-count projector and inventory auditor. There is deliberately
     // no peak mode — increasing the sampling frequency cannot improve
     // correctness and only adds DB load during the sale.
-    WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(60),
+    WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS: z.coerce.number().int().positive(),
     // Schaltet Fastifys automatisches Per-Request-Logging
     // (`incoming request`/`request completed`) ab. Bei 10k+ RPS ist genau das
-    // — nicht die wenigen eigenen `log.info` — die versteckte Log-Last. Im
-    // Kapazitaetslauf zusammen mit `LOG_LEVEL=warn` gesetzt; Default `false`
-    // laesst Dev/Test-Verhalten unveraendert.
+    // — nicht die wenigen eigenen `log.info` — die versteckte Log-Last. In den
+    // Lasttest-Profilen `true`, in dev/test/ci `false`.
     //
     // Bewusst KEIN `z.coerce.boolean()`: das macht jeden nicht-leeren String
     // (auch `"false"`) zu `true`. Stattdessen explizites Enum + Transform.
     DISABLE_REQUEST_LOGGING: z
       .enum(["true", "false"])
-      .default("false")
       .transform((value) => value === "true"),
   },
 
   /**
-   * The prefix that client-side variables must have. This is enforced both at
-   * a type-level and at runtime.
+   * Prefix, den clientseitige Variablen tragen muessen. Bewusst `NEXT_PUBLIC_`
+   * und nicht `PUBLIC_`: das Frontend liest `NEXT_PUBLIC_API_URL` und
+   * `NEXT_PUBLIC_EVENT_ID` (`apps/web/lib/env.ts`), weil Next.js nur diesen
+   * Prefix zur Build-Zeit ins Client-Bundle inlined. Solange `client` leer ist,
+   * war der frueher hier stehende `PUBLIC_`-Wert folgenlos — aber irrefuehrend.
    */
-  clientPrefix: "PUBLIC_",
+  clientPrefix: "NEXT_PUBLIC_",
 
   client: {},
 

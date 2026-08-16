@@ -1,6 +1,6 @@
 # ADR-034: Ein Profil ist eine Datei — keine impliziten Defaults
 
-- **Status:** Teilweise umgesetzt
+- **Status:** Fertig
 - **Datum:** 2026-08-16
 - **Kontext:** Die Konfiguration hatte vier parallele Quellen, und keine war
   vollständig.
@@ -88,3 +88,16 @@
 
 - **Umsetzungsplan:** drei Schritte — Profil-Dateien und Loader, dann die
   Profil-Menüs an den VS-Code-Buttons, zuletzt das Entfernen aller Defaults.
+
+## Nachtrag 2026-08-16: umgesetzt
+
+Alle drei Schritte sind gefahren. Acht Profile statt der geplanten sieben: das
+Hot-Row-Werkzeug hat sieben eigene `BENCH_*`-Knöpfe bekommen, die in keinem
+Lasttest-Profil etwas zu suchen hätten, und deshalb ein eigenes `bench`-Profil.
+
+Zwei Dinge sind beim Umsetzen dazugekommen. Die Profil-Tabelle im k6-Skript ist
+ersatzlos entfallen — sie war eine zweite Wahrheit neben der Profil-Datei und
+konnte von den Service-Werten abweichen. Und `THINK_TIME_KIND` (`none` /
+`uniform` / `normal`) ist neu: ohne Tabelle braucht die Denkzeitverteilung einen
+eigenen expliziten Wert, statt aus der An- oder Abwesenheit eines
+Objekt-Eintrags zu folgen.
