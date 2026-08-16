@@ -340,9 +340,19 @@ Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte v
 Reservierungs-Timer im Frontend, 2-min-Deadline und ein Funnel-Lastprofil, das
 den Reaper erstmals unter Last ausübt und exakten Sellout beweist.
 
-Details: [checkout-expiry-funnel](notes/backlogs/checkout-expiry-funnel.md)
+Details: [Plan](notes/phases/phase-4-10-checkout-expiry.md), Herkunft: [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
 
-- [ ] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge. → [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
+- [x] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge. → [Gedanken-Notiz](notes/backlogs/checkout-expiry-funnel.md)
+- [ ] **Vertrag `expiresAt` exponieren:** Deadline zusaetzlich in Pending-Record, Buy-Response und Status-Response, plus Serverzeit gegen Clock-Skew; rein additiv. → [Schnitt 1](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **ADR und Ablauf-Semantik:** `expired`-Grabstein statt `DEL`, Deadline-Enforcement im `claimPayment`-Lua, typed Error 410, `payments_rejected_total{reason}`. → [Schnitt 2](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Frontend `/checkout/[orderId]`:** eigene Route mit Countdown und terminalem `expired`-Zustand; loest den 404-Rateschluss in `apps/web/lib/api.ts` ab. → [Schnitt 3](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **k6-Profil `funnel`:** vierter `LOAD_PROFILE` mit Profiltabelle statt verstreuter `if`-Zweige, truncated Normal per Box-Muller, neue Counter, `CONFIG_ALLOWLIST`. → [Schnitt 4](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Reaper-Dimensionierung fuer das Profil:** Batch-Groesse und Zyklus gegen die erwartete Ablaufrate rechnen; hier faellt auch σ. → [Schnitt 5](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Lasttest-Stack-Env:** `CHECKOUT_PENDING_TIMEOUT_SECONDS=120` und `SEED_CAPACITY=100000` dort setzen, wo API und Worker starten; Defaults bleiben. → [Schnitt 6](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Abbruchbedingung und Verdict:** Abbruch erst bei `available == 0` **und** leerem Ledger; neue Checks `sold == totalCapacity`, Reaper-Releases > 0, Expired-Rejects > 0. → [Schnitt 7](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Panels ergaenzen:** Serie „Pay Rejected (expired)" im Order Lifecycle und die Abandon-Rate-Formel um Expired erweitern. → [Schnitt 8](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Funnel-Lauf fahren:** `LOAD_PROFILE=funnel`, 100k Kapazitaet. Lauf nur mit Freigabe. → [Schnitt 9](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Optional: 1M mit komprimierter Zeit:** Denkzeit ~6 s, Deadline ~12 s, Reaper-Intervall vom `COUNT`-Zyklus entkoppelt. Erst nach der 100k-Variante. → [Schnitt 10](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 
 ## Phase 4.11: Report-Automation cloud-faehig machen (Vorbedingung fuer den GCP-Lasttest)
 
