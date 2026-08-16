@@ -70,6 +70,18 @@ export const spawnK6 = (
   return { child, exitPromise };
 };
 
+/** Sum one metric family from a Prometheus text exposition, per event. */
+const sumMetricLines = (text, metricName, eventId) => {
+  let total = null;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith(metricName)) continue;
+    if (line.includes("{") && eventId && !line.includes(eventId)) continue;
+    const value = Number(line.slice(line.lastIndexOf(" ") + 1));
+    if (Number.isFinite(value)) total = (total ?? 0) + value;
+  }
+  return total;
+};
+
 /** Read the monotonic `orders_completed_total` from the worker /metrics text. */
 export const fetchCompletedCount = async (
   metricsUrl,
@@ -78,15 +90,23 @@ export const fetchCompletedCount = async (
 ) => {
   const res = await fetchImpl(metricsUrl);
   if (!res.ok) return null;
-  const text = await res.text();
-  let total = null;
-  for (const line of text.split("\n")) {
-    if (!line.startsWith("orders_completed_total")) continue;
-    if (line.includes("{") && eventId && !line.includes(eventId)) continue;
-    const value = Number(line.slice(line.lastIndexOf(" ") + 1));
-    if (Number.isFinite(value)) total = (total ?? 0) + value;
-  }
-  return total;
+  return sumMetricLines(await res.text(), "orders_completed_total", eventId);
+};
+
+/**
+ * Read `reservation_ledger_active` — the claims Redis still holds. Only the
+ * funnel profile cares: there, expired claims are released by the reaper and
+ * must be re-sold, so an exhausted `available` alone does not mean the sale is
+ * over.
+ */
+export const fetchLedgerActive = async (
+  metricsUrl,
+  eventId,
+  fetchImpl = fetch,
+) => {
+  const res = await fetchImpl(metricsUrl);
+  if (!res.ok) return null;
+  return sumMetricLines(await res.text(), "reservation_ledger_active", eventId);
 };
 
 /**
@@ -94,11 +114,22 @@ export const fetchCompletedCount = async (
  * `available` counter is a genuine sell-out; a plateau with stock left is a stall
  * (host contention, generator saturation, wedged consumer).
  *
+ * With `ledgerActive` supplied there is a third outcome. An exhausted
+ * `available` while the ledger still holds claims is neither sold out nor
+ * stalled: those claims are either about to be paid or about to be reaped, and
+ * a reaped one goes back on sale. Stopping there would end the run with unsold
+ * inventory and make exact sell-out unprovable, so it reports `ledger-pending`
+ * and the caller keeps the load running.
+ *
  * @param {number} available
- * @returns {"sold-out" | "stalled"}
+ * @param {number | null} [ledgerActive]
+ * @returns {"sold-out" | "stalled" | "ledger-pending"}
  */
-export const classifyPlateau = (available) =>
-  available === 0 ? "sold-out" : "stalled";
+export const classifyPlateau = (available, ledgerActive = null) => {
+  if (available !== 0) return "stalled";
+  if (ledgerActive !== null && ledgerActive > 0) return "ledger-pending";
+  return "sold-out";
+};
 
 /**
  * Poll the worker completion counter until it plateaus RELATIVE to the first
@@ -127,6 +158,7 @@ export const pollUntilSoldOut = async (
     pollIntervalMs = 3000,
     confirmPolls = 3,
     readAvailable,
+    readLedgerActive,
     fetchImpl = fetch,
   },
 ) => {
@@ -170,14 +202,28 @@ export const pollUntilSoldOut = async (
           available = null;
         }
       }
-      return {
-        stopped: true,
-        // Without an inventory reading the plateau stays unclassified rather
-        // than being asserted as a sell-out.
-        reason: available === null ? "stalled" : classifyPlateau(available),
-        available,
-        completed,
-      };
+      let ledgerActive = null;
+      if (readLedgerActive) {
+        try {
+          ledgerActive = await readLedgerActive(eventId);
+        } catch {
+          ledgerActive = null;
+        }
+      }
+      // Without an inventory reading the plateau stays unclassified rather
+      // than being asserted as a sell-out.
+      const reason =
+        available === null ? "stalled" : classifyPlateau(available, ledgerActive);
+
+      // Ausverkauft, aber der Ledger haelt noch Ansprueche: die werden gleich
+      // bezahlt oder gereapt, und ein gereapter geht zurueck in den Verkauf.
+      // Hier zu stoppen wuerde den Lauf mit unverkauftem Inventar beenden.
+      if (reason === "ledger-pending") {
+        stalls = 0;
+        continue;
+      }
+
+      return { stopped: true, reason, available, completed };
     }
   }
 
@@ -205,6 +251,7 @@ export const runPhaseAReactive = async ({
   pollIntervalMs,
   confirmPolls,
   readAvailable,
+  readLedgerActive,
   gracefulStopTimeoutMs = 40_000,
 }) => {
   const { child, exitPromise } = spawnK6(scriptPath, {
@@ -218,6 +265,7 @@ export const runPhaseAReactive = async ({
     pollIntervalMs,
     confirmPolls,
     readAvailable,
+    readLedgerActive,
   });
 
   if (!plateau.stopped) {

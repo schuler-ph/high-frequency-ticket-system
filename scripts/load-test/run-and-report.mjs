@@ -37,7 +37,11 @@ import {
 } from "./lib/snapshots.mjs";
 import { targetUp } from "./lib/prometheus.mjs";
 import { waitForDrain } from "./lib/drain.mjs";
-import { runPhaseAReactive, runPhaseB } from "./lib/processes.mjs";
+import {
+  fetchLedgerActive,
+  runPhaseAReactive,
+  runPhaseB,
+} from "./lib/processes.mjs";
 import { parseOpenMetrics, sumSamples } from "./lib/openmetrics.mjs";
 import { exportDashboards } from "./lib/grafana.mjs";
 import { analyzeAndWrite } from "./analyze-run.mjs";
@@ -171,6 +175,15 @@ const main = async () => {
     eventId: EVENT_ID,
     // Lets the plateau detector tell a real sell-out from host contention.
     readAvailable: (eventId) => readAvailableTickets(eventId),
+    // Nur das Funnel-Profil braucht den leeren Ledger als zweite Bedingung:
+    // dort gibt der Reaper abgelaufene Ansprueche zurueck in den Verkauf, und
+    // ein Stopp bei `available == 0` wuerde den Lauf mit unverkauftem Inventar
+    // beenden. In den anderen Profilen halten Abandon-Kohorten ihre Ansprueche
+    // bis zur 900-s-Deadline — dort wuerde dieselbe Bedingung nie greifen.
+    readLedgerActive:
+      process.env.LOAD_PROFILE === "funnel"
+        ? (eventId) => fetchLedgerActive(WORKER_METRICS, eventId)
+        : undefined,
   });
   const phaseAExit = phaseA.exitCode;
   timestamps.phaseAEndedAt = nowIso();

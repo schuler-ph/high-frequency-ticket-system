@@ -335,6 +335,19 @@ export const deriveReport = (input) => {
     capacity,
     redisAvailable,
     activeReservations,
+    // Profilabhaengige Zusatzchecks (Phase 4.10). Das Profil kommt aus dem
+    // Orchestrator-Env und ist genau dort auch richtig aufgehoben — es formt
+    // die Last, nicht die Services.
+    loadProfile: manifest?.configuration?.LOAD_PROFILE ?? null,
+    reaperReleases: sumSamples(
+      samples.workerAfter,
+      "reservation_reaper_releases_total",
+    ),
+    expiredRejections: sumSamples(
+      samples.apiAfter,
+      "payments_rejected_total",
+      { reason: "expired" },
+    ),
   });
 
   // --- Validity verdicts ---

@@ -236,6 +236,25 @@ k6-Profil und Panels sind danach unabhaengig voneinander.
     12 s, Reaper-Intervall vom `COUNT`-Zyklus entkoppelt. Erst sinnvoll, wenn die
     100k-Variante den Pfad bewiesen hat.
 
+## Vorgefundener Defekt: Golden-Report-Test
+
+Beim Umsetzen von Schnitt 7 fiel auf, dass
+`report.md matches the approved Baseline-A golden` in `pnpm spike:report:test`
+fehlschlaegt. Der Grund ist rein formal: die Golden-Datei
+`scripts/load-test/test/golden/baseline-a.report.md` enthaelt ausgerichtete
+Markdown-Tabellen (`| Phase     | Iterations |`), waehrend
+`render-markdown.mjs` ungepolsterte Zeilen erzeugt (`| Phase | Iterations |`).
+
+Der Defekt ist **aelter als Phase 4.10**: Golden, Fixtures und Renderer sind
+byte-identisch zum Stand `02e7a0f`, und der zweite Golden-Test auf
+`derived.json` besteht weiterhin. Die Ursache ist nicht der Prettier-Hook —
+`.prettierignore` schliesst `scripts/load-test/test/golden` bereits aus.
+
+Zu entscheiden ist, welche Form die gewollte ist: entweder die Golden-Datei aus
+dem aktuellen Renderer neu erzeugen, oder dem Renderer eine Ausrichtung
+beibringen und die Golden-Datei behalten. Beides ist eine Ein-Zeilen-Aenderung
+mit unterschiedlicher Aussage darueber, wie der Report aussehen soll.
+
 ## Erwartungsbild
 
 Die transienten Treppen im Capacity Delta bleiben, weil der

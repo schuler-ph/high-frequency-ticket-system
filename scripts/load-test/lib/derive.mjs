@@ -214,6 +214,9 @@ export const capacityDelta = ({
  *   capacity?: number | null,
  *   redisAvailable?: number | null,
  *   activeReservations?: number | null,
+ *   loadProfile?: string | null,
+ *   reaperReleases?: number | null,
+ *   expiredRejections?: number | null,
  * }} facts
  * @returns {Array<{ id: string, ok: boolean | null, expected: number | null, actual: number | null }>}
  */
@@ -228,6 +231,9 @@ export const evaluateInvariants = (facts) => {
     capacity = null,
     redisAvailable = null,
     activeReservations = null,
+    loadProfile = null,
+    reaperReleases = null,
+    expiredRejections = null,
   } = facts;
 
   const check = (id, expected, actual) => {
@@ -265,7 +271,15 @@ export const evaluateInvariants = (facts) => {
       ? redisAvailable + dbTickets + activeReservations
       : null;
 
-  return [
+  // "Mindestens einmal passiert" als 1/0-Flag, damit die Report-Tabelle weiter
+  // reine Zahlen rendert. Ein fehlender Operand bleibt unbewertbar statt still
+  // als 0 zu gelten.
+  const observed = (id, actual) =>
+    actual === null || actual === undefined
+      ? { id, ok: null, expected: 1, actual: null }
+      : { id, ok: actual > 0, expected: 1, actual: actual > 0 ? 1 : 0 };
+
+  const invariants = [
     check("published == completed + failed", published, finalized),
     check("dbOrders == completed + failed", dbOrders, finalized),
     check("dbTickets == completed", dbTickets, completed ?? null),
@@ -276,4 +290,26 @@ export const evaluateInvariants = (facts) => {
       claimedSeats,
     ),
   ];
+
+  // Nur das Funnel-Profil beweist den Ablauf-Pfad. Im capacity-Profil waeren
+  // diese Checks entweder trivial erfuellt (exakter Sellout) oder garantiert
+  // verletzt (kein Ablauf bei 900-s-Deadline), also gehoeren sie nicht dorthin.
+  if (loadProfile === "funnel") {
+    invariants.push(
+      // Der Kernbeweis: Abbrueche und Ablaeufe haben kein Inventar verloren.
+      check("funnel: sold == totalCapacity", capacity ?? null, dbTickets),
+      // Ohne ausgeuebten Reaper ist der Lauf fuer diese Frage inconclusive,
+      // nicht bestanden.
+      observed(
+        "funnel: reaper released at least one expired claim",
+        reaperReleases,
+      ),
+      observed(
+        "funnel: at least one payment rejected as expired",
+        expiredRejections,
+      ),
+    );
+  }
+
+  return invariants;
 };

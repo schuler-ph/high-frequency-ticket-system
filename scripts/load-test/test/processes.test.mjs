@@ -50,6 +50,18 @@ test("classifyPlateau only calls exhausted inventory a sell-out", () => {
   assert.equal(classifyPlateau(89_359), "stalled");
 });
 
+// Phase 4.10: im Funnel-Profil gibt der Reaper abgelaufene Ansprueche zurueck
+// in den Verkauf. `available == 0` bei nicht leerem Ledger ist deshalb weder
+// ausverkauft noch stehengeblieben — der Lauf muss weiterkaufen.
+test("classifyPlateau waits for the ledger to drain before declaring sell-out", () => {
+  assert.equal(classifyPlateau(0, 0), "sold-out");
+  assert.equal(classifyPlateau(0, 12), "ledger-pending");
+  // Ohne Ledger-Messung bleibt das Verhalten wie bisher.
+  assert.equal(classifyPlateau(0, null), "sold-out");
+  // Ein nicht leerer Ledger macht aus einem Stall keinen Sonderfall.
+  assert.equal(classifyPlateau(500, 12), "stalled");
+});
+
 /** Serve a scripted sequence of `orders_completed_total` values. */
 const metricsSequence = (values) => {
   let i = 0;
@@ -106,6 +118,30 @@ test("a completion plateau at zero inventory is a real sell-out", async () => {
   });
   assert.equal(result.reason, "sold-out");
   assert.equal(result.available, 0);
+});
+
+// Der eigentliche Funnel-Fall: erst haelt der Ledger noch Ansprueche (der Lauf
+// muss weiterlaufen), dann sind sie weg und derselbe Detektor stoppt.
+test("a plateau at zero inventory keeps running until the ledger is empty", async () => {
+  const never = new Promise(() => {});
+  const ledgerReadings = [7, 7, 0];
+  let read = 0;
+  const result = await pollUntilSoldOut(never, {
+    metricsUrl: "http://x/metrics",
+    eventId: "e-1",
+    pollIntervalMs: 1,
+    confirmPolls: 2,
+    readAvailable: async () => 0,
+    readLedgerActive: async () =>
+      ledgerReadings[Math.min(read++, ledgerReadings.length - 1)],
+    fetchImpl: metricsSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
+  });
+  assert.equal(result.reason, "sold-out");
+  assert.equal(result.available, 0);
+  assert.ok(
+    read >= 3,
+    `expected the ledger to be polled until empty, saw ${String(read)} reads`,
+  );
 });
 
 // Without an inventory reading the detector must not upgrade a plateau to a

@@ -125,6 +125,91 @@ test("evaluateInvariants passes when every source converges", () => {
   assert.ok(inv.every((i) => i.ok === true));
 });
 
+// Phase 4.10: die Ablauf-Checks gehoeren nur ins Funnel-Profil. Im
+// capacity-Profil waeren sie entweder trivial erfuellt oder garantiert
+// verletzt und wuerden einen korrekten Lauf faelschlich auf `fail` setzen.
+test("evaluateInvariants adds the expiry checks only for the funnel profile", () => {
+  const base = {
+    published: 100,
+    completed: 90,
+    failed: 10,
+    dbOrders: 100,
+    dbTickets: 90,
+    pendingOrders: 0,
+    capacity: 100,
+    redisAvailable: 10,
+    activeReservations: 0,
+  };
+
+  const capacityRun = evaluateInvariants({ ...base, loadProfile: "capacity" });
+  assert.equal(
+    capacityRun.some((i) => i.id.startsWith("funnel:")),
+    false,
+  );
+
+  const funnelRun = evaluateInvariants({
+    ...base,
+    loadProfile: "funnel",
+    reaperReleases: 412,
+    expiredRejections: 87,
+  });
+  assert.equal(funnelRun.filter((i) => i.id.startsWith("funnel:")).length, 3);
+});
+
+test("the funnel run fails when inventory was lost or the reaper never ran", () => {
+  const base = {
+    published: 100,
+    completed: 90,
+    failed: 10,
+    dbOrders: 100,
+    dbTickets: 90,
+    pendingOrders: 0,
+    capacity: 100,
+    redisAvailable: 10,
+    activeReservations: 0,
+    loadProfile: "funnel",
+  };
+
+  // 90 verkauft bei Kapazitaet 100 — genau der Verlust, den das Profil
+  // ausschliessen soll.
+  const lost = evaluateInvariants({
+    ...base,
+    reaperReleases: 5,
+    expiredRejections: 5,
+  });
+  assert.equal(lost.find((i) => i.id === "funnel: sold == totalCapacity").ok, false);
+
+  // Nie ausgeuebter Ablauf-Pfad: der Lauf beweist die Frage nicht.
+  const noReaper = evaluateInvariants({
+    ...base,
+    dbTickets: 100,
+    redisAvailable: 0,
+    reaperReleases: 0,
+    expiredRejections: 0,
+  });
+  assert.equal(
+    noReaper.find((i) => i.id.includes("reaper released")).ok,
+    false,
+  );
+  assert.equal(
+    noReaper.find((i) => i.id.includes("rejected as expired")).ok,
+    false,
+  );
+
+  // Fehlende Messung ist unbewertbar, nicht bestanden.
+  const unmeasured = evaluateInvariants({
+    ...base,
+    dbTickets: 100,
+    redisAvailable: 0,
+    reaperReleases: null,
+    expiredRejections: null,
+  });
+  assert.equal(
+    unmeasured.find((i) => i.id.includes("reaper released")).ok,
+    null,
+  );
+});
+
 test("evaluateInvariants marks unevaluable checks null, not failed", () => {
   const inv = evaluateInvariants({
     published: null,
