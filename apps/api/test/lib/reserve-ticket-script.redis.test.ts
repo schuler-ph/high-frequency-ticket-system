@@ -278,6 +278,30 @@ void test("pay is refused once the eligibility deadline has passed", async (t) =
   assert.equal(await redis.zcard(fx.keys.reservations), 1);
 });
 
+void test("pay on an already reaped order is expired, not a conflict", async (t) => {
+  const fx = await seedFixture(t, 5, 0);
+  await reserve(fx, Date.now());
+  // Grabstein, wie ihn der Reaper hinterlaesst.
+  await redis.set(
+    fx.orderCacheKey,
+    JSON.stringify({
+      orderId: fx.orderId,
+      eventId: fx.eventId,
+      status: "expired",
+      expiresAt: fx.expiresAt,
+    }),
+  );
+
+  const [result] = await scripts.claimPayment(
+    fx.orderCacheKey,
+    Date.now(),
+    Date.now(),
+  );
+  // Ob der Reaper-Zyklus schon lief, darf die Antwort nicht veraendern: vor und
+  // nach dem Reap ist es fuer den Client derselbe Ausgang.
+  assert.equal(result, -2, "a reaped order must answer expired, not conflict");
+});
+
 void test("pay still works for a record without expiresAt", async (t) => {
   const fx = await seedFixture(t, 5, 0);
   // Reservierung aus der Zeit vor dem Feld: Ledger-Score ja, Record-Feld nein.

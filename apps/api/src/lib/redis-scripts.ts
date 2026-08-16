@@ -74,7 +74,18 @@ if not raw then
 end
 
 local decodedOk, order = pcall(cjson.decode, raw)
-if not decodedOk or order["status"] ~= "pending" then
+if not decodedOk then
+  return {-1, raw}
+end
+
+-- Der Reaper war schon da. Fuer den Client ist das derselbe Ausgang wie eine
+-- gerade erst verstrichene Deadline; ob der Reaper-Zyklus zufaellig schon lief,
+-- darf die Antwort nicht veraendern.
+if order["status"] == "expired" then
+  return {-2, raw}
+end
+
+if order["status"] ~= "pending" then
   return {-1, raw}
 end
 
