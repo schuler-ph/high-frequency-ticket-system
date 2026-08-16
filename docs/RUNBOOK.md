@@ -121,6 +121,28 @@ Deshalb endet `loadtest:stack up` mit den Services, und die Bereitschaft prüft 
 
 Wer nur **einen** Service braucht, startet `loadtest:api`, `loadtest:worker` bzw. `loadtest:web` direkt.
 
+#### Funnel-Profil: Services anders starten
+
+`CHECKOUT_PENDING_TIMEOUT_SECONDS` ist **Service-Env**. Am Spike-Prozess gesetzt
+landet der Wert zwar im Manifest, erreicht die laufenden API-/Worker-Prozesse
+aber nicht — der Report wäre dann falsch beschriftet. Für einen Funnel-Lauf
+deshalb statt `start:loadtest` die Profil-Varianten starten:
+
+```bash
+pnpm --filter api run start:loadtest:funnel      # setzt Deadline 120 s
+pnpm --filter worker run start:loadtest:funnel   # Deadline 120 s + Reaper-Batch 5000
+```
+
+Die Kapazität gehört dagegen an den Spike-Prozess, weil sie im Seed-Schritt
+angewendet wird:
+
+```bash
+SEED_CAPACITY=100000 LOAD_PROFILE=funnel pnpm spike:report
+```
+
+Die Defaults (900 s Deadline, Batch 1000, 1 M Kapazität) bleiben unverändert.
+Warum Batch 5000 und nicht 1000: [Phasennotiz 4.10](notes/phases/phase-4-10-checkout-expiry.md#reaper-dimensionierung-fuer-das-funnel-profil).
+
 ### Vier Fallen, die hier real aufgetreten sind
 
 ```mermaid

@@ -153,6 +153,19 @@ lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
   den Write-Pfad (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle
   im Mix. Der Funnel zahlt hier per Default vollstaendig (`PAY_RATE=1`,
   `CANCEL_RATE=0`); explizit gesetzte Envs schlagen den Profil-Default.
+- **`funnel`**: menschliche Denkzeit als truncated Normal um 60 s
+  (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
+  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster. Uebt
+  Ablauf und Reaper aus und beweist exakten Sellout. Der Checkout-Anteil ist
+  bewusst klein (`CHECKOUT_SHARE=0.05`): gleichzeitige Reservierungen sind
+  Checkout-Rate mal Denkzeit und damit VU-teuer, waehrend Availability-Reads
+  VU-billig sind. So traegt derselbe Lauf echte RPS **und** die gewuenschte
+  Checkout-Rate, ohne das VU-Budget zu sprengen.
+
+  Das Profil braucht ein kurzes `CHECKOUT_PENDING_TIMEOUT_SECONDS` **im
+  Service-Env** (nicht am Spike-Prozess — die laufenden API-/Worker-Prozesse
+  lesen es beim Start) und eine kleinere `SEED_CAPACITY`. Details in
+  [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md).
 
 Das Lastprofil steht als `LOAD_PROFILE` in `manifest.json` und damit im Report;
 `spike:compare` verweigert den Vergleich zweier Laeufe mit verschiedenen
@@ -166,25 +179,28 @@ Die pnpm-Skripte `seed`/`spike`/`bench:hot-row` laden `.env` automatisch via
 fehlt `.env`, greifen die Defaults). Ein direktes `node scripts/local/…` ohne den
 Flag liest `.env` nicht.
 
-| Variable                         | Default                                | Beschreibung                                                                                      |
-| -------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                                                     |
-| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                                                      |
-| `CHECKOUT_POLL`                  | `false`                                | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`                         |
-| `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                   | Max. Poll-Versuche pro Order, bevor aufgegeben wird                                               |
-| `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                                             |
-| `LOAD_PROFILE`                   | `capacity`                             | `capacity` (keine Denkzeit), `realism` (randomisierte Denkzeit) oder `checkout` (nur `buy`→`pay`) |
-| `THINK_TIME_MIN`                 | `2`                                    | realism: minimale Denkzeit (Sekunden) nach dem Reserve                                            |
-| `THINK_TIME_MAX`                 | `8`                                    | realism: maximale Denkzeit (Sekunden) nach dem Reserve                                            |
-| `PAY_RATE`                       | `0.88` (checkout: `1`)                 | Anteil der Reservierungen, die bezahlt werden                                                     |
-| `CANCEL_RATE`                    | `0.08` (checkout: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)                                    |
-| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)                                 |
-| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Completion-Counter-Polls in der Orchestrierung                                      |
-| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt                              |
-| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll                                  |
-| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird                                   |
-| `K6_PROMETHEUS_RW`               | `false`                                | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)                             |
-| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                                                 |
+| Variable                         | Default                                | Beschreibung                                                                |
+| -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
+| `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                               |
+| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                                |
+| `CHECKOUT_POLL`                  | `false`                                | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`   |
+| `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                   | Max. Poll-Versuche pro Order, bevor aufgegeben wird                         |
+| `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                       |
+| `LOAD_PROFILE`                   | `capacity`                             | `capacity`, `realism`, `checkout` oder `funnel` (siehe oben)                |
+| `CHECKOUT_SHARE`                 | profilabhängig                         | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read) |
+| `THINK_TIME_MIN`                 | `2` (funnel: `10`)                     | minimale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MAX`                 | `8` (funnel: `180`)                    | maximale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MEAN`                | funnel: `60`                           | funnel: Erwartungswert der truncated-Normal-Denkzeit                        |
+| `THINK_TIME_SIGMA`               | funnel: `35`                           | funnel: Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler         |
+| `PAY_RATE`                       | `0.88` (checkout: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
+| `CANCEL_RATE`                    | `0.08` (checkout: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)              |
+| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)           |
+| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Completion-Counter-Polls in der Orchestrierung                |
+| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt        |
+| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll            |
+| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird             |
+| `K6_PROMETHEUS_RW`               | `false`                                | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)       |
+| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`  | Prometheus Remote-Write-Endpoint fuer k6-Metriken                           |
 
 ## k6-Remote-Write ist standardmaessig aus
 

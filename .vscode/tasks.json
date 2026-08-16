@@ -277,6 +277,10 @@
         {
           "label": "checkout — nur buy→pay, keine Availability-Reads",
           "value": "checkout"
+        },
+        {
+          "label": "funnel — Denkzeit ~60 s gegen kurzes Checkout-Fenster (Ablauf/Reaper)",
+          "value": "funnel"
         }
       ]
     },

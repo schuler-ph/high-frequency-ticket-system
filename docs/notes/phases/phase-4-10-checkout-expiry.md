@@ -104,6 +104,38 @@ Der 1-M-Kapazitaetsbeweis bleibt deshalb beim `capacity`-Profil.
 `compare.mjs:39-53` blockt Vergleiche ueber Kapazitaets- und Profilgrenzen
 ohnehin.
 
+## Reaper-Dimensionierung fuer das Funnel-Profil
+
+Der Reaper gibt pro Event und Zyklus hoechstens `BATCH_SIZE` Ansprueche frei.
+Bei Default 1.000 und 60-s-Zyklus sind das rund 16,7 Freigaben pro Sekunde.
+Dagegen die erwartete Ablaufrate des Profils:
+
+| Kohorte                    | Anteil | wird gereapt |
+| -------------------------- | ------ | ------------ |
+| zahlt puenktlich           | ~86 %  | nein         |
+| zahlt zu spaet (Ablehnung) | ~4 %   | **ja**       |
+| bricht per Cancel ab       | 5 %    | nein         |
+| stiller Abbruch            | 5 %    | **ja**       |
+
+Der Anteil der Zu-spaet-Zahler folgt aus der Denkzeitverteilung: bei µ = 60 s,
+σ = 35 s, geklemmt auf [10 s, 180 s], liegen rund 4,6 % der Ziehungen ueber der
+120-s-Deadline; davon zahlen 90 %, also rund 4 % aller Reservierungen.
+
+Zu reapen sind damit rund 9 % von 150 Checkouts/s, also **etwa 14 Freigaben pro
+Sekunde** — gegen einen Deckel von 16,7. Das ist ein Puffer von 1,2x und damit
+zu wenig: jede Erhoehung von σ oder der Checkout-Rate laesst den Ledger
+aufstauen, und `sold == totalCapacity` konvergiert dann nicht mehr.
+
+Deshalb faehrt das Profil mit `WORKER_RESERVATION_REAPER_BATCH_SIZE=5000`
+(rund 83 Freigaben/s, Puffer ~6x). Der Zyklus bleibt bei 60 s: ihn zu
+verkuerzen wuerde zusaetzliche `COUNT(tickets)`-Abfragen kosten, was ADR-031
+Ziffer 4 ablehnt — ein groesserer Batch kostet dagegen nur Redis-Roundtrips im
+Reaper selbst, und deren Dauer ist ueber
+`reservation_reaper_run_duration_seconds` messbar.
+
+σ bleibt damit der Stellhebel fuer den Anteil der Zu-spaet-Zahler, ohne an die
+Batch-Grenze zu stossen.
+
 ## Entschiedene Annahmen (2026-08-16)
 
 | #   | Frage                     | Entscheidung                                                                   |
