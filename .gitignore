@@ -6,6 +6,12 @@ node_modules
 .pnp.js
 
 # Local env files
+#
+# Die eigentliche Konfiguration liegt eingecheckt in `config/env/*.env` und
+# wird ueber HTS_ENV_PROFILE gewaehlt (ADR-034). Die Werte sind lokale
+# Container-Zugangsdaten, keine Geheimnisse. Was hier steht, sind nur die
+# Reste des alten Mechanismus — falls jemand noch eine lokale .env liegen hat,
+# soll sie nicht ins Repo wandern.
 .env
 .env.local
 .env.development.local

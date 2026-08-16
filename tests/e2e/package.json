@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --conditions=source --import @repo/env/test-bootstrap --test test/*.test.ts",
+    "test": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-test} node --conditions=source --test test/*.test.ts",
     "test:ci": "pnpm run test",
     "check-types": "tsgo --noEmit",
     "lint": "eslint . --max-warnings 0"

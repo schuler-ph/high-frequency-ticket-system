@@ -34,6 +34,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-031 Redis-authoritatives Inventory](decisions/ADR-031-redis-authoritatives-inventory-auditor-und-reaper-statt-schreibendem-reconcile.md)
 - [ADR-032 Progressive Dokumentationsarchitektur](decisions/ADR-032-progressive-dokumentationsarchitektur.md)
 - [ADR-033 Abgelaufener Checkout ist ein eigener Endzustand](decisions/ADR-033-abgelaufener-checkout-ist-ein-eigener-endzustand.md)
+- [ADR-034 Ein Profil ist eine Datei — keine impliziten Defaults](decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)
 
 ## Teilweise umgesetzt
 

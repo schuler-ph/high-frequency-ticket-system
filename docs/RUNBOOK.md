@@ -121,27 +121,31 @@ Deshalb endet `loadtest:stack up` mit den Services, und die Bereitschaft prüft 
 
 Wer nur **einen** Service braucht, startet `loadtest:api`, `loadtest:worker` bzw. `loadtest:web` direkt.
 
-#### Funnel-Profil: Services anders starten
+#### Das Profil bestimmt alles: `HTS_ENV_PROFILE`
 
-`CHECKOUT_PENDING_TIMEOUT_SECONDS` ist **Service-Env**. Am Spike-Prozess gesetzt
-landet der Wert zwar im Manifest, erreicht die laufenden API-/Worker-Prozesse
-aber nicht — der Report wäre dann falsch beschriftet. Für einen Funnel-Lauf
-deshalb statt `start:loadtest` die Profil-Varianten starten:
-
-```bash
-pnpm --filter api run start:loadtest:funnel      # setzt Deadline 120 s
-pnpm --filter worker run start:loadtest:funnel   # Deadline 120 s + Reaper-Batch 5000
-```
-
-Die Kapazität gehört dagegen an den Spike-Prozess, weil sie im Seed-Schritt
-angewendet wird:
+Seit [ADR-034](decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)
+gibt es keine `.env` und keine Defaults mehr. Welche Konfiguration gilt, steht in
+genau einer Variable, und die Werte stehen in genau einer Datei:
 
 ```bash
-SEED_CAPACITY=100000 LOAD_PROFILE=funnel pnpm spike:report
+HTS_ENV_PROFILE=funnel pnpm --filter api run start:loadtest
+HTS_ENV_PROFILE=funnel pnpm --filter worker run start:loadtest
+HTS_ENV_PROFILE=funnel pnpm spike:report
 ```
 
-Die Defaults (900 s Deadline, Batch 1000, 1 M Kapazität) bleiben unverändert.
-Warum Batch 5000 und nicht 1000: [Phasennotiz 4.10](notes/phases/phase-4-10-checkout-expiry.md#reaper-dimensionierung-fuer-das-funnel-profil).
+Verfügbare Profile: `dev`, `test`, `ci`, `capacity`, `realism`, `checkout`,
+`funnel` — je eine Datei unter `config/env/`. Die frühere Zweiteilung in
+„Service-Env" und „Spike-Env" entfällt: dieselbe Datei versorgt beide, weil sie
+sowohl `CHECKOUT_PENDING_TIMEOUT_SECONDS` als auch `SEED_CAPACITY` und die
+k6-Knöpfe trägt. Damit verschwindet auch die Falle, dass ein Wert im Manifest
+steht, den die laufenden Prozesse nie gesehen haben.
+
+Fehlt `HTS_ENV_PROFILE` oder ist es vertippt, startet nichts und die Meldung
+zählt die verfügbaren Profile auf. `pnpm run debug:env` prüft, dass jedes Profil
+vollständig ist.
+
+Warum das Funnel-Profil Batch 5000 statt 1000 fährt:
+[Phasennotiz 4.10](notes/phases/phase-4-10-checkout-expiry.md#reaper-dimensionierung-fuer-das-funnel-profil).
 
 ### Vier Fallen, die hier real aufgetreten sind
 

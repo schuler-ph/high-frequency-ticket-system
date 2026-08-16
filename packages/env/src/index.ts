@@ -1,8 +1,13 @@
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
-import { config } from "dotenv";
+import { loadEnvProfile } from "./load-profile.ts";
 
-config({ path: ["../../.env"] });
+/**
+ * Die geladene Profil-Datei bestimmt die gesamte Konfiguration. Es gibt keine
+ * `.env` mehr und keinen impliziten Fallback — welches Profil laeuft, steht in
+ * `HTS_ENV_PROFILE` und ist damit auch im Report ablesbar.
+ */
+export const ENV_PROFILE = loadEnvProfile();
 
 export const env = createEnv({
   server: {

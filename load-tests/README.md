@@ -173,11 +173,15 @@ Profilen.
 
 ## Umgebungsvariablen
 
-Die pnpm-Skripte `seed`/`spike`/`bench:hot-row` laden `.env` automatisch via
-`node --env-file-if-exists=.env`. Precedence: **Shell-inline > `.env` > Default**
-(ein inline gesetzter Wert wie `SALE_OPENS_IN_SECONDS=0 pnpm seed` schlägt `.env`;
-fehlt `.env`, greifen die Defaults). Ein direktes `node scripts/local/…` ohne den
-Flag liest `.env` nicht.
+Alle Werte kommen aus der Profil-Datei, die `HTS_ENV_PROFILE` auswählt —
+`config/env/<profil>.env`. Es gibt keine `.env` und keine Defaults mehr
+([ADR-034](../docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)).
+Precedence: **Shell-inline > Profil-Datei**; ein inline gesetzter Wert wie
+`SALE_OPENS_IN_SECONDS=0 HTS_ENV_PROFILE=capacity pnpm seed` schlägt die Datei.
+Fehlt das Profil, startet nichts.
+
+Die Spalte „Default" unten nennt deshalb keinen Fallback, sondern den Wert, den
+das `capacity`-Profil setzt; die anderen Profile weichen bewusst davon ab.
 
 | Variable                         | Default                                | Beschreibung                                                                |
 | -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
