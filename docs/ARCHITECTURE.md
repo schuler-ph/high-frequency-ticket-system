@@ -223,6 +223,12 @@ fehlgeschlagene Kompensation führen zu NACK und Redelivery.
   abgelaufenen Checkout von einer unbekannten `orderId` unterscheidbar.
 - Das Frontend pollt bis zu einem terminalen Zustand; es gibt keinen
   WebSocket- oder SSE-Kanal.
+- Der Checkout hat mit `/checkout/[orderId]` eine eigene Route. Die `orderId`
+  steht in der URL und nicht im React-State: die Seite ist damit reload-fest und
+  teilbar, und Restzeit wie Status kommen bei jedem Aufruf frisch aus dem
+  Redis-Read-Model. Der Countdown rechnet gegen `serverTime`, nicht gegen die
+  lokale Uhr; er ist reine Anzeige — verbindlich ist allein die
+  Deadline-Prüfung in `POST /pay`.
 
 ## Redis-Schlüssel
 

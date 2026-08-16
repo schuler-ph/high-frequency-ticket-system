@@ -8,13 +8,22 @@ import { env } from "../lib/env";
 interface OrderStatusState {
   status: OrderStatusResponse | null;
   error: string | null;
+  /**
+   * `true`, sobald mindestens ein Read abgeschlossen ist. Trennt „noch nicht
+   * geladen" von „geladen, aber kein Record" — beides ist `status === null`.
+   */
+  loaded: boolean;
 }
 
 /**
  * Pollt `GET /api/orders/:orderId`, bis die Order final ist
- * (`completed`/`failed`), und stoppt danach. Ein leichter Jitter auf dem
- * Intervall verteilt gleichzeitige Tracker etwas — die vollstaendige
+ * (`completed`/`failed`/`expired`), und stoppt danach. Ein leichter Jitter auf
+ * dem Intervall verteilt gleichzeitige Tracker etwas — die vollstaendige
  * Backoff-/Long-Polling-Strategie ist Phase 6.
+ *
+ * Ein `404` beendet das Polling ebenfalls: seit der Reaper einen
+ * `expired`-Grabstein hinterlaesst (ADR-033), bedeutet ein fehlender Record
+ * nicht mehr „vielleicht gleich da", sondern „diese orderId ist unbekannt".
  */
 export function useOrderStatus(
   orderId: string,
@@ -23,6 +32,7 @@ export function useOrderStatus(
   const [state, setState] = useState<OrderStatusState>({
     status: null,
     error: null,
+    loaded: false,
   });
 
   useEffect(() => {
@@ -33,8 +43,9 @@ export function useOrderStatus(
       try {
         const status = await fetchOrderStatus(env.apiUrl, orderId);
         if (cancelled) return;
-        setState({ status, error: null });
-        if (status !== null && status.status !== "pending") return; // final → stop
+        setState({ status, error: null, loaded: true });
+        if (status === null) return; // unbekannte orderId → stop
+        if (status.status !== "pending") return; // final → stop
       } catch (err) {
         if (cancelled) return;
         setState((prev) => ({

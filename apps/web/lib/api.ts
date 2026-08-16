@@ -46,7 +46,7 @@ export async function buyTicket(
 
 type PayResult =
   | { ok: true; data: PaymentResponse }
-  | { ok: false; message: string };
+  | { ok: false; expired: boolean; message: string };
 
 /**
  * Bestaetigt die (simulierte) Zahlung: published via Pay-Route den
@@ -65,14 +65,28 @@ export async function payOrder(
   });
 
   if (!res.ok) {
+    // 410 sagt der Server explizit: die Deadline ist verstrichen (ADR-033).
+    // Das war frueher ein Rateschluss aus 404 — der bedeutet jetzt wieder das,
+    // was er sagt: zu dieser orderId gibt es keine Order.
+    if (res.status === 410) {
+      return { ok: false, expired: true, message: "Reservierung abgelaufen" };
+    }
     if (res.status === 404) {
-      return { ok: false, message: "Reservierung abgelaufen" };
+      return {
+        ok: false,
+        expired: false,
+        message: "Reservierung nicht gefunden",
+      };
     }
     if (res.status === 409) {
-      return { ok: false, message: "Order bereits abgeschlossen" };
+      return {
+        ok: false,
+        expired: false,
+        message: "Order bereits abgeschlossen",
+      };
     }
     const text = await res.text().catch(() => "Zahlung fehlgeschlagen");
-    return { ok: false, message: text };
+    return { ok: false, expired: false, message: text };
   }
 
   const data = (await res.json()) as PaymentResponse;

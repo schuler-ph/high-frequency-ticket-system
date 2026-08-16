@@ -1,30 +1,26 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { PaymentModal } from "../components/PaymentModal";
-import { SiteHeader } from "../components/SiteHeader";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  PageChrome,
+  SectionPanel,
+  inputClass,
+  primaryBtn,
+} from "../components/PageChrome";
 import { Spinner } from "../components/Spinner";
-import { StatusChip, type ChipTone } from "../components/StatusChip";
+import { StatusChip } from "../components/StatusChip";
 import { Toast } from "../components/Toast";
-import { useOrderStatus } from "../hooks/useOrderStatus";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
-import { buyTicket, cancelOrder } from "../lib/api";
+import { buyTicket } from "../lib/api";
 import { env } from "../lib/env";
 import { randomName } from "../lib/names";
 
-type Phase = "loading" | "upcoming" | "open" | "soldout" | "tracking";
+type Phase = "loading" | "upcoming" | "open" | "soldout";
 
 const PRICE = "€ 199,00";
 const VENUE = "Green Park St. Pölten";
 const DATES = { from: "20.08.2026", to: "22.08.2026" };
-
-const panel = "rounded-md bg-white shadow-sm ring-1 ring-slate-200";
-const primaryBtn =
-  "inline-flex items-center justify-center gap-2 rounded-md bg-[#f5a623] px-6 py-2.5 font-semibold text-white transition-colors hover:bg-[#e0951c] active:bg-[#cf8916] disabled:cursor-not-allowed disabled:bg-slate-300";
-const secondaryBtn =
-  "inline-flex items-center justify-center rounded-md border border-slate-300 px-5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50";
-const inputClass =
-  "w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-[#14395e] focus:ring-2 focus:ring-[#14395e]/20 focus:outline-none";
 
 interface CountdownParts {
   days: number;
@@ -57,85 +53,6 @@ function formatCount(value: number | null): string {
   return value === null ? "—" : value.toLocaleString("de-AT");
 }
 
-function Stars({ value = 4 }: { value?: number }) {
-  const stars = "★★★★★";
-  return (
-    <span aria-label={`${value} von 5 Sternen`}>
-      <span className="text-[#f5a623]">{stars.slice(0, value)}</span>
-      <span className="text-white/30">{stars.slice(value)}</span>
-    </span>
-  );
-}
-
-function Breadcrumb() {
-  return (
-    <div className="border-b border-slate-200 bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-2 text-sm text-slate-500">
-        <span className="text-[#1a4e80]">Start</span>
-        <span className="mx-1.5 text-slate-300">›</span>
-        <span className="text-[#1a4e80]">Festivals</span>
-        <span className="mx-1.5 text-slate-300">›</span>
-        <span className="text-slate-700">Frequency Festival 20XX</span>
-      </div>
-    </div>
-  );
-}
-
-function HeroBanner() {
-  return (
-    <div className={`${panel} overflow-hidden`}>
-      <div className="flex items-center gap-5 bg-gradient-to-r from-[#2b0a4a] via-[#6d1f8c] to-[#f5a623] px-5 py-7 sm:px-8">
-        <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-md bg-black/30 ring-1 ring-white/25 sm:flex">
-          <span className="text-4xl font-black text-[#f5a623]">F</span>
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Frequency Festival 20XX
-          </h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-white/90">
-            <Stars value={4} />
-            <span>4,1 Sterne · St. Pölten, Österreich</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Gemeinsames Marktplatz-Chrome: Navy-Header, Breadcrumb, Hero + Inhalt. */
-function PageChrome({ children }: { children: ReactNode }) {
-  return (
-    <div className="min-h-screen bg-[#ebedf0]">
-      <SiteHeader />
-      <Breadcrumb />
-      <main className="mx-auto max-w-5xl px-4 py-5">
-        <HeroBanner />
-        {children}
-      </main>
-    </div>
-  );
-}
-
-function SectionPanel({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className={`mt-4 ${panel}`}>
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h2 className="text-xl font-bold text-[#1a4e80]">{title}</h2>
-        {action}
-      </div>
-      <div className="px-5 py-5 sm:px-6">{children}</div>
-    </section>
-  );
-}
-
 /** Datum-Spalte im Angebots-Row-Stil (von–bis). */
 function DateColumn() {
   return (
@@ -150,12 +67,8 @@ function DateColumn() {
 export default function TicketPage() {
   const { available, total, opensAt, loading, error } = useTicketAvailability();
   const now = useNow();
-  // Gesetzt, sobald eine Zahlung bestaetigt wurde → Single-Page schaltet auf
-  // die Order-Tracking-Phase um (unabhaengig von der Verfuegbarkeit).
-  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
 
   const phase: Phase = (() => {
-    if (trackingOrderId !== null) return "tracking";
     if (loading) return "loading";
     if (opensAt !== null && now < opensAt) return "upcoming";
     if (available !== null && available <= 0) return "soldout";
@@ -185,22 +98,8 @@ export default function TicketPage() {
     return <SoldOutView total={total} />;
   }
 
-  if (phase === "tracking") {
-    return (
-      <TrackingView
-        orderId={trackingOrderId!}
-        onReset={() => setTrackingOrderId(null)}
-      />
-    );
-  }
-
   return (
-    <ActiveSaleView
-      available={available}
-      total={total}
-      loading={loading}
-      onPaid={setTrackingOrderId}
-    />
+    <ActiveSaleView available={available} total={total} loading={loading} />
   );
 }
 
@@ -279,13 +178,12 @@ function ActiveSaleView({
   available,
   total,
   loading,
-  onPaid,
 }: {
   available: number | null;
   total: number | null;
   loading: boolean;
-  onPaid: (orderId: string) => void;
 }) {
+  const router = useRouter();
   // Autofill mit einem zufaelligen (fiktiven) Namen — die Felder bleiben
   // editierbar.
   const initialName = useState(randomName)[0];
@@ -293,8 +191,6 @@ function ActiveSaleView({
   const [lastName, setLastName] = useState(initialName.lastName);
   const [reserving, setReserving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
-  // Gesetzt, sobald `POST /buy` reserviert hat → Payment-Modal ist offen.
-  const [checkoutOrderId, setCheckoutOrderId] = useState<string | null>(null);
 
   const pct =
     total && total > 0 && available !== null
@@ -308,34 +204,20 @@ function ActiveSaleView({
       firstName,
       lastName,
     });
-    setReserving(false);
     if (result.ok && result.data.orderId) {
-      setCheckoutOrderId(result.data.orderId);
-    } else if (result.ok) {
+      // Der Checkout lebt ab hier unter seiner eigenen URL: reload-fest,
+      // teilbar, und Restzeit wie Status kommen dort frisch aus Redis.
+      // `reserving` bleibt absichtlich gesetzt, damit der Button waehrend der
+      // Navigation nicht kurz wieder klickbar wird.
+      router.push(`/checkout/${result.data.orderId}`);
+      return;
+    }
+    setReserving(false);
+    if (result.ok) {
       setToast({ type: "error", message: "Keine Reservierung erhalten" });
     } else {
       setToast({ type: "error", message: result.message });
     }
-  }
-
-  function resetCheckout() {
-    setCheckoutOrderId(null);
-    const next = randomName();
-    setFirstName(next.firstName);
-    setLastName(next.lastName);
-  }
-
-  function handlePaid(orderId: string) {
-    resetCheckout();
-    onPaid(orderId);
-  }
-
-  // Modal-Abbruch/Timeout: Reservierung freigeben (idempotent, fire-and-forget
-  // — ADR-028). UI resettet sofort, das Release laeuft im Hintergrund.
-  function handleCancelCheckout() {
-    const orderId = checkoutOrderId;
-    resetCheckout();
-    if (orderId) void cancelOrder(env.apiUrl, orderId);
   }
 
   return (
@@ -345,16 +227,6 @@ function ActiveSaleView({
           type={toast.type}
           message={toast.message}
           onClose={() => setToast(null)}
-        />
-      )}
-
-      {checkoutOrderId && (
-        <PaymentModal
-          apiUrl={env.apiUrl}
-          orderId={checkoutOrderId}
-          cardHolder={`${firstName} ${lastName}`.trim()}
-          onPaid={handlePaid}
-          onClose={handleCancelCheckout}
         />
       )}
 
@@ -463,131 +335,6 @@ function SoldOutView({ total }: { total: number | null }) {
         <p className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">
           Alle {formatCount(total)} General-Admission-Pässe wurden vergeben.
         </p>
-      </SectionPanel>
-    </PageChrome>
-  );
-}
-
-function TrackingView({
-  orderId,
-  onReset,
-}: {
-  orderId: string;
-  onReset: () => void;
-}) {
-  const { status, error } = useOrderStatus(orderId);
-  const state = status?.status ?? "pending";
-
-  const chipTone: ChipTone =
-    state === "completed" ? "green" : state === "failed" ? "red" : "amber";
-  const chipLabel =
-    state === "completed"
-      ? "Bestätigt"
-      : state === "failed"
-        ? "Fehlgeschlagen"
-        : "Wird verarbeitet";
-
-  return (
-    <PageChrome>
-      <SectionPanel
-        title="Deine Bestellung"
-        action={
-          <StatusChip tone={chipTone} pulse={state === "pending"}>
-            {chipLabel}
-          </StatusChip>
-        }
-      >
-        {state === "completed" ? (
-          <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/20">
-              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="m5 13 4 4 10-10"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-[#14395e]">
-                Ticket gesichert
-              </h3>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Dein General-Admission-Pass ist bestätigt. Wir sehen uns in St.
-                Pölten.
-              </p>
-            </div>
-          </div>
-        ) : state === "failed" ? (
-          <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-600/20">
-              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M6 6l12 12M18 6L6 18"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-[#14395e]">
-                Kauf fehlgeschlagen
-              </h3>
-              <p className="mt-0.5 text-sm text-slate-500">
-                {status?.status === "failed"
-                  ? status.failureReason
-                  : "Die Bestellung konnte nicht abgeschlossen werden."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-start gap-4">
-            <Spinner className="mt-0.5 h-9 w-9 shrink-0 text-[#14395e]" />
-            <div>
-              <h3 className="text-lg font-bold text-[#14395e]">
-                Zahlung bestätigt
-              </h3>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Deine Bestellung ist in der Warteschlange und wird gerade
-                finalisiert.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <dl className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Bestellnummer
-            </dt>
-            <dd className="font-mono text-sm text-slate-700">
-              {orderId.slice(0, 8)}…
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 py-3">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Ticket-Referenz
-            </dt>
-            <dd className="truncate font-mono text-sm text-slate-700">
-              {status?.status === "completed" && status.ticketId
-                ? status.ticketId
-                : "—"}
-            </dd>
-          </div>
-        </dl>
-
-        {error && state === "pending" && (
-          <p className="mt-3 text-xs text-amber-600">
-            Verbindung instabil — erneuter Versuch…
-          </p>
-        )}
-
-        <button onClick={onReset} className={`${secondaryBtn} mt-5`}>
-          ← Neues Ticket
-        </button>
       </SectionPanel>
     </PageChrome>
   );

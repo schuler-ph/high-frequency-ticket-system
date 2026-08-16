@@ -14,6 +14,12 @@ interface PaymentModalProps {
   cardHolder: string;
   onPaid: (orderId: string) => void;
   onClose: () => void;
+  /**
+   * Der Server hat die Zahlung als abgelaufen abgelehnt (`410`). Das ist ein
+   * Endzustand: zurueck ins Kartenformular zu fallen wuerde einen zweiten
+   * Versuch anbieten, der nie gelingen kann.
+   */
+  onExpired: () => void;
 }
 
 type Status = "form" | "challenge" | "processing";
@@ -38,6 +44,7 @@ export function PaymentModal({
   cardHolder,
   onPaid,
   onClose,
+  onExpired,
 }: PaymentModalProps) {
   const [payment, setPayment] = useState<PaymentRequest>(() =>
     fakePayment(cardHolder),
@@ -83,6 +90,11 @@ export function PaymentModal({
     const result = await payOrder(apiUrl, orderId, payment);
     if (result.ok) {
       onPaid(orderId);
+      return;
+    }
+    // Abgelaufen ist terminal — die Seite uebernimmt und zeigt den Endzustand.
+    if (result.expired) {
+      onExpired();
       return;
     }
     setError(result.message);
