@@ -74,9 +74,15 @@ export const preflight = (opts = {}) => {
   ];
   const problems = [];
 
+  // OpenSSH kennt kein `--version` (nur `-V`) — mit dem Standard-Probe wurde
+  // ein vorhandenes ssh als "not found" gemeldet und der Split-Lauf brach ab.
+  const versionProbeArgs = { ssh: ["-V"] };
+
   for (const command of requiredCommands) {
     try {
-      execFileSync(command, ["--version"], { stdio: "ignore" });
+      execFileSync(command, versionProbeArgs[command] ?? ["--version"], {
+        stdio: "ignore",
+      });
     } catch {
       problems.push(`Required command not found on PATH: ${command}`);
     }
