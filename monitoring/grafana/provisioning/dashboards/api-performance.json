@@ -231,11 +231,16 @@
           "expr": "(sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=\"425\"}[1m])) or vector(0)) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
           "legendFormat": "425 Too Early Rate",
           "refId": "C"
+        },
+        {
+          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"api\", status_code=\"410\"}[1m])) or vector(0)) / sum(rate(http_request_duration_seconds_count{job=\"api\"}[1m]))",
+          "legendFormat": "410 Expired Rate",
+          "refId": "D"
         }
       ],
-      "title": "Error Rate (5xx / 409 / 425)",
+      "title": "Error Rate (5xx / 409 / 410 / 425)",
       "type": "timeseries",
-      "description": "409 = Sold-Out (buy) bzw. bereits finalisierte Order (pay/cancel); 425 = Sale-Unlock-Gate (ADR-024), im Warm-up sind das alle Kaufversuche."
+      "description": "Nur 5xx ist ein Fehler. 409 = Sold-Out (buy) bzw. bereits finalisierte Order (pay/cancel); 425 = Sale-Unlock-Gate (ADR-024), im Warm-up sind das alle Kaufversuche; 410 = Checkout-Deadline verstrichen (ADR-033).\n\n410 steht hier als HTTP-Sicht auf denselben Vorgang, den 'Ticket Status' fachlich als 'abgelehnt: abgelaufen' zeigt. Weichen beide voneinander ab, antwortet die Route anders als die Metrik zaehlt.\n\nBewusst ohne 404: das ist im Status-Poll eine erwartete Antwort auf eine noch unbekannte Order und wuerde die Serie mit Rauschen fuellen.\n\nDie Serie haengt hinten statt in numerischer Reihenfolge, damit Grafanas Farbzuordnung der bestehenden Serien unveraendert bleibt."
     },
     {
       "datasource": {
