@@ -310,6 +310,23 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 **Task:** `loadtest:run+report` — fragt das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
+### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
+
+Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der eingerichtete Generator-Host. Die drei Split-Werte und die `BASE_URL` mit der Mac-LAN-IP kommen **inline** — Heimnetz-IPs gehören nicht in versionierte Profile, und Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen:
+
+```bash
+K6_RUNNER=ssh \
+K6_SSH_HOST=<user>@<pc-ip> \
+K6_REMOTE_DIR=C:/hts \
+K6_REST_URL=http://<pc-ip>:6565 \
+BASE_URL=http://<mac-ip>:10002 \
+HTS_ENV_PROFILE=capacity pnpm spike:report
+```
+
+Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
+
+> **Wenn der Stop nicht zustellbar ist** (Netz weg, REST-Port zu): der SIGKILL-Fallback des Orchestrators trifft nur den lokalen ssh-Prozess. Ein weiterlaufendes k6 auf dem PC beenden: `taskkill /F /IM k6.exe`.
+
 ---
 
 ## 5. Auswertung (braucht keinen laufenden Stack)

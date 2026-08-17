@@ -19,7 +19,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 
 import {
   checkEndpoints,
@@ -41,6 +41,8 @@ import {
   fetchLedgerActive,
   runPhaseAReactive,
   runPhaseB,
+  spawnK6Ssh,
+  stopK6ViaRest,
 } from "./lib/processes.mjs";
 import { parseOpenMetrics, sumSamples } from "./lib/openmetrics.mjs";
 import { exportDashboards } from "./lib/grafana.mjs";
@@ -52,6 +54,71 @@ const API_METRICS = requireEnv("API_METRICS_URL");
 const WORKER_METRICS = requireEnv("WORKER_METRICS_URL");
 const PROMETHEUS_URL = requireEnv("PROMETHEUS_URL");
 const SALE_OPENS_IN_SECONDS = requireEnv("SALE_OPENS_IN_SECONDS");
+
+// Zwei-Maschinen-Setup (Phase 4.12): `local` startet k6 wie bisher auf diesem
+// Host, `ssh` auf dem Generator-PC. Die drei Split-Werte kommen bewusst NICHT
+// aus dem versionierten Profil (Heimnetz-IPs gehoeren nicht ins Repo), sondern
+// inline mit dem Startbefehl — Node laesst bereits gesetztes Prozess-Env vor
+// `--env-file` gewinnen (RUNBOOK §4).
+const K6_RUNNER = requireEnv("K6_RUNNER");
+if (K6_RUNNER !== "local" && K6_RUNNER !== "ssh") {
+  throw new Error(
+    `K6_RUNNER muss "local" oder "ssh" sein, ist aber "${K6_RUNNER}"`,
+  );
+}
+const REMOTE =
+  K6_RUNNER === "ssh"
+    ? {
+        sshHost: requireEnv("K6_SSH_HOST", "z.B. loadgen bzw. user@<pc-ip>"),
+        remoteDir: requireEnv(
+          "K6_REMOTE_DIR",
+          "Repo-Klon auf dem Generator-Host, Pfad ohne Leerzeichen, z.B. C:/hts",
+        ),
+        restUrl: requireEnv(
+          "K6_REST_URL",
+          "k6-REST-API auf dem Generator-Host, z.B. http://<pc-ip>:6565",
+        ),
+      }
+    : null;
+// k6 lauscht auf allen Interfaces des Generator-Hosts, damit der Orchestrator
+// den Sold-out-Stop ueber das LAN zustellen kann; der Port folgt K6_REST_URL.
+const REST_ADDRESS = REMOTE
+  ? `0.0.0.0:${new URL(REMOTE.restUrl).port || "6565"}`
+  : null;
+
+/** Repo-relativer Pfad einer lokalen Datei im Remote-Klon (forward slashes —
+ * die Kommandos laufen auf Windows durch cmd.exe). */
+const toRemotePath = (localPath) =>
+  `${REMOTE.remoteDir}/${relative(REPO_ROOT, localPath).split(sep).join("/")}`;
+
+/** Die Remote-Summary landet flach im Klon-Root: der Run-Ordner existiert nur
+ * lokal, und cmd.exe-sicheres rekursives mkdir ist den Aufwand nicht wert —
+ * die Datei wird direkt nach Phasen-Ende per scp an den exakt lokalen Pfad
+ * geholt und remote beim naechsten Lauf ueberschrieben. */
+const remoteSummaryPath = (localSummaryPath) =>
+  `${REMOTE.remoteDir}/${basename(localSummaryPath)}`;
+
+const fetchRemoteSummary = (localSummaryPath) => {
+  execFileSync(
+    "scp",
+    [`${REMOTE.sshHost}:${remoteSummaryPath(localSummaryPath)}`, localSummaryPath],
+    { stdio: "inherit" },
+  );
+};
+
+// Prozessstart und Stop-Kanal je Runner; `undefined` laesst die lokalen
+// Defaults (spawnK6, SIGINT) in processes.mjs greifen.
+const spawnPhase = REMOTE
+  ? (scriptPath, { runId, summaryPath, env }) =>
+      spawnK6Ssh(toRemotePath(scriptPath), {
+        runId,
+        summaryPath: remoteSummaryPath(summaryPath),
+        restAddress: REST_ADDRESS,
+        env,
+        sshHost: REMOTE.sshHost,
+      })
+  : undefined;
+const requestStop = REMOTE ? () => stopK6ViaRest(REMOTE.restUrl) : undefined;
 /** Vorlauf/Nachlauf der exportierten Panels: Ruhelinie vor, Leerlaufen nach dem Ansturm. */
 const GRAPH_PAD_BEFORE_MS = 60_000;
 const GRAPH_PAD_AFTER_MS = 30_000;
@@ -91,11 +158,41 @@ const main = async () => {
   // then the services under test: they are host processes, so running containers
   // say nothing about them. Both gates run BEFORE the seed, because the seed
   // truncates the database and wipes the Prometheus TSDB.
-  const pf = preflight();
+  //
+  // Beim ssh-Runner braucht DIESER Host kein k6 — dafuer ssh, und das k6 auf
+  // dem Generator-Host muss zur lokal gepinnten Major-Version (v2.x) passen.
+  const pf = preflight(
+    REMOTE ? { requiredCommands: ["node", "pnpm", "ssh"] } : undefined,
+  );
   if (!pf.ok) {
     console.error("[spike:report] Preflight failed:");
     for (const problem of pf.problems) console.error(`  - ${problem}`);
     process.exit(1);
+  }
+  if (REMOTE) {
+    let remoteK6Version = "";
+    try {
+      remoteK6Version = execFileSync(
+        "ssh",
+        [REMOTE.sshHost, "k6", "--version"],
+        { encoding: "utf8" },
+      ).trim();
+    } catch (error) {
+      console.error(
+        `[spike:report] Preflight failed: \`ssh ${REMOTE.sshHost} k6 --version\` — ${error instanceof Error ? error.message : error}`,
+      );
+      console.error(
+        "  - Generator-Host erreichbar, OpenSSH-Server + k6 installiert? (RUNBOOK, Zwei-Maschinen-Setup)",
+      );
+      process.exit(1);
+    }
+    if (!/\bv2\./.test(remoteK6Version)) {
+      console.error(
+        `[spike:report] Preflight failed: Remote-k6 ist "${remoteK6Version}", erwartet v2.x (Pin an die lokale Version).`,
+      );
+      process.exit(1);
+    }
+    console.log(`[spike:report] Remote k6 (${REMOTE.sshHost}): ${remoteK6Version}`);
   }
 
   const reachable = await checkEndpoints([
@@ -181,9 +278,15 @@ const main = async () => {
       requireEnv("LOAD_PROFILE") === "funnel"
         ? (eventId) => fetchLedgerActive(WORKER_METRICS, eventId)
         : undefined,
+    spawnPhase,
+    requestStop,
   });
   const phaseAExit = phaseA.exitCode;
   timestamps.phaseAEndedAt = nowIso();
+  // Split-Lauf: die Summary liegt noch auf dem Generator-Host — sofort an den
+  // exakt heutigen lokalen Pfad holen, damit summarisePhase und die Goldens
+  // nichts vom Remote-Setup merken.
+  if (REMOTE) fetchRemoteSummary(join(runDir, "k6", "phase-a-summary.json"));
   if (phaseA.stopReason === "stalled") {
     console.warn(
       `[spike:report] Phase A stopped on a completion plateau with ${phaseA.availableAtStop ?? "unknown"} tickets still available — this is NOT a sell-out.`,
@@ -204,8 +307,10 @@ const main = async () => {
     runId,
     summaryPath: join(runDir, "k6", "phase-b-summary.json"),
     env: k6Env,
+    spawnPhase,
   });
   timestamps.workloadEndedAt = nowIso();
+  if (REMOTE) fetchRemoteSummary(join(runDir, "k6", "phase-b-summary.json"));
   writeFileSync(
     join(runDir, "k6", "phase-b-meta.json"),
     JSON.stringify({ exitCode: phaseBExit, reason: "cool-down" }) + "\n",

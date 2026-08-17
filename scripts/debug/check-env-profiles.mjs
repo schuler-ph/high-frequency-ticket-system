@@ -32,6 +32,7 @@ const schemaVariables = () => {
 /** Variablen, die nur der Lastgenerator und die Belegerhebung brauchen. */
 const LOADTEST_VARIABLES = [
   "LOAD_PROFILE",
+  "K6_RUNNER",
   "BASE_URL",
   "EVENT_ID",
   "CHECKOUT_SHARE",
