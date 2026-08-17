@@ -353,7 +353,7 @@ Details: [Plan](notes/phases/phase-4-10-checkout-expiry.md), Herkunft: [Gedanken
 - [x] **Panels ergaenzen:** Expired-Serie im Checkout-Funnel, Abandon-Rate ohne Ablaeufe, plus das bisher nirgends geplottete `reservation_reaper_run_duration_seconds`. → [Schnitt 8](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **Funnel-Lauf fahren:** `LOAD_PROFILE=funnel`, 100k Kapazitaet. Lauf nur mit Freigabe. → [Schnitt 9](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **Optional: 1M mit komprimierter Zeit:** Denkzeit ~6 s, Deadline ~12 s, Reaper-Intervall vom `COUNT`-Zyklus entkoppelt. Erst nach der 100k-Variante. → [Schnitt 10](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
-- [ ] **Golden-Report-Test reparieren (vorgefunden):** `report.md`-Golden und Renderer sind sich uneins ueber die Tabellen-Ausrichtung; aelter als Phase 4.10. → [Befund](notes/phases/phase-4-10-checkout-expiry.md#vorgefundener-defekt-golden-report-test)
+- [x] **Golden-Report-Test reparieren (vorgefunden):** Golden aus dem Renderer regeneriert — ungepolsterte Tabellen sind die gewollte Form. → [Entscheidung](notes/phases/phase-4-10-checkout-expiry.md#vorgefundener-defekt-golden-report-test)
 
 ## Phase 4.11: Report-Automation cloud-faehig machen (Vorbedingung fuer den GCP-Lasttest)
 

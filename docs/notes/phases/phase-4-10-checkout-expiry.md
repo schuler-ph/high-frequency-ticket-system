@@ -255,6 +255,13 @@ dem aktuellen Renderer neu erzeugen, oder dem Renderer eine Ausrichtung
 beibringen und die Golden-Datei behalten. Beides ist eine Ein-Zeilen-Aenderung
 mit unterschiedlicher Aussage darueber, wie der Report aussehen soll.
 
+**Entschieden 2026-08-17:** Die Golden-Datei wurde aus dem aktuellen Renderer
+neu erzeugt (`pnpm spike:analyze` ueber das Fixture-Verzeichnis); die
+ungepolsterte Tabellenform ist die gewollte. Der Renderer ist die versionierte
+Wahrheit — jede echte `report.md` in `artifacts/` ist ungepolstert, und eine
+Padding-Logik muesste bei jeder Spaltenaenderung alle Tabellen neu fliessen
+lassen. Das `derived.json`-Golden war byte-identisch und blieb unveraendert.
+
 ## Erwartungsbild
 
 Die transienten Treppen im Capacity Delta bleiben, weil der
