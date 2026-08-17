@@ -46,7 +46,7 @@
 - **Entscheidung:** Ein zentrales Root-Skript, heute `pnpm seed`, setzt alle drei lokalen Systeme auf einen definierten Fixture-Stand zurueck.
 - **Begruendung:** Einheitliche Ausgangsdaten reduzieren Debug-Zeit, verhindern Drift zwischen Teammitgliedern und verbessern die Reproduzierbarkeit von API/Worker-Tests.
 - **Umsetzung:**
-  - `scripts/local/reset-seed.mjs`
+  - `scripts/local/reset.mjs`
   - `package.json`
   - damalige Kurzdatei `docs/DEBUGGING.md`, seit 2026-07-30 in
     `docs/RUNBOOK.md` konsolidiert

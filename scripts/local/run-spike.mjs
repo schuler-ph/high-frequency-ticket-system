@@ -234,10 +234,12 @@ const main = async () => {
     "Web: http://localhost:10001 , Prometheus Server: http://localhost:10007 , Grafana Server: http://localhost:10008",
   );
 
+  // Nur der Reset, nicht die Provisionierung: die ist beim Hochfahren des
+  // Stacks passiert. Hier zaehlt der Zeitpunkt, weil `opensAt` ab jetzt laeuft.
   console.log(
-    `[run-spike] Seeding local infrastructure (sale opens in ${SALE_OPENS_IN_SECONDS}s)...`,
+    `[run-spike] Resetting run state (sale opens in ${SALE_OPENS_IN_SECONDS}s)...`,
   );
-  execFileSync("node", ["scripts/local/reset-seed.mjs"], {
+  execFileSync("node", ["scripts/local/reset.mjs"], {
     stdio: "inherit",
     env: {
       ...process.env,

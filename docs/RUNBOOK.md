@@ -106,7 +106,9 @@ until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` — fragt zuerst das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`); dasselbe Profil versorgt Seed **und** Services, sodass Generator und Backend nicht mehr mit verschiedenen Annahmen laufen können. (Für `stack:wait-ready` gibt es keinen eigenen Button — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar.)
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` — fragt zuerst das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`); dasselbe Profil versorgt Provisionierung **und** Services, sodass Generator und Backend nicht mehr mit verschiedenen Annahmen laufen können. (Für `stack:wait-ready` gibt es keinen eigenen Button — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar.)
+
+> **`LT Stack` setzt den Zustand nicht zurück.** Es provisioniert nur Schema, Topic und Subscription — idempotent und gefahrlos wiederholbar. Der Reset gehört unmittelbar vor die Last und läuft deshalb in `Spike Report` (Begründung in §4). Wer zwischendurch einen sauberen Stand ohne kompletten Lauf will, nimmt den Button `Reset` (Task `stack:reset`).
 
 > **Wenn VS Code das Profil mehrfach abfragt:** `loadtest:services` startet API, Worker und Web parallel, und jeder dieser Tasks referenziert den Input. VS Code löst denselben Input pro Lauf normalerweise einmal auf. Fragt es dennoch mehrfach, überall dasselbe Profil wählen — oder die Services einzeln mit `HTS_ENV_PROFILE=<profil> pnpm --filter <service> run start:loadtest` starten.
 
@@ -215,7 +217,7 @@ flowchart TD
     D --> D0["<b>Preflight</b><br/>Tools + Container,<br/>dann API/Worker erreichbar?"]
     D0 -->|"nicht erreichbar"| DX["Exit 1 mit Startbefehl —<br/><b>nichts</b> zurückgesetzt"]
     D0 -->|ok| D1["<i>ab hier wird State mutiert</i>"]
-    D1 --> D2["reset-seed<br/><i>TRUNCATE + Prometheus-TSDB-Wipe</i>"]
+    D1 --> D2["reset<br/><i>Queue-Purge + TRUNCATE +<br/>opensAt + Prometheus-TSDB-Wipe</i>"]
     D2 --> D3["Snapshots VORHER<br/>/metrics, DB, Redis"]
     D3 --> D4["Phase A<br/>1k → 10k RPS<br/><i>Stop bei Plateau</i>"]
     D4 --> D5["Phase B<br/>1k RPS Cool-Down"]
@@ -236,7 +238,11 @@ flowchart TD
     style DX fill:#c55,color:#fff
 ```
 
-> **`reset-seed` ist destruktiv:** es macht `TRUNCATE`, setzt die Redis-Counter zurück und löscht die Prometheus-TSDB. Deshalb prüft der Preflight **vorher**, ob API und Worker antworten — laufende Container beweisen das nicht, denn beide sind Host-Prozesse. Ohne diese Prüfung setzte ein Lauf gegen einen nicht laufenden Stack erst alles zurück und brach dann mit einem nackten `fetch failed` ab.
+> **`reset` ist destruktiv:** es verwirft den Pub/Sub-Rückstand, macht `TRUNCATE`, setzt die Redis-Counter zurück und löscht die Prometheus-TSDB. Deshalb prüft der Preflight **vorher**, ob API und Worker antworten — laufende Container beweisen das nicht, denn beide sind Host-Prozesse. Ohne diese Prüfung setzte ein Lauf gegen einen nicht laufenden Stack erst alles zurück und brach dann mit einem nackten `fetch failed` ab.
+>
+> **Warum der Reset hier steht und nicht beim Stack-Start:** `opensAt` wird als `Date.now() + SALE_OPENS_IN_SECONDS` geschrieben. Läge der Reset im `LT Stack`-Button, wäre das Sale-Unlock-Fenster längst verstrichen, bis die Services gebaut sind und der Lauf startet — k6s Warm-up-Phase erwartet dort aber `425 Too Early`. `LT Stack` provisioniert deshalb nur (Schema, Topic, Subscription), der Lauf resettet selbst.
+>
+> **Warum der Reset die Queue leert:** unbestätigte Nachrichten eines abgebrochenen Laufs überleben sonst den `TRUNCATE`. Ihre `orderId`s kennt die Datenbank danach nicht mehr, der Worker persistiert sie also als neue Verkäufe ohne zugehörige Reservierung — das verletzt die Capacity-Invariante und setzt den Lauf auf `system=fail`, ohne dass am System etwas falsch wäre. Ein `seek` auf „jetzt" bestätigt den Rückstand, ohne die Subscription zu löschen (das würde einen laufenden Worker abhängen).
 
 ```bash
 pnpm spike                    # nur Last (kein Report)

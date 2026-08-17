@@ -78,7 +78,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 `pnpm spike` ruft `scripts/local/run-spike.mjs` auf (siehe ADR-025), das:
 
-1. `scripts/local/reset-seed.mjs` mit dem `SALE_OPENS_IN_SECONDS` des Profils ausführt — setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis.
+1. `scripts/local/reset.mjs` mit dem `SALE_OPENS_IN_SECONDS` des Profils ausführt — verwirft den Pub/Sub-Rückstand, setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis. Die Provisionierung (Schema, Topic, Subscription) ist davon getrennt und läuft beim Hochfahren des Stacks.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
 3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
@@ -197,7 +197,7 @@ das `capacity`-Profil setzt; die anderen Profile weichen bewusst davon ab.
 | `THINK_TIME_SIGMA`               | funnel: `35`                           | funnel: Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler         |
 | `PAY_RATE`                       | `0.88` (checkout: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
 | `CANCEL_RATE`                    | `0.08` (checkout: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)              |
-| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset-seed.mjs` weitergereicht)           |
+| `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                |
 | `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Completion-Counter-Polls in der Orchestrierung                |
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt        |
 | `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`       | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll            |

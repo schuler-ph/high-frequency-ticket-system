@@ -134,16 +134,16 @@ const main = async () => {
     K6_PROMETHEUS_RW_SERVER_URL: requireEnv("K6_PROMETHEUS_RW_SERVER_URL"),
   };
 
-  // 3. Reset / seed.
-  console.log("[spike:report] Seeding local infrastructure...");
-  execFileSync(
-    "node",
-    [join(REPO_ROOT, "scripts", "local", "reset-seed.mjs")],
-    {
-      stdio: "inherit",
-      env: { ...process.env, SALE_OPENS_IN_SECONDS },
-    },
-  );
+  // 3. Zustands-Reset — bewusst hier und nicht beim Hochfahren des Stacks:
+  // `opensAt` wird als `Date.now() + SALE_OPENS_IN_SECONDS` geschrieben und
+  // waere bis zum Lastbeginn laengst verfallen, wenn der Stack Minuten vorher
+  // gestartet wurde. Die Provisionierung (Schema, Topic, Subscription) ist
+  // bereits gelaufen; sie gehoert vor die Services.
+  console.log("[spike:report] Resetting run state...");
+  execFileSync("node", [join(REPO_ROOT, "scripts", "local", "reset.mjs")], {
+    stdio: "inherit",
+    env: { ...process.env, SALE_OPENS_IN_SECONDS },
+  });
   timestamps.seededAt = nowIso();
 
   // 4. Baseline snapshots (state survives across the run for counter deltas).

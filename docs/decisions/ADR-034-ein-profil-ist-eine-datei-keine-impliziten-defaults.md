@@ -6,7 +6,7 @@
   vollständig.
   1. Das Zod-Schema in `packages/env/src/index.ts` — 17 Variablen, 9 davon mit
      `.default(...)`, genau die Tuning-Knöpfe, die im Lasttest interessant sind.
-  2. Eigene Literal-Defaults in `scripts/local/reset-seed.mjs`,
+  2. Eigene Literal-Defaults in `scripts/local/reset.mjs`,
      `scripts/local/bench-hot-row.mjs` und `packages/db/scripts/*.ts` —
      `DATABASE_URL` gleich dreifach.
   3. Inline gesetzte Werte in `apps/{api,worker}/package.json`, die faktischen

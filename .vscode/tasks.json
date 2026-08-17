@@ -90,20 +90,34 @@
       "problemMatcher": []
     },
     {
+      // Dev-Stack: provisionieren UND zuruecksetzen. Anders als im Lasttest ist
+      // der Zeitpunkt hier egal, weil dev/test `SALE_OPENS_IN_SECONDS=0` haben
+      // — es gibt kein Zeitfenster, das verfallen koennte.
       "label": "dev:seed",
-      "detail": "Schema + Test-Event + Redis-Counter + Pub/Sub-Topic/Subscription fuer das gewaehlte Dev-Profil. MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
+      "detail": "Schema + Topic/Subscription provisionieren, danach Zustand zuruecksetzen (Truncate, Redis-Counter, Queue-Purge). MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:devEnvProfile}' pnpm run seed",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "problemMatcher": []
     },
     {
-      // Getrennt von dev:seed, weil beide Ketten ein anderes Profil-Menue
-      // brauchen: ein Task kann nur einen `${input:...}` referenzieren.
-      "label": "loadtest:seed",
-      "detail": "Wie dev:seed, aber mit dem Lasttest-Profil — SEED_CAPACITY und SALE_OPENS_IN_SECONDS kommen aus dessen Datei.",
+      // Lasttest-Stack: NUR provisionieren. Der Reset gehoert unmittelbar vor
+      // die Last und passiert deshalb in `spike:report` — ein Reset hier wuerde
+      // das Sale-Unlock-Gate setzen, das bis zum Lastbeginn laengst verfallen
+      // waere. Getrennt von dev:seed, weil beide Ketten ein anderes
+      // Profil-Menue brauchen: ein Task kann nur einen `${input:...}` tragen.
+      "label": "loadtest:provision",
+      "detail": "Nur Schema + Pub/Sub-Topic/Subscription (idempotent). Kein Reset — den macht der Lauf selbst, damit die Pre-Sale-Zeit stimmt.",
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run seed",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run provision",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "problemMatcher": []
+    },
+    {
+      "label": "stack:reset",
+      "detail": "Destruktiv: TRUNCATE, Redis-Counter + opensAt, Pub/Sub-Backlog verwerfen, Prometheus-TSDB leeren. Fuer einen sauberen Stand ohne kompletten Lauf.",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:anyEnvProfile}' pnpm run reset",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "problemMatcher": []
     },
@@ -178,7 +192,7 @@
       "label": "loadtest:stack up",
       "detail": "RUNBOOK §3 — Infra → Seed → API + Worker + Web (Dev, je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "loadtest:seed", "loadtest:services"],
+      "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services"],
       "problemMatcher": []
     },
     {
@@ -296,6 +310,24 @@
           "label": "funnel — Denkzeit ~60 s gegen kurzes Checkout-Fenster (Ablauf/Reaper)",
           "value": "funnel"
         }
+      ]
+    },
+    {
+      // Fuer den freistehenden Reset: hier ist jedes Profil legitim, weil man
+      // den Zustand genau so herstellen will, wie ihn der naechste Lauf
+      // erwartet — inklusive dessen Kapazitaet und Sale-Unlock-Fenster.
+      "id": "anyEnvProfile",
+      "type": "pickString",
+      "description": "Env-Profil für den Reset",
+      "default": "dev",
+      "options": [
+        "dev",
+        "test",
+        "capacity",
+        "realism",
+        "checkout",
+        "funnel",
+        "bench"
       ]
     },
     {

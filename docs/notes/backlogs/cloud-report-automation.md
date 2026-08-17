@@ -16,7 +16,7 @@ Offene Detailnotiz fuer eine cloud-faehige Lasttest- und Report-Automation.
 
 ### Seed-Pfad fuer die Cloud
 
-> - [ ] **Seed-Pfad fuer die Cloud:** `scripts/local/reset-seed.mjs` provisioniert Topic/Subscription ueber die **Emulator**-REST-API und truncated per Container-CLI. In GCP provisioniert Terraform (ADR-010), und das Zuruecksetzen des Test-Events braucht einen anderen Weg. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf oder gegen einen vorbereiteten Datenstand faehrt.
+> - [ ] **Seed-Pfad fuer die Cloud:** `scripts/local/provision.mjs` provisioniert Topic/Subscription ueber die **Emulator**-REST-API, `scripts/local/reset.mjs` truncated per Container-CLI. In GCP provisioniert Terraform (ADR-010), und das Zuruecksetzen des Test-Events braucht einen anderen Weg. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf oder gegen einen vorbereiteten Datenstand faehrt.
 
 ### Verteilten k6-Runner orchestrieren
 

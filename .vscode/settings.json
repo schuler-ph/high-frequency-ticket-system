@@ -68,10 +68,18 @@
       {
         "name": "$(rocket) LT Stack",
         "color": "#98C379",
-        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Seed → API + Worker + Web im Dev-Modus, je eigenes Terminal). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel — dasselbe Profil versorgt Seed und Services. Die Service-Terminals müssen offen bleiben.",
+        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Provision → API + Worker + Web im Dev-Modus, je eigenes Terminal). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel. Setzt den Zustand NICHT zurück — das macht 'Spike Report' selbst, damit die Pre-Sale-Zeit stimmt. Die Service-Terminals müssen offen bleiben.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:stack up"]
+      },
+      {
+        "name": "$(trash) Reset",
+        "color": "#C678DD",
+        "tooltip": "RUNBOOK §3: Zustand zurücksetzen (TRUNCATE, Redis-Counter + opensAt, Pub/Sub-Backlog verwerfen, Prometheus-TSDB leeren). Fragt das Env-Profil ab. Nicht nötig vor 'Spike Report' — der Lauf resettet selbst.",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["stack:reset"]
       },
       {
         "name": "$(debug-stop) LT Stop",

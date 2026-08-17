@@ -361,7 +361,7 @@ Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. 
 
 - [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `snapshots.mjs` ist auf `docker exec hts-postgres`/`hts-redis` hart verdrahtet; braucht einen austauschbaren Zugriffspfad.
 - [ ] **Preflight umgebungsabhaengig machen:** `preflight()` verlangt die lokalen Container und bricht im Cloud-Lauf ab; `requiredContainers` gibt es schon, ein Cloud-Profil fehlt.
-- [ ] **Seed-Pfad fuer die Cloud:** `reset-seed.mjs` nutzt Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt seeden darf.
+- [ ] **Seed-Pfad fuer die Cloud:** `provision.mjs`/`reset.mjs` nutzen Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt resetten darf.
 - [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.12).
 - [ ] **Monitoring-Quelle fuer den Cloud-Lauf entscheiden:** Managed Prometheus, selbst betriebener Prometheus im Cluster oder Cloud Monitoring — und wie `targetUp`/Range-Queries darauf abbilden.
 
