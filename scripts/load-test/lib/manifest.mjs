@@ -28,6 +28,13 @@ export const CONFIG_ALLOWLIST = [
   "REDIS_WORKER_PROCESSED_TTL_SECONDS",
   "WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS",
   "LOAD_PROFILE",
+  // Split-Marker (Phase 4.12): unterscheiden co-located von Zwei-Maschinen-
+  // Laeufen. BASE_URL zeigt, welchen Host der Generator ansprach (localhost =
+  // co-located, LAN-IP = split); K6_RUNNER, wo k6 lief (`local` | `ssh`).
+  // Ohne beide waere ein Split-Lauf im Manifest nicht von einem co-located
+  // Lauf unterscheidbar und `spike:compare` wuerde Aepfel mit Birnen messen.
+  "BASE_URL",
+  "K6_RUNNER",
   "PAY_RATE",
   "CANCEL_RATE",
   "THINK_TIME_KIND",

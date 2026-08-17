@@ -75,7 +75,9 @@ Dinge beschreiben:
 
 - **Load harness / orchestrator env** (`manifest.configuration`, aus
   `redactConfig(process.env)`): formt die _Last_ — `LOAD_PROFILE`, `PAY_RATE`,
-  `CANCEL_RATE`, `SALE_OPENS_IN_SECONDS`, k6-Knobs.
+  `CANCEL_RATE`, `SALE_OPENS_IN_SECONDS`, k6-Knobs. Seit Phase 4.12 zusaetzlich
+  die Split-Marker `BASE_URL` und `K6_RUNNER` (`local` | `ssh`), damit Manifest
+  und Compare einen co-located Lauf von einem Zwei-Maschinen-Lauf unterscheiden.
 - **Effective service configuration** (`derived.serviceConfig`, aus dem
   `service_config_info`-Gauge in `/metrics`): das, womit API und Worker
   **tatsaechlich** liefen — `NODE_ENV`, `LOG_LEVEL`,

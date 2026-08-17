@@ -27,6 +27,20 @@ test("redactConfig keeps only allowlisted, non-empty settings", () => {
   assert.equal("SOME_TOKEN" in out, false);
 });
 
+// Phase 4.12 (Generator-SUT-Split): BASE_URL und K6_RUNNER sind die Marker,
+// an denen Manifest und Compare einen co-located Lauf (localhost, local) von
+// einem Zwei-Maschinen-Lauf (LAN-IP, ssh) unterscheiden.
+test("redactConfig captures the generator split markers", () => {
+  const out = redactConfig({
+    BASE_URL: "http://192.168.1.20:10002",
+    K6_RUNNER: "ssh",
+  });
+  assert.deepEqual(out, {
+    BASE_URL: "http://192.168.1.20:10002",
+    K6_RUNNER: "ssh",
+  });
+});
+
 test("buildManifest sets schema version and defaults all timestamp slots", () => {
   const m = buildManifest({ runId: "2026-07-23T00-00-00Z-abc1234" });
   assert.equal(m.schemaVersion, MANIFEST_SCHEMA_VERSION);
