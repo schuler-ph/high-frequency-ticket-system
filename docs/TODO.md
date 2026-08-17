@@ -369,7 +369,7 @@ Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. 
 
 Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC, SUT allein auf dem MacBook, Ziel 5k RPS sustained (REQ-P01). → [Details](notes/backlogs/local-generator-split.md#backlog-lokaler-generator-sut-split-vorspann)
 
-- [ ] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren.
+- [x] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [RUNBOOK §3](RUNBOOK.md#zwei-maschinen-setup-generator-getrennt-vom-sut), Task `loadtest:stack up (LAN)`
 - [ ] **Generator-Host (Ryzen-PC) anbinden:** k6 installieren, `BASE_URL` auf die SUT-IP; Minimalpfad manueller/ssh-Lauf + `--summary-export`-Import in `spike:report`. Ethernet, WLAN nur Fallback.
 - [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe.
 - [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.

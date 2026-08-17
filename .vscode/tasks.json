@@ -168,6 +168,36 @@
       "problemMatcher": []
     },
     {
+      // Zwei-Maschinen-Setup (RUNBOOK §3): FASTIFY_ADDRESS wirkt nur inline —
+      // fastify-cli parst seine Argumente, bevor die App die Profildatei
+      // laedt. Die Bind-Adresse ist Host-Topologie, kein Profil-Eintrag.
+      "label": "loadtest:api (LAN)",
+      "detail": "Wie loadtest:api, aber auf 0.0.0.0 gebunden — fuer den Split-Lauf mit k6 auf dem Generator-PC (RUNBOOK §3, Zwei-Maschinen-Setup).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter api run start:loadtest",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:worker (LAN)",
+      "detail": "Wie loadtest:worker, aber auf 0.0.0.0 gebunden — fuer den Split-Lauf (RUNBOOK §3, Zwei-Maschinen-Setup).",
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter worker run start:loadtest",
+      "isBackground": true,
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:services (LAN)",
+      "detail": "API + Worker auf 0.0.0.0, Web unveraendert lokal (nicht im Lastpfad). Laeuft dauerhaft — LETZTER Schritt einer Sequenz.",
+      "dependsOrder": "parallel",
+      "dependsOn": ["loadtest:api (LAN)", "loadtest:worker (LAN)", "loadtest:web"],
+      "problemMatcher": []
+    },
+    {
       "label": "dev:services",
       "detail": "Web + API + Worker im Dev-Modus (Hot-Reload).",
       "type": "shell",
@@ -193,6 +223,13 @@
       "detail": "RUNBOOK §3 — Infra → Seed → API + Worker + Web (Dev, je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services"],
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:stack up (LAN)",
+      "detail": "RUNBOOK §3, Zwei-Maschinen-Setup — wie 'loadtest:stack up', aber API und Worker binden auf 0.0.0.0, damit der Generator-PC sie erreicht.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services (LAN)"],
       "problemMatcher": []
     },
     {

@@ -183,6 +183,57 @@ flowchart LR
 3. **Beim Aufräumen den Port killen, nicht das Prozessmuster.** `pkill` auf das pnpm-Wrapper-Pattern beendet nur den Wrapper; der `node`-Prozess hält den Port weiter. Und: **einmal killen genügt nicht** — es können mehrere Listener bzw. ein Wrapper mit Kind auf demselben Port hängen. Deshalb alle PIDs, mit Wiederholung, `SIGKILL`-Eskalation und Endkontrolle.
 4. **Kein blockierender Task in einer Sequenz** — siehe Abschnitt oben.
 
+### Zwei-Maschinen-Setup (Generator getrennt vom SUT)
+
+Co-located Läufe messen den Generator mit: im Lauf vom 2026-08-03 nutzte das
+SUT ~1,3 von 11 Cores, den Rest fraß k6 — die 57,9 % dropped iterations waren
+Generator-Contention, keine Systemgrenze. Für Baseline C (REQ-P01, 5k RPS
+sustained) läuft k6 deshalb auf dem Ryzen-PC und das SUT allein auf dem
+MacBook ([Hintergrund](notes/backlogs/local-generator-split.md)).
+
+**Topologie:** Das MacBook bleibt SUT **und** Orchestrator — `spike:report`
+zieht die Zustands-Snapshots per `docker exec` aus `hts-postgres`/`hts-redis`
+und muss deshalb dort laufen, wo die Container sind. Der PC ist reiner
+Lastgenerator. **Ethernet ist Pflicht** (Direktkabel oder Router-LAN); WLAN
+nur als Fallback — die 2,7–4,4 % Transportfehler der co-located Läufe würden
+über einen WLAN-Hop eher wachsen.
+
+**SUT auf der LAN-IP starten:** Die Bind-Adresse ist Host-Topologie, keine
+Workload-Konfiguration — sie steht deshalb **nicht** im Env-Profil, sondern
+inline vor dem Startbefehl. (Im Profil würde sie auch gar nicht wirken:
+fastify-cli parst seine Argumente inklusive `FASTIFY_ADDRESS` beim
+Prozessstart, bevor `dist/app.js` die Profildatei lädt.) Co-located Läufe
+bleiben damit unverändert auf localhost.
+
+```bash
+ipconfig getifaddr en0                    # die <mac-ip> für BASE_URL auf dem PC
+FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=capacity pnpm --filter api    run start:loadtest
+FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=capacity pnpm --filter worker run start:loadtest
+```
+
+Beim ersten Start fragt die macOS-Firewall, ob `node` eingehende Verbindungen
+annehmen darf — **Erlauben**, sonst kommt vom PC nichts an. Der Dialog kommt
+pro Binary erneut, also nach jedem Node-Wechsel über nvm.
+
+**Fremdcontainer stoppen:** In Baseline B liefen envoy/mysql/redis/
+static-server anderer Projekte mit und drückten den Load Average auf 21,95
+bei 11 Cores. Vor dem Lauf muss die Liste der Nicht-`hts-*`-Container leer
+sein:
+
+```bash
+docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
+```
+
+**Readiness vom PC prüfen** (Einzelrequests, kein Lasttest):
+
+```bash
+curl http://<mac-ip>:10002/metrics   # API
+curl http://<mac-ip>:10003/metrics   # Worker
+```
+
+**Task:** `loadtest:stack up (LAN)` — wie `loadtest:stack up`, startet API und
+Worker aber mit `FASTIFY_ADDRESS=0.0.0.0`.
+
 ### Herunterfahren
 
 ```bash
