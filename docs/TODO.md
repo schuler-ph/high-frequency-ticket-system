@@ -372,7 +372,7 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 - [ ] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren.
 - [ ] **Generator-Host (Ryzen-PC) anbinden:** k6 installieren, `BASE_URL` auf die SUT-IP; Minimalpfad manueller/ssh-Lauf + `--summary-export`-Import in `spike:report`. Ethernet, WLAN nur Fallback.
 - [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe.
-- [ ] **Transportfehler nach Endpunkt aufschluesseln:** `--summary-export` wirft die `endpoint`-Tags weg; per Threshold-Sub-Metriken retten, nicht per Prometheus-RW. Noetig vor dem 4.12-Lauf.
+- [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.
 
 ## Phase 5: Cloud Deployment (GCP)
 

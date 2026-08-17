@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "rendererVersion": 1,
+  "schemaVersion": 2,
+  "rendererVersion": 2,
   "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
   "git": {
     "commit": "0000000",
@@ -36,6 +36,16 @@
         "executedShare": 0.32,
         "droppedShare": 0.68,
         "httpReqs": 640,
+        "transportErrors": {
+          "total": 4,
+          "byEndpoint": {
+            "availability": 0,
+            "buy": 3,
+            "cancel": 0,
+            "orders": 0,
+            "pay": 1
+          }
+        },
         "duration": {
           "avg": 15,
           "med": 12,
@@ -57,6 +67,16 @@
         "executedShare": 1,
         "droppedShare": 0,
         "httpReqs": 200,
+        "transportErrors": {
+          "total": 0,
+          "byEndpoint": {
+            "availability": 0,
+            "buy": 0,
+            "cancel": 0,
+            "orders": 0,
+            "pay": 0
+          }
+        },
         "duration": {
           "avg": 5,
           "med": 4,

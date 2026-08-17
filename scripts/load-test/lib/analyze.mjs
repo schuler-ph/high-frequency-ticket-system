@@ -18,8 +18,8 @@ import {
 } from "./derive.mjs";
 import { benchmarkValidity, systemResult } from "./validate.mjs";
 
-export const DERIVED_SCHEMA_VERSION = 1;
-export const RENDERER_VERSION = 1;
+export const DERIVED_SCHEMA_VERSION = 2;
+export const RENDERER_VERSION = 2;
 
 /**
  * Read a value bag from a k6 summary metric, tolerating both the
@@ -52,6 +52,21 @@ export const summarisePhase = (summary, meta, name) => {
   const droppedIterations = dropped.count ?? 0;
   const share = droppedShare({ iterations, droppedIterations });
 
+  // Transportfehler: Aggregat plus die per Threshold-Selektor geretteten
+  // endpoint-Sub-Metriken (`transport_errors{endpoint:buy}`), siehe
+  // load-tests/spike-phase-a.js. `total: null` heisst: der Lauf hat die
+  // Metrik nie exportiert (Vor-4.12-Artefakt); `byEndpoint: {}` heisst: Lauf
+  // ohne die Sub-Metrik-Thresholds. Beides bleibt von echter 0
+  // unterscheidbar.
+  const transportTotal = metricValues(metrics.transport_errors).count ?? null;
+  const transportByEndpoint = {};
+  for (const key of Object.keys(metrics).sort()) {
+    const match = /^transport_errors\{endpoint:([^}]+)\}$/.exec(key);
+    if (match) {
+      transportByEndpoint[match[1]] = metricValues(metrics[key]).count ?? 0;
+    }
+  }
+
   return {
     name,
     iterations,
@@ -60,6 +75,7 @@ export const summarisePhase = (summary, meta, name) => {
     executedShare: share.executedShare,
     droppedShare: share.droppedShare,
     httpReqs: metricValues(metrics.http_reqs).count ?? null,
+    transportErrors: { total: transportTotal, byEndpoint: transportByEndpoint },
     duration: {
       avg: duration.avg ?? null,
       med: duration.med ?? null,

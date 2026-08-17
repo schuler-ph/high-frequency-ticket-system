@@ -138,6 +138,21 @@ export const renderReport = (derived) => {
     `| **total** | ${fmtInt(derived.offeredLoad.totalIterations)} | ${fmtInt(derived.offeredLoad.totalDropped)} | ${fmtInt(derived.offeredLoad.scheduled)} | ${fmtPct(derived.offeredLoad.executedShare)} | |`,
   );
   push("");
+  // Transportfehler pro Phase: nur wenn der Lauf die Metrik exportiert hat
+  // (`total !== null`); Endpunkte mit 0 bleiben aus dem Breakdown, das Total
+  // macht "gemessen, und es war 0" trotzdem explizit.
+  const transportLines = derived.offeredLoad.phases
+    .filter((p) => p.transportErrors && p.transportErrors.total !== null)
+    .map((p) => {
+      const byEndpoint = p.transportErrors.byEndpoint ?? {};
+      const parts = Object.keys(byEndpoint)
+        .sort()
+        .filter((endpoint) => byEndpoint[endpoint] > 0)
+        .map((endpoint) => `${endpoint} ${fmtInt(byEndpoint[endpoint])}`);
+      const breakdown = parts.length > 0 ? ` — ${parts.join(", ")}` : "";
+      return `- **Transport errors (${p.name}):** ${fmtInt(p.transportErrors.total)}${breakdown}`;
+    });
+  if (transportLines.length > 0) push(...transportLines, "");
 
   // 5. Worker throughput & counters
   push("## 5. Order Counters (run-scoped deltas)", "");

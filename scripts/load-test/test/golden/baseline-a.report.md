@@ -27,6 +27,9 @@
 | phase-b | 100 | 0 | 100 | 100.00% | 50 |
 | **total** | 420 | 680 | 1 100 | 38.18% | |
 
+- **Transport errors (phase-a):** 4 — buy 3, pay 1
+- **Transport errors (phase-b):** 0
+
 ## 5. Order Counters (run-scoped deltas)
 
 | Counter | Before | After | Δ Run |
@@ -81,4 +84,4 @@
 - **e2e-histogram-censored:** Extend the E2E histogram buckets; the reported upper quantiles are censored at the largest finite bucket.
   - evidence: `fractionAboveLargestFinite=0.859`
 
-_Renderer v1. Regenerated deterministically from artifacts; no wall-clock timestamp embedded._
+_Renderer v2. Regenerated deterministically from artifacts; no wall-clock timestamp embedded._

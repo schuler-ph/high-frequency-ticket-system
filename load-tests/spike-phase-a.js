@@ -37,6 +37,17 @@ export const options = {
     // via responseCallback ausgeschlossen; dieser Threshold greift nur bei
     // echten Infrastruktur-Fehlern.
     http_req_failed: ["rate<0.05"],
+    // Reiner Export-Mechanismus, kein Gate: `--summary-export` wirft Tags
+    // weg, aber ein Threshold auf dem Tag-Selektor materialisiert die
+    // Sub-Metrik als eigenen Summary-Key (`transport_errors{endpoint:buy}`).
+    // `count>=0` ist bewusst unverletzbar. Nicht ueber Prometheus-RW loesen —
+    // die per-Iteration-Tags haben in Baseline B Prometheus mit 5,5 GiB
+    // gekillt (siehe buildK6Args in scripts/load-test/lib/processes.mjs).
+    "transport_errors{endpoint:availability}": ["count>=0"],
+    "transport_errors{endpoint:buy}": ["count>=0"],
+    "transport_errors{endpoint:pay}": ["count>=0"],
+    "transport_errors{endpoint:cancel}": ["count>=0"],
+    "transport_errors{endpoint:orders}": ["count>=0"],
   },
 };
 

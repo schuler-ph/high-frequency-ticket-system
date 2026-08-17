@@ -13,6 +13,12 @@
       "p(99)": 12
     },
     "http_req_failed": { "rate": 0, "passes": 200, "fails": 0 },
-    "vus_max": { "value": 50 }
+    "vus_max": { "value": 50 },
+    "transport_errors": { "count": 0, "rate": 0 },
+    "transport_errors{endpoint:availability}": { "count": 0, "rate": 0 },
+    "transport_errors{endpoint:buy}": { "count": 0, "rate": 0 },
+    "transport_errors{endpoint:cancel}": { "count": 0, "rate": 0 },
+    "transport_errors{endpoint:orders}": { "count": 0, "rate": 0 },
+    "transport_errors{endpoint:pay}": { "count": 0, "rate": 0 }
   }
 }

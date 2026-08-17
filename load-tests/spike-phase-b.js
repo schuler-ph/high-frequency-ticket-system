@@ -17,6 +17,13 @@ export const options = {
   thresholds: {
     http_req_duration: ["p(95)<500"],
     http_req_failed: ["rate<0.05"],
+    // Export-Mechanismus wie in spike-phase-a.js: materialisiert die
+    // endpoint-Sub-Metriken im `--summary-export`, gate-t nichts.
+    "transport_errors{endpoint:availability}": ["count>=0"],
+    "transport_errors{endpoint:buy}": ["count>=0"],
+    "transport_errors{endpoint:pay}": ["count>=0"],
+    "transport_errors{endpoint:cancel}": ["count>=0"],
+    "transport_errors{endpoint:orders}": ["count>=0"],
   },
 };
 

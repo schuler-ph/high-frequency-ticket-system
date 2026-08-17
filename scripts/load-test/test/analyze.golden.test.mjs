@@ -44,6 +44,54 @@ test("analysis is idempotent (byte-identical Markdown across runs)", () => {
   assert.equal(first, second);
 });
 
+// `--summary-export` carried only the transport_errors aggregate until the
+// 4.12 sub-metric thresholds; a pre-4.12 artifact (metric never exported) must
+// stay distinguishable from a run that measured an actual zero.
+test("phases without transport_errors report total null, not zero", () => {
+  const derived = deriveReport({
+    manifest: { runId: "no-transport" },
+    phaseA: { metrics: { iterations: { count: 10 }, dropped_iterations: {} } },
+    policy,
+  });
+  assert.equal(derived.offeredLoad.phases[0].transportErrors.total, null);
+  assert.deepEqual(
+    derived.offeredLoad.phases[0].transportErrors.byEndpoint,
+    {},
+  );
+});
+
+test("endpoint sub-metrics are extracted; other braced keys are ignored", () => {
+  const derived = deriveReport({
+    manifest: { runId: "transport" },
+    phaseA: {
+      metrics: {
+        iterations: { count: 10 },
+        dropped_iterations: {},
+        transport_errors: { count: 7 },
+        "transport_errors{endpoint:buy}": { count: 5 },
+        "transport_errors{endpoint:pay}": { count: 2 },
+        // The pre-existing braced key in real exports must not leak into the
+        // endpoint breakdown.
+        "http_req_duration{expected_response:true}": { avg: 1 },
+      },
+    },
+    policy,
+  });
+  assert.deepEqual(derived.offeredLoad.phases[0].transportErrors, {
+    total: 7,
+    byEndpoint: { buy: 5, pay: 2 },
+  });
+});
+
+test("the report renders no transport line for a pre-4.12 phase", () => {
+  const derived = deriveReport({
+    manifest: { runId: "no-transport-render" },
+    phaseA: { metrics: { iterations: { count: 10 }, dropped_iterations: {} } },
+    policy,
+  });
+  assert.ok(!renderReport(derived).includes("Transport errors"));
+});
+
 // Regression for the Baseline-B auto-invalidation (report §4.2): prom-client
 // only exposes a LABELLED counter after its first increment, so a clean boot has
 // no `orders_failed_total` line at all. Treating that as a missing baseline made
