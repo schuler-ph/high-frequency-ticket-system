@@ -1,0 +1,354 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Konfigurierte Gesamtkapazitaet des Events. Bezugsgroesse fuer alles Weitere: verfuegbar + im Checkout + persistiert muss exakt diese Zahl ergeben (REQ-C03).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(inventory_capacity_tickets{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "Kapazität",
+          "refId": "A"
+        }
+      ],
+      "title": "Kapazität",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Noch reservierbare Tickets. Redis ist waehrend des Verkaufs die einzige Autoritaet fuer diesen Wert (ADR-031).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#008300" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "verfügbar",
+          "refId": "A"
+        }
+      ],
+      "title": "Verfügbar",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Tickets, die gerade ein Checkout haelt — reserviert, in Zahlung oder bezahlt-aber-noch-nicht-persistiert. Der Ledger unterscheidet diese Unterzustaende nicht; er zaehlt Anspruechen, nicht Zustaende.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#c98500" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "im Checkout",
+          "refId": "A"
+        }
+      ],
+      "title": "Im Checkout gehalten",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Dauerhaft verkaufte Tickets — COUNT(tickets) in PostgreSQL. Erst dieser Wert ist ein abgeschlossener Kauf.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#9085e9" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "persistiert",
+          "refId": "A"
+        }
+      ],
+      "title": "Persistiert",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Aufteilung der Gesamtkapazitaet auf ihre drei moeglichen Zustaende. Die Summe MUSS die Kapazitaet ergeben (REQ-C03) — fehlt etwas oder ist zu viel da, ist das derselbe Befund, den 'Capacity Delta' im Dashboard 'Inventory Integrity' als Zahl zeigt.\n\nBewusst nur drei Slices: 'bezahlt' ist kein eigener Anteil, sondern ein Unterzustand von 'im Checkout' (der Anspruch bleibt bis zur Persistierung im Ledger), und Abbrueche/Ablaeufe geben ihr Ticket an 'verfuegbar' zurueck — sie sind Ereignisse, keine Bestaende, und stehen deshalb im Panel darunter.\n\nStand: die Werte kommen aus dem Inventory-Auditor und werden pro Zyklus aktualisiert (WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS, lokal 60 s). Der Donut ist also bis zu einen Zyklus alt.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "verfügbar" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#008300" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "im Checkout gehalten" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#c98500" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "persistiert" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#9085e9" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 10, "x": 0, "y": 4 },
+      "id": 5,
+      "options": {
+        "displayLabels": ["name", "value"],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "verfügbar",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "im Checkout gehalten",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "instant": true,
+          "legendFormat": "persistiert",
+          "refId": "C"
+        }
+      ],
+      "title": "Ticket-Bestand jetzt (Summe = Kapazität)",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Dieselben drei Bestaende ueber die Zeit, gestapelt — die Hoehe des Stapels IST die Kapazitaet. Waehrend eines Verkaufs wandert die Flaeche von gruen nach lila; das gelbe Band dazwischen ist der jeweils laufende Checkout.\n\nDer Donut zeigt den Moment, dieses Panel den Weg dorthin. Fuer nah beieinanderliegende Werte ist es das verlaesslichere von beiden.\n\nDie Y-Achse beginnt fest bei 0: bei einer Anteilsdarstellung wuerde eine automatisch beschnittene Achse die Verhaeltnisse verzerren.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 70,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "verfügbar" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#008300" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "im Checkout gehalten" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#c98500" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "persistiert" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#9085e9" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 14, "x": 10, "y": 4 },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "legendFormat": "verfügbar",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "legendFormat": "im Checkout gehalten",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "legendFormat": "persistiert",
+          "refId": "C"
+        }
+      ],
+      "title": "Ticket-Bestand über die Zeit (gestapelt)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Was mit den Checkouts passiert — als Rate, nicht als Bestand. Genau hierhin gehoeren abgebrochene und abgelehnte Zahlungen: sie belegen kein Ticket, sondern geben eines zurueck.\n\n'bezahlt' ist der Moment, in dem /pay published; die dauerhafte Persistierung sieht man oben als lila Flaeche. 'abgelehnt: abgelaufen' und 'vom Reaper freigegeben' gehoeren zusammen — das eine ist der Zahlversuch nach Ablauf, das andere die Freigabe des Anspruchs (ADR-033).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "bezahlt" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "storniert" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#d95926" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "vom Reaper freigegeben" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#199e70" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "abgelehnt: abgelaufen" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#e66767" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(payments_confirmed_total{job=\"api\"}[1m])) or vector(0)",
+          "legendFormat": "bezahlt",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(checkouts_cancelled_total{job=\"api\"}[1m])) or vector(0)",
+          "legendFormat": "storniert",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(payments_rejected_total{job=\"api\", reason=\"expired\"}[1m])) or vector(0)",
+          "legendFormat": "abgelehnt: abgelaufen",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(reservation_reaper_releases_total{job=\"worker\"}[1m])) or vector(0)",
+          "legendFormat": "vom Reaper freigegeben",
+          "refId": "D"
+        }
+      ],
+      "title": "Checkout-Ausgänge (Rate)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["hts", "tickets", "status"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Ticket Status",
+  "uid": "hts-ticket-status",
+  "version": 1
+}

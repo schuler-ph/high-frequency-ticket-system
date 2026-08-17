@@ -359,6 +359,16 @@ Die Dashboards gruppieren diese Signale als `API Performance`,
 die harte Final-Invariante getrennt, damit ein transienter Ausschlag nicht als
 Systemfehler gelesen wird.
 
+`Ticket Status` ist der Überblick für Menschen statt für die Diagnose: es teilt
+die Kapazität in ihre drei möglichen Zustände auf — verfügbar, im Checkout
+gehalten, dauerhaft persistiert. Diese drei sind zugleich die Operanden der
+Capacity-Invariante, die Anteilsdarstellung ist also selbst eine Sichtprüfung:
+was nicht aufgeht, ist Drift. Abbrüche, abgelaufene Zahlversuche und
+Reaper-Freigaben stehen bewusst in einem eigenen Raten-Panel — sie belegen kein
+Ticket, sondern geben eines zurück, und wären als Anteil eine Doppelzählung.
+Die Bestandswerte stammen vom Inventory-Auditor und sind damit höchstens einen
+Zyklus alt.
+
 Lasttest-Aufbau und Bedienung stehen in `load-tests/README.md`,
 `scripts/load-test/README.md` und `docs/RUNBOOK.md`. Messergebnisse gehören unter
 `docs/reports/`.
