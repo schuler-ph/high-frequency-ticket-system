@@ -234,6 +234,92 @@ curl http://<mac-ip>:10003/metrics   # Worker
 **Task:** `loadtest:stack up (LAN)` — wie `loadtest:stack up`, startet API und
 Worker aber mit `FASTIFY_ADDRESS=0.0.0.0`.
 
+Die Gegenseite steht im nächsten Abschnitt; der Lauf selbst in
+[§4, Zwei-Maschinen-Lauf](#zwei-maschinen-lauf-k6-auf-dem-generator-pc).
+
+### Generator-Host einrichten (Windows-PC)
+
+Einmalige Einrichtung des Ryzen-PC als Lastgenerator — Windows-nativ, kein
+WSL. Alle ssh-Kommandos vom Mac laufen auf dem PC durch **cmd.exe**, deshalb
+Repo-Pfad ohne Leerzeichen und Pfade mit Forward-Slashes.
+
+1. **k6 installieren**, Version an den Mac gepinnt (v2.x — `k6 version` auf
+   beiden Seiten vergleichen; der Preflight des Split-Laufs prüft das):
+
+   ```powershell
+   winget install k6 --version <wie am Mac>     # oder: choco install k6 --version=<wie am Mac>
+   ```
+
+2. **OpenSSH-Server aktivieren** (PowerShell als Administrator):
+
+   ```powershell
+   Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+   Start-Service sshd
+   Set-Service -Name sshd -StartupType Automatic
+   ```
+
+3. **ssh-Key vom Mac hinterlegen:** Public Key (`~/.ssh/id_ed25519.pub`) auf
+   dem PC nach `%USERPROFILE%\.ssh\authorized_keys` — bei einem Konto mit
+   Admin-Rechten stattdessen `C:\ProgramData\ssh\administrators_authorized_keys`
+   (Windows-OpenSSH-Sonderfall). Probe vom Mac, prüft Login **und** PATH:
+
+   ```bash
+   ssh <user>@<pc-ip> k6 --version
+   ```
+
+4. **Repo klonen — gleicher Commit wie auf dem Mac**, Pfad ohne Leerzeichen:
+
+   ```powershell
+   git clone <repo-url> C:/hts
+   git -C C:/hts checkout <commit-des-laufs>
+   ```
+
+5. **Konnektivität zum SUT prüfen** (Einzelrequest, kein Lasttest):
+
+   ```powershell
+   curl http://<mac-ip>:10002/metrics
+   ```
+
+Danach den Lauf vom Mac starten:
+[§4, Zwei-Maschinen-Lauf](#zwei-maschinen-lauf-k6-auf-dem-generator-pc).
+
+#### Manueller Fallback (ohne Orchestrator)
+
+Wenn der ssh-Spawn klemmt, lässt sich die Last von Hand fahren. Auf dem PC
+(alle `-e`-Werte aus `config/env/<profil>.env`, `BASE_URL` auf die Mac-IP):
+
+```powershell
+cd C:/hts
+k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
+  -e BASE_URL=http://<mac-ip>:10002 -e EVENT_ID=00000000-0000-4000-8000-000000000000 ^
+  -e LOAD_PROFILE=capacity -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
+  -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
+  -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
+  -e CHECKOUT_POLL_INTERVAL=1 load-tests/spike-phase-a.js
+```
+
+Stop beim Ausverkauf (vom Mac; auf k6 v2.0.0 endet der Lauf mit Exit 103,
+die Summary wird geschrieben) — hängt k6 danach, auf dem PC
+`taskkill /F /IM k6.exe`:
+
+```bash
+curl -X PATCH -H 'Content-Type: application/json' \
+  -d '{"data":{"type":"status","id":"default","attributes":{"stopped":true}}}' \
+  http://<pc-ip>:6565/v1/status
+```
+
+Summary auf den Mac holen und auswerten:
+
+```bash
+scp <user>@<pc-ip>:C:/hts/phase-a-summary.json artifacts/load-tests/<run-id>/k6/
+pnpm spike:analyze -- artifacts/load-tests/<run-id>
+```
+
+> **Was dem manuellen Pfad fehlt:** Reset/Seed unmittelbar vor der Last,
+> Vorher/Nachher-Snapshots (PostgreSQL, Redis, `/metrics`), Drain-Beleg und
+> Manifest — genau die Belege, die die Benchmark-Validität tragen. Ein
+> manueller Lauf taugt als Smoke-/Debug-Pfad, nicht als zitierbare Baseline.
+
 ### Herunterfahren
 
 ```bash
@@ -312,7 +398,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
-Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der eingerichtete Generator-Host. Die drei Split-Werte und die `BASE_URL` mit der Mac-LAN-IP kommen **inline** — Heimnetz-IPs gehören nicht in versionierte Profile, und Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen:
+Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc). Die drei Split-Werte und die `BASE_URL` mit der Mac-LAN-IP kommen **inline** — Heimnetz-IPs gehören nicht in versionierte Profile, und Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen:
 
 ```bash
 K6_RUNNER=ssh \
