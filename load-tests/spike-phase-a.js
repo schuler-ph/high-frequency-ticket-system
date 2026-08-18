@@ -1,6 +1,9 @@
-import { ticketSaleIteration } from "./lib/scenario-helpers.js";
+import { SYSTEM_TAGS, ticketSaleIteration } from "./lib/scenario-helpers.js";
 
 export const options = {
+  // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
+  // erzeugt jede orderId eine eigene Zeitreihe — siehe SYSTEM_TAGS.
+  systemTags: SYSTEM_TAGS,
   scenarios: {
     warmup_ramp_sustain: {
       executor: "ramping-arrival-rate",

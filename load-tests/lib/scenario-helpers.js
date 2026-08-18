@@ -23,6 +23,42 @@ const requestsByStatus = new Counter("requests_by_status");
 const transportErrors = new Counter("transport_errors");
 
 /**
+ * k6 taggt jedes `http_req_*`-Sample per Default zusaetzlich mit `url` und
+ * `name`, wobei `name` ohne expliziten Wert auf die volle URL zurueckfaellt.
+ * Die order-scoped Routen (`/orders/:orderId/...`) tragen eine UUID im Pfad —
+ * damit wurde JEDE Bestellung zu einer eigenen Zeitreihe, mal ~10
+ * `http_req_*`-Metriken. Ein Kapazitaetslauf erzeugte so Millionen Serien
+ * (beobachtet: 3,2 Mio nach ~3,5 min), die die Metrics-Engine im Speicher des
+ * Generators haelt — dieselbe Kardinalitaet, die in Baseline B Prometheus mit
+ * 5,5 GiB gekillt hat. Ein ueberlasteter Generator misst nicht mehr das SUT,
+ * sondern sich selbst.
+ *
+ * Gegenmassnahme, beide Haelften noetig:
+ *  1. Die drei order-scoped Requests setzen einen statischen `name`-Tag.
+ *  2. `url` faellt aus den System-Tags — sonst bliebe die rohe URL als zweiter
+ *     hochkardinaler Tag stehen.
+ *
+ * Die Liste ersetzt den k6-Default vollstaendig, enthaelt also bewusst alle
+ * uebrigen Default-Tags. `expected_response` muss drin bleiben: davon haengt
+ * `http_req_failed` in Kombination mit den `responseCallback`s ab.
+ */
+export const SYSTEM_TAGS = [
+  "proto",
+  "subproto",
+  "status",
+  "method",
+  "name",
+  "group",
+  "check",
+  "error",
+  "error_code",
+  "tls_version",
+  "scenario",
+  "service",
+  "expected_response",
+];
+
+/**
  * k6 laeuft in einer eigenen Runtime und sieht weder `@repo/env` noch die
  * Profil-Datei — es bekommt nur das Prozess-Env des Orchestrators. Damit fehlt
  * hier die Zod-Validierung, weshalb frueher jeder Wert einen `||`-Fallback
@@ -235,7 +271,7 @@ export function buyTicket() {
 export function payOrder(orderId) {
   const res = http.post(`${BASE_URL}/api/orders/${orderId}/pay`, FAKE_PAYMENT, {
     headers: JSON_HEADERS,
-    tags: { endpoint: "pay" },
+    tags: { endpoint: "pay", name: "orders_pay" },
     // 410 = Eligibility Deadline verstrichen (ADR-033). Wie 404/409 eine
     // erwartete Fach-Response, kein Infrastrukturfehler.
     responseCallback: http.expectedStatuses(200, 404, 409, 410),
@@ -261,7 +297,7 @@ export function payOrder(orderId) {
  */
 export function cancelOrder(orderId) {
   const res = http.post(`${BASE_URL}/api/orders/${orderId}/cancel`, null, {
-    tags: { endpoint: "cancel" },
+    tags: { endpoint: "cancel", name: "orders_cancel" },
     responseCallback: http.expectedStatuses(200, 409),
   });
   recordResponse(res, "cancel");
@@ -279,7 +315,7 @@ export function cancelOrder(orderId) {
 export function pollOrderStatus(orderId) {
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
     const res = http.get(`${BASE_URL}/api/orders/${orderId}`, {
-      tags: { endpoint: "orders" },
+      tags: { endpoint: "orders", name: "orders_get" },
       responseCallback: http.expectedStatuses(200, 404),
     });
     recordResponse(res, "orders");
