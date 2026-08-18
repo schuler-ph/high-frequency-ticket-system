@@ -369,7 +369,7 @@ Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. 
 
 Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC, SUT allein auf dem MacBook, Ziel 5k RPS sustained (REQ-P01). → [Details](notes/backlogs/local-generator-split.md#backlog-lokaler-generator-sut-split-vorspann)
 
-- [x] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [RUNBOOK §3](RUNBOOK.md#zwei-maschinen-setup-generator-getrennt-vom-sut), Task `loadtest:stack up (LAN)`
+- [x] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [RUNBOOK §3](RUNBOOK.md#zwei-maschinen-setup-generator-getrennt-vom-sut), Task `loadtest:stack up` (Topologie-Abfrage)
 - [x] **Generator-Host (Ryzen-PC) anbinden:** ssh-Spawn als Hauptpfad, manueller Lauf nur Fallback; Ethernet, WLAN nur Fallback. → [RUNBOOK §3](RUNBOOK.md#generator-host-einrichten-windows-pc), [§4 Split-Kommando](RUNBOOK.md#zwei-maschinen-lauf-k6-auf-dem-generator-pc)
 - [x] **Baseline C mit getrenntem Generator fahren:** Gefahren 2026-08-17: `degraded` (3,10 % dropped), `system pass`, echter Sellout, ~8k Iterationen/s sustained (REQ-P01 mit Vorbehalt uebertroffen). → [Report](reports/baseline-c-split-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
 - [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.

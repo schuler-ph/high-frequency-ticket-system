@@ -58,6 +58,7 @@
     },
     {
       "label": "spike:run",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && pnpm run spike",
       "options": {
@@ -85,6 +86,7 @@
     {
       "label": "infra:up",
       "detail": "Docker-Infrastruktur starten (postgres, redis, pubsub, prometheus, grafana).",
+      "hide": true,
       "type": "shell",
       "command": "docker compose up -d",
       "problemMatcher": []
@@ -95,6 +97,7 @@
       // — es gibt kein Zeitfenster, das verfallen koennte.
       "label": "dev:seed",
       "detail": "Schema + Topic/Subscription provisionieren, danach Zustand zuruecksetzen (Truncate, Redis-Counter, Queue-Purge). MUSS vor dem Worker laufen (RUNBOOK §3, Falle 1).",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:devEnvProfile}' pnpm run seed",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
@@ -108,6 +111,7 @@
       // Profil-Menue brauchen: ein Task kann nur einen `${input:...}` tragen.
       "label": "loadtest:provision",
       "detail": "Nur Schema + Pub/Sub-Topic/Subscription (idempotent). Kein Reset — den macht der Lauf selbst, damit die Pre-Sale-Zeit stimmt.",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run provision",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
@@ -131,10 +135,14 @@
       "problemMatcher": []
     },
     {
+      // Topologie kommt als Input: `localhost` = co-located (fastify-Default),
+      // `0.0.0.0` = Zwei-Maschinen-Setup (RUNBOOK §3). FASTIFY_ADDRESS wirkt
+      // nur inline — fastify-cli parst seine Argumente vor dem Profil-Load.
       "label": "loadtest:api",
       "detail": "API auf gebautem Stand (:10002), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben, sonst beendet VS Code den Prozess.",
+      "hide": true,
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter api run start:loadtest",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS='${input:bindAddress}' HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter api run start:loadtest",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
@@ -143,8 +151,9 @@
     {
       "label": "loadtest:worker",
       "detail": "Worker auf gebautem Stand (:10003), Live-Log im eigenen Terminal. Laeuft dauerhaft — das Terminal MUSS offen bleiben.",
+      "hide": true,
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter worker run start:loadtest",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS='${input:bindAddress}' HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter worker run start:loadtest",
       "isBackground": true,
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
@@ -153,6 +162,7 @@
     {
       "label": "loadtest:web",
       "detail": "Web im Dev-Modus (:10001) mit Hot-Reload, eigenes Terminal. Bewusst Dev statt Build: das Frontend ist am Lasttest nicht beteiligt, dient nur zur Beobachtung. Laeuft dauerhaft — Terminal MUSS offen bleiben.",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter web run dev",
       "isBackground": true,
@@ -163,43 +173,15 @@
     {
       "label": "loadtest:services",
       "detail": "Startet API, Worker und Web (Dev) parallel, jeweils im eigenen Terminal. Laeuft absichtlich dauerhaft (Server enden nie) und steht deshalb als LETZTER Schritt einer Sequenz.",
+      "hide": true,
       "dependsOrder": "parallel",
       "dependsOn": ["loadtest:api", "loadtest:worker", "loadtest:web"],
       "problemMatcher": []
     },
     {
-      // Zwei-Maschinen-Setup (RUNBOOK §3): FASTIFY_ADDRESS wirkt nur inline —
-      // fastify-cli parst seine Argumente, bevor die App die Profildatei
-      // laedt. Die Bind-Adresse ist Host-Topologie, kein Profil-Eintrag.
-      "label": "loadtest:api (LAN)",
-      "detail": "Wie loadtest:api, aber auf 0.0.0.0 gebunden — fuer den Split-Lauf mit k6 auf dem Generator-PC (RUNBOOK §3, Zwei-Maschinen-Setup).",
-      "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter api run start:loadtest",
-      "isBackground": true,
-      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:worker (LAN)",
-      "detail": "Wie loadtest:worker, aber auf 0.0.0.0 gebunden — fuer den Split-Lauf (RUNBOOK §3, Zwei-Maschinen-Setup).",
-      "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm --filter worker run start:loadtest",
-      "isBackground": true,
-      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
-      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loadtest-services", "focus": false },
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:services (LAN)",
-      "detail": "API + Worker auf 0.0.0.0, Web unveraendert lokal (nicht im Lastpfad). Laeuft dauerhaft — LETZTER Schritt einer Sequenz.",
-      "dependsOrder": "parallel",
-      "dependsOn": ["loadtest:api (LAN)", "loadtest:worker (LAN)", "loadtest:web"],
-      "problemMatcher": []
-    },
-    {
       "label": "dev:services",
       "detail": "Web + API + Worker im Dev-Modus (Hot-Reload).",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:devEnvProfile}' pnpm run dev",
       "isBackground": true,
@@ -220,16 +202,9 @@
     },
     {
       "label": "loadtest:stack up",
-      "detail": "RUNBOOK §3 — Infra → Seed → API + Worker + Web (Dev, je eigenes Terminal). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
+      "detail": "RUNBOOK §3 — Infra → Provision → API + Worker + Web (Dev, je eigenes Terminal). Fragt Profil UND Topologie ab (localhost = co-located, 0.0.0.0 = Zwei-Maschinen-Setup). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services"],
-      "problemMatcher": []
-    },
-    {
-      "label": "loadtest:stack up (LAN)",
-      "detail": "RUNBOOK §3, Zwei-Maschinen-Setup — wie 'loadtest:stack up', aber API und Worker binden auf 0.0.0.0, damit der Generator-PC sie erreicht.",
-      "dependsOrder": "sequence",
-      "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services (LAN)"],
       "problemMatcher": []
     },
     {
@@ -244,8 +219,24 @@
     {
       "label": "loadtest:report",
       "detail": "Nur der Lauf selbst (setzt einen bereiten Stack voraus), Lastprofil wird abgefragt. Normalerweise ueber 'loadtest:run+report' aufrufen, das vorher die Bereitschaft prueft.",
+      "hide": true,
       "type": "shell",
       "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run spike:report",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      // Split-Werte (K6_SSH_HOST, K6_REST_URL, K6_REMOTE_DIR, BASE_URL mit
+      // LAN-IP) kommen aus config/env/split.local.env — gitignoriert, weil
+      // Host-Topologie nicht ins Repo gehoert. Vorlage: split.local.env.example.
+      // `set -a` exportiert die Werte ins Prozess-Env; Node laesst gesetztes
+      // Env vor `--env-file` gewinnen, sie stechen also das Profil.
+      "label": "loadtest:report (split)",
+      "detail": "Nur der Split-Lauf selbst; ueber 'loadtest:run+report (split)' aufrufen.",
+      "hide": true,
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && if [ ! -f config/env/split.local.env ]; then echo 'config/env/split.local.env fehlt — Vorlage kopieren: cp config/env/split.local.env.example config/env/split.local.env (RUNBOOK §4)'; exit 1; fi && set -a && source config/env/split.local.env && set +a && K6_RUNNER=ssh HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run spike:report",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
       "problemMatcher": []
@@ -255,6 +246,13 @@
       "detail": "RUNBOOK §4 — fragt das Lastprofil ab, prueft die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report"],
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:run+report (split)",
+      "detail": "RUNBOOK §4, Zwei-Maschinen-Lauf — k6 via ssh auf dem Generator-PC, Stop per REST. Liest die Split-Werte aus config/env/split.local.env (gitignoriert); Stack vorher mit 'loadtest:stack up' und Topologie 0.0.0.0 starten.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["stack:wait-ready", "loadtest:report (split)"],
       "problemMatcher": []
     },
     {
@@ -382,6 +380,24 @@
         {
           "label": "test — Testkonfiguration, zum Nachstellen von Testlaeufen",
           "value": "test"
+        }
+      ]
+    },
+    {
+      // Bind-Adresse der SUT-Services (Host-Topologie, bewusst kein
+      // Profil-Eintrag — fastify-cli parst vor dem Profil-Load, RUNBOOK §3).
+      "id": "bindAddress",
+      "type": "pickString",
+      "description": "Topologie: wo laeuft der Lastgenerator?",
+      "default": "localhost",
+      "options": [
+        {
+          "label": "co-located — k6 auf dieser Maschine (bind localhost)",
+          "value": "localhost"
+        },
+        {
+          "label": "Zwei-Maschinen-Setup — k6 auf dem Generator-PC (bind 0.0.0.0)",
+          "value": "0.0.0.0"
         }
       ]
     },

@@ -231,8 +231,9 @@ curl http://<mac-ip>:10002/metrics   # API
 curl http://<mac-ip>:10003/metrics   # Worker
 ```
 
-**Task:** `loadtest:stack up (LAN)` — wie `loadtest:stack up`, startet API und
-Worker aber mit `FASTIFY_ADDRESS=0.0.0.0`.
+**Task/Button:** `loadtest:stack up` (Button `LT Stack`) fragt neben dem Profil
+auch die **Topologie** ab — „Zwei-Maschinen-Setup" wählt `FASTIFY_ADDRESS=0.0.0.0`,
+„co-located" bleibt localhost.
 
 Die Gegenseite steht im nächsten Abschnitt; der Lauf selbst in
 [§4, Zwei-Maschinen-Lauf](#zwei-maschinen-lauf-k6-auf-dem-generator-pc).
@@ -398,7 +399,16 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
-Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc). Die drei Split-Werte und die `BASE_URL` mit der Mac-LAN-IP kommen **inline** — Heimnetz-IPs gehören nicht in versionierte Profile, und Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen:
+Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc).
+
+**Der bequeme Weg — Button `Spike Split`** (Task `loadtest:run+report (split)`): liest die vier Split-Werte aus `config/env/split.local.env`. Die Datei ist gitignoriert (Host-Topologie — IPs, ssh-User, Remote-Pfad — gehört nicht ins Repo) und wird einmalig aus der Vorlage erzeugt:
+
+```bash
+cp config/env/split.local.env.example config/env/split.local.env
+# dann die vier Werte eintragen: K6_SSH_HOST, K6_REST_URL, K6_REMOTE_DIR, BASE_URL
+```
+
+**Der manuelle Weg** — dieselben Werte inline; Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen, sie stechen also das Profil:
 
 ```bash
 K6_RUNNER=ssh \

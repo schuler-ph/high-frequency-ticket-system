@@ -100,7 +100,10 @@ if (required.length === 0) {
 }
 
 const profiles = readdirSync(PROFILE_DIR)
-  .filter((entry) => entry.endsWith(".env"))
+  // `*.local.env` ist keine Profil-Datei, sondern gitignorierte Host-Topologie
+  // fuer den Split-Lauf (RUNBOOK §4) — sie traegt bewusst nur vier Werte und
+  // darf die Vollstaendigkeits-Regeln nicht ausloesen.
+  .filter((entry) => entry.endsWith(".env") && !entry.endsWith(".local.env"))
   .sort();
 
 if (profiles.length === 0) {

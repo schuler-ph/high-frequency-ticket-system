@@ -14,13 +14,13 @@ Ryzen 5800X3D (Windows, via ssh + REST-Stop), SUT allein auf dem MacBook M3,
 verbunden über einen 1-GbE-Direktlink (`10.0.0.1` ↔ `10.0.0.2`, kein Router,
 kein WLAN).
 
-| Frage                              | Antwort                                                                                        |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Benchmark-Gültigkeit               | ⚠️ `degraded` — 3,10 % dropped iterations (über der Warnschwelle, unter der 5-%-Invalid-Grenze) |
-| System-Ergebnis                    | ✅ `pass` — alle 5 Invarianten grün, Drift 0, Capacity-Delta 0, Drain in 15 s                   |
-| Ausverkauf                         | ✅ echt (`stopReason: sold-out`, `available = 0`), 1 000 000 Kapazität in ~6:09 min Workload    |
-| REQ-P01 (5k RPS sustained)         | übertroffen **mit Vorbehalt**: ~8 050 ausgeführte Iterationen/s, ~10 896 HTTP-req/s            |
-| Generator-Contention ggü. 2026-08-03 | 3,10 % dropped statt 57,9 % — der Split wirkt                                                 |
+| Frage                                | Antwort                                                                                         |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Benchmark-Gültigkeit                 | ⚠️ `degraded` — 3,10 % dropped iterations (über der Warnschwelle, unter der 5-%-Invalid-Grenze) |
+| System-Ergebnis                      | ✅ `pass` — alle 5 Invarianten grün, Drift 0, Capacity-Delta 0, Drain in 15 s                   |
+| Ausverkauf                           | ✅ echt (`stopReason: sold-out`, `available = 0`), 1 000 000 Kapazität in ~6:09 min Workload    |
+| REQ-P01 (5k RPS sustained)           | übertroffen **mit Vorbehalt**: ~8 050 ausgeführte Iterationen/s, ~10 896 HTTP-req/s             |
+| Generator-Contention ggü. 2026-08-03 | 3,10 % dropped statt 57,9 % — der Split wirkt                                                   |
 
 ## 2. Last & Latenz (Phase A)
 

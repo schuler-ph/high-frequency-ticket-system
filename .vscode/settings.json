@@ -68,27 +68,28 @@
       {
         "name": "$(rocket) LT Stack",
         "color": "#98C379",
-        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Provision → API + Worker + Web im Dev-Modus, je eigenes Terminal). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel. Setzt den Zustand NICHT zurück — das macht 'Spike Report' selbst, damit die Pre-Sale-Zeit stimmt. Die Service-Terminals müssen offen bleiben.",
+        "tooltip": "RUNBOOK §3: Lasttest-Stack hochfahren (Infra → Provision → API + Worker + Web im Dev-Modus, je eigenes Terminal). Fragt Env-Profil UND Topologie ab (co-located = localhost, Zwei-Maschinen-Setup = 0.0.0.0). Setzt den Zustand NICHT zurück — das macht 'Spike Report' selbst, damit die Pre-Sale-Zeit stimmt. Die Service-Terminals müssen offen bleiben.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:stack up"]
       },
-      {
-        "name": "$(trash) Reset",
-        "color": "#C678DD",
-        "tooltip": "RUNBOOK §3: Zustand zurücksetzen (TRUNCATE, Redis-Counter + opensAt, Pub/Sub-Backlog verwerfen, Prometheus-TSDB leeren). Fragt das Env-Profil ab. Nicht nötig vor 'Spike Report' — der Lauf resettet selbst.",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["stack:reset"]
-      },
-      {
-        "name": "$(debug-stop) LT Stop",
-        "color": "#E06C75",
-        "tooltip": "RUNBOOK §3: Prozesse auf Port 10001/10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["loadtest:stack down"]
-      },
+      // Selten gebraucht — bei Bedarf über den 'Tasks…'-Button erreichbar.
+      // {
+      //   "name": "$(trash) Reset",
+      //   "color": "#C678DD",
+      //   "tooltip": "RUNBOOK §3: Zustand zurücksetzen (TRUNCATE, Redis-Counter + opensAt, Pub/Sub-Backlog verwerfen, Prometheus-TSDB leeren). Fragt das Env-Profil ab. Nicht nötig vor 'Spike Report' — der Lauf resettet selbst.",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["stack:reset"]
+      // },
+      // {
+      //   "name": "$(debug-stop) LT Stop",
+      //   "color": "#E06C75",
+      //   "tooltip": "RUNBOOK §3: Prozesse auf Port 10001/10002/10003 beenden (nach Port, nicht nach Prozessmuster)",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["loadtest:stack down"]
+      // },
       {
         "name": "$(dashboard) Spike Report",
         "color": "#FF8C00",
@@ -96,6 +97,21 @@
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report"]
+      },
+      {
+        "name": "$(remote) Spike Split",
+        "color": "#E5C07B",
+        "tooltip": "RUNBOOK §4, Zwei-Maschinen-Lauf: k6 via ssh auf dem Generator-PC, Sold-out-Stop per REST. Liest K6_SSH_HOST/K6_REST_URL/K6_REMOTE_DIR/BASE_URL aus config/env/split.local.env (gitignoriert, Vorlage: split.local.env.example). Stack vorher mit 'LT Stack' und Topologie 0.0.0.0 starten.",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:run+report (split)"]
+      },
+      {
+        "name": "$(tools) Tasks…",
+        "color": "#ABB2BF",
+        "tooltip": "Kuratiertes Task-Menü für alles Seltene: analyze, compare, export-graphs, verify, db apply, debug, reset, stack down. Bausteine sind ausgeblendet (hide in tasks.json).",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask"
       },
       // {
       //   "name": "$(database) DB Apply",
