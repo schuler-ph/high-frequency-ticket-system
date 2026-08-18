@@ -249,6 +249,19 @@
       "problemMatcher": []
     },
     {
+      // Der Direktlink selbst ist persistente Konfiguration (networksetup am
+      // Mac, New-NetIPAddress/Firewall-Regeln am PC) — dieser Check prueft
+      // nach dem Zusammenstecken nur, dass alles noch steht: Link, ssh,
+      // Remote-k6 und (informativ) das SUT.
+      "label": "loadtest:split-check",
+      "detail": "Zwei-Maschinen-Setup pruefen: Ping zum Generator-PC, ssh + Remote-k6, SUT-Erreichbarkeit. Liest config/env/split.local.env; aendert nichts.",
+      "type": "shell",
+      "command": "if [ ! -f config/env/split.local.env ]; then echo 'config/env/split.local.env fehlt — Vorlage kopieren: cp config/env/split.local.env.example config/env/split.local.env (RUNBOOK §4)'; exit 1; fi; set -a; source config/env/split.local.env; set +a; PC_HOST=\"${K6_SSH_HOST#*@}\"; ok=1; if ping -c 2 -t 3 \"$PC_HOST\" >/dev/null 2>&1; then echo \"[1/3] Link zum PC ($PC_HOST): OK\"; else echo \"[1/3] Link zum PC ($PC_HOST): FEHLT — Kabel/Adapter pruefen, PC-IP gesetzt?\"; ok=0; fi; if V=$(ssh -o ConnectTimeout=5 -o BatchMode=yes \"$K6_SSH_HOST\" k6 --version 2>/dev/null); then echo \"[2/3] ssh + Remote-k6: OK ($V)\"; else echo \"[2/3] ssh + Remote-k6: FEHLT — sshd auf dem PC? Key hinterlegt? (RUNBOOK §3)\"; ok=0; fi; if curl -sf -m 3 -o /dev/null \"$BASE_URL/metrics\"; then echo \"[3/3] SUT ($BASE_URL): OK\"; else echo \"[3/3] SUT ($BASE_URL): nicht erreichbar — nur relevant, wenn der LT Stack schon laufen soll (Topologie 0.0.0.0)\"; fi; [ $ok -eq 1 ] && echo 'Split-Setup bereit.' || exit 1",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
+      "problemMatcher": []
+    },
+    {
       "label": "loadtest:run+report (split)",
       "detail": "RUNBOOK §4, Zwei-Maschinen-Lauf — k6 via ssh auf dem Generator-PC, Stop per REST. Liest die Split-Werte aus config/env/split.local.env (gitignoriert); Stack vorher mit 'loadtest:stack up' und Topologie 0.0.0.0 starten.",
       "dependsOrder": "sequence",

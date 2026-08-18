@@ -408,6 +408,12 @@ cp config/env/split.local.env.example config/env/split.local.env
 # dann die vier Werte eintragen: K6_SSH_HOST, K6_REST_URL, K6_REMOTE_DIR, BASE_URL
 ```
 
+Der Direktlink ist persistente Konfiguration (Mac: `networksetup -setmanual`;
+PC: `New-NetIPAddress` + Firewall-Regeln + `sshd` auf Automatic) — nach dem
+Zusammenstecken ist nichts neu einzurichten. Der Task **`loadtest:split-check`**
+(über den `Tasks…`-Button) prüft das in einem Rutsch: Ping zum PC, ssh +
+Remote-k6, SUT-Erreichbarkeit.
+
 **Der manuelle Weg** — dieselben Werte inline; Node lässt bereits gesetztes Prozess-Env vor `--env-file` gewinnen, sie stechen also das Profil:
 
 ```bash
