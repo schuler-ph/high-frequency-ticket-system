@@ -74,9 +74,9 @@ Ticket für dieselbe `orderId` erzeugen.
 
 ### REQ-F07 — Reproduzierbarer Testzustand
 
-Der lokale Stack kann PostgreSQL, Redis und Pub/Sub auf einen definierten
-Fixture-Stand mit einer Million Tickets und kontrolliertem Sale-Unlock
-zurücksetzen.
+Jede Messumgebung — lokal wie Cloud — kann Datenbank, Cache und Queue auf
+einen definierten Fixture-Stand mit einer Million Tickets und kontrolliertem
+Sale-Unlock zurücksetzen. Ein Messlauf beginnt immer auf diesem Stand.
 
 ## API-Vertrag
 
@@ -144,15 +144,16 @@ expliziten Reset-/Seed-Ablauf statt.
 
 Der lokale k6-Lauf umfasst:
 
-| Phase          | Dauer                |          Zielrate | Erwartetes Verhalten                |
-| -------------- | -------------------- | ----------------: | ----------------------------------- |
-| Warm-up        | 45 s                 |         1.000 RPS | Kaufversuche vor Unlock liefern 425 |
-| Ramp-up        | 45 s                 | 1.000 → 5.000 RPS | Übergang in offenen Sale            |
-| Sustained Sale | reaktiv bis Sold-out |         5.000 RPS | Reservieren, bezahlen, persistieren |
-| Cool-down      | 60 s                 |         1.000 RPS | Sold-out und Queue-Drain beobachten |
+| Phase          | Dauer                |           Zielrate | Erwartetes Verhalten                |
+| -------------- | -------------------- | -----------------: | ----------------------------------- |
+| Warm-up        | 45 s                 |          1.000 RPS | Kaufversuche vor Unlock liefern 425 |
+| Ramp-up        | 45 s                 | 1.000 → 10.000 RPS | Übergang in offenen Sale            |
+| Sustained Sale | reaktiv bis Sold-out |         10.000 RPS | Reservieren, bezahlen, persistieren |
+| Cool-down      | 60 s                 |          1.000 RPS | Sold-out und Queue-Drain beobachten |
 
 Der Übergang zu Sold-out wird aus Systemzustand abgeleitet, nicht durch einen
-festen Timer.
+festen Timer. Ob eine Messung bei dieser Zielrate als Kapazitätsnachweis
+zitierbar ist, entscheidet ausschließlich REQ-P03.
 
 ### REQ-P02 — Cloud-Zielprofil
 
@@ -211,6 +212,55 @@ Jeder qualifizierte Lastlauf erzeugt:
 
 Fehlender optionaler Bildexport darf vorhandene numerische Evidenz nicht
 vernichten und muss nachholbar sein.
+
+## Deployment-Anforderungen
+
+Diese Anforderungen definieren, wann das Cloud-Deployment „genauso weit wie
+lokal" ist. Sie sind technologieneutral; die Werkzeugwahl steht in ADRs.
+
+### REQ-D01 — Reproduzierbare Umgebung
+
+Die vollständige Zielumgebung entsteht aus versionierter Deklaration im
+Repository, ist wiederholbar erzeugbar und rückstandsfrei wieder entfernbar.
+Der Abbau ist Teil der Anforderung und begrenzt laufende Kosten. REQ-F07 gilt
+in der Zielumgebung unverändert.
+
+### REQ-D02 — Funktionale Parität bei Replikation
+
+Alle funktionalen und Konsistenzanforderungen (REQ-F, REQ-C) gelten
+unverändert, wenn die API mit mehreren Instanzen hinter einem Lastverteiler
+läuft. Zeitabhängige Grenzen (Sale-Unlock, Checkout-Deadline) haben über
+Instanzgrenzen hinweg eine definierte, dokumentierte Toleranz. Dauerhafte
+At-least-once-Zustellung mit Duplikaten ist erwartetes Verhalten und kein
+Paritätsverstoß. Die Instanzzahl jeder Komponente ist eine explizite,
+begründete Entscheidung.
+
+### REQ-D03 — Beweisfähigkeit
+
+Messläufe in der Zielumgebung liefern dieselbe Evidenzqualität wie lokale
+Läufe: Manifest, Zustands-Snapshots vorher/nachher, Drain-Beleg und
+Validitäts-Verdicts nach REQ-O04. Ein Lauf in der Zielumgebung muss nach den
+bestehenden Kompatibilitätsregeln gegen eine lokale Referenz-Baseline
+vergleichbar sein.
+
+### REQ-D04 — Observability-Parität
+
+REQ-O01 bis REQ-O04 gelten in der Zielumgebung unverändert. Bei mehreren
+Instanzen müssen Messwerte korrekt aggregiert sein: replizierte Zustandswerte
+dürfen nicht mehrfach gezählt werden, und der Ausfall einer einzelnen Instanz
+darf nicht hinter einem Sammelwert verschwinden.
+
+### REQ-D05 — Zweistufiger Skalierungsnachweis
+
+Der Kapazitätsnachweis in der Zielumgebung erfolgt in zwei getrennten Stufen:
+zuerst Parität mit dem lokalen Referenzprofil (REQ-P01), erst danach das
+Cloud-Zielprofil (REQ-P02). REQ-P03 gilt für beide Stufen unverändert.
+
+### REQ-D06 — Betrieb und Schutz
+
+Zugangsdaten liegen nie im Repository. Datenbank, Cache und Queue sind nicht
+öffentlich erreichbar. Deploy, Messlauf, Diagnose und Abbau sind als
+Runbook-Abläufe dokumentiert.
 
 ## Qualitäts- und Sicherheitsanforderungen
 

@@ -1,6 +1,10 @@
 # Backlog: Report-Automation cloud-faehig machen (Vorbedingung fuer den GCP-Lasttest)
 
-Offene Detailnotiz fuer eine cloud-faehige Lasttest- und Report-Automation.
+Detailnotiz fuer eine cloud-faehige Lasttest- und Report-Automation.
+**Phase 4.11 wurde am 2026-08-18 aufgeloest**: die Punkte leben in
+[Phase 5.3, 5.5 und 5.7](../phases/phase-5-cloud-deployment.md) weiter; die
+Freigabe-Regel aus dem Vorspann (erst nach gemeinsamer GCP-Einarbeitung) gilt
+dort fuer alle Cloud-Sub-Phasen weiter.
 
 ### Backlog Report-Automation cloud-faehig: Vorspann
 

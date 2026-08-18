@@ -357,13 +357,7 @@ Details: [Plan](notes/phases/phase-4-10-checkout-expiry.md), Herkunft: [Gedanken
 
 ## Phase 4.11: Report-Automation cloud-faehig machen (Vorbedingung fuer den GCP-Lasttest)
 
-Die Report-Automation ist lokal gebunden; Cloud-Arbeit folgt mit Terraform/GKE. → [Details](notes/backlogs/cloud-report-automation.md#backlog-report-automation-cloud-faehig-vorspann)
-
-- [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `snapshots.mjs` ist auf `docker exec hts-postgres`/`hts-redis` hart verdrahtet; braucht einen austauschbaren Zugriffspfad.
-- [ ] **Preflight umgebungsabhaengig machen:** `preflight()` verlangt die lokalen Container und bricht im Cloud-Lauf ab; `requiredContainers` gibt es schon, ein Cloud-Profil fehlt.
-- [ ] **Seed-Pfad fuer die Cloud:** `provision.mjs`/`reset.mjs` nutzen Emulator-REST und Container-CLI; in GCP provisioniert Terraform. Klaeren, ob ein Cloud-Lauf ueberhaupt resetten darf.
-- [ ] **Verteilten k6-Runner orchestrieren:** `spawnK6` startet genau einen lokalen Prozess; fuer 50k RPS braucht es mehrere Knoten und ein Merge der Teil-Summaries. Haengt am Generator-SUT-Split (Phase 4.12).
-- [ ] **Monitoring-Quelle fuer den Cloud-Lauf entscheiden:** Managed Prometheus, selbst betriebener Prometheus im Cluster oder Cloud Monitoring — und wie `targetUp`/Range-Queries darauf abbilden.
+- [x] ~~Snapshots, Preflight, Seed-Pfad, verteilter k6-Runner, Monitoring-Quelle.~~ **Aufgeloest 2026-08-18:** die fuenf Todos leben in Phase 5.3, 5.5 und 5.7 weiter. → [Details](notes/backlogs/cloud-report-automation.md#backlog-report-automation-cloud-faehig-vorspann)
 
 ## Phase 4.12: Lokale Baseline C mit getrenntem Lastgenerator (Zwei-Maschinen-Setup)
 
@@ -379,13 +373,41 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 
 ## Phase 5: Cloud Deployment (GCP)
 
-Details: [phase-5-cloud-deployment](notes/phases/phase-5-cloud-deployment.md)
+Roter Faden: erst lokal beweisen (5.1–5.3), dann Cloud (5.4–5.7); Cloud-Arbeit
+erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Details](notes/phases/phase-5-cloud-deployment.md)
 
-- [ ] Erstelle Terraform-Skripte für VPC, Cloud SQL, Memorystore und GKE.
-- [ ] Erstelle Dockerfiles für API, Worker und Web.
-- [ ] Schreibe Kubernetes Deployment/Service/Ingress Manifeste.
-- [ ] Führe Cloud-Lasttest aus und sammle Metriken für die README.
-- [ ] **Sale-Unlock bei mehreren API-Replikas:** Redis-Zeit statt Pod-Uhren prüfen. → ADR-024, [Details](notes/phases/phase-5-cloud-deployment.md#sale-unlock-zeitquelle-bei-mehreren-api-replicas)
+### Phase 5.1 — Containerisierung und lokales Kubernetes
+
+- [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
+- [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Entscheidung: lokaler Cluster als Vorstufe → ADR-010-Nachtrag; `k8s/` in DOCS.md routen.
+
+### Phase 5.2 — Multi-Replica-Korrektheit lokal
+
+- [ ] **N API-Replicas hinter Ingress:** Korrektheit statt Kapazitaet (REQ-D02).
+- [ ] **Entscheidung Zeitquellen bei Replicas:** Sale-Unlock (ADR-024) und Checkout-Deadline (ADR-033) gemeinsam entscheiden; Drift-Nachweis erst in 5.6.
+- [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown aus Phase 6 als Vorbedingung fuer Rolling Updates.
+
+### Phase 5.3 — Messkette umgebungsunabhaengig
+
+- [ ] **Zugriffspfade abstrahieren** (Snapshots, Preflight, Reset/Seed, TSDB-Wipe, Sold-out-Quelle ADR-025); eigener ADR.
+- [ ] **Aggregation bei N Instanzen fixen:** `targetUp`/Erst-Serie-Queries, `sum()` ueber replizierte Gauges (REQ-D04).
+
+### Phase 5.4 — Cloud-Fundament
+
+- [ ] **IaC fuer Netz, DB, Cache, Cluster, Queue, Registry, Secrets;** Manifeste via Kubeconfig. → Entscheidungsmatrix in der Details-Notiz (ADR-003/005/010/031/034)
+- [ ] **Smoke:** ein E2E-Kauf in der Cloud, danach vollstaendiger Abbau (REQ-D01).
+
+### Phase 5.5 — Cloud-Monitoring
+
+- [ ] **Entscheidung Monitoring-Quelle:** neuer ADR; ADR-006 bleibt fuer lokal gueltig (Nachtrag). Grafana + Renderer gehoeren zur Evidenz (ADR-030, REQ-O04).
+
+### Phase 5.6 — Cloud-Baseline auf Paritaetsniveau
+
+- [ ] **`spike:report` in der Cloud mit dem Referenzprofil** (REQ-P01), Vergleich gegen die lokale Referenz-Baseline (REQ-D03, REQ-D05 Stufe 1). Lauf nur mit Freigabe.
+
+### Phase 5.7 — Cloud-Zielprofil
+
+- [ ] **Verteilter Generator** inkl. Quantil-Merge der Teil-Summaries; Kapazitaet fuer den 50k-Lauf entscheiden (REQ-P02). Haengt an den offenen 4.12-Todos. Lauf nur mit Freigabe.
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 
