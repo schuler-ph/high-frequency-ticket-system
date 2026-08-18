@@ -371,8 +371,10 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 
 - [x] **SUT-Host (MacBook) vorbereiten:** API/Metrics auf LAN-IP binden, Fremdcontainer fuer den Lauf stoppen, Setup dokumentieren. → [RUNBOOK §3](RUNBOOK.md#zwei-maschinen-setup-generator-getrennt-vom-sut), Task `loadtest:stack up (LAN)`
 - [x] **Generator-Host (Ryzen-PC) anbinden:** ssh-Spawn als Hauptpfad, manueller Lauf nur Fallback; Ethernet, WLAN nur Fallback. → [RUNBOOK §3](RUNBOOK.md#generator-host-einrichten-windows-pc), [§4 Split-Kommando](RUNBOOK.md#zwei-maschinen-lauf-k6-auf-dem-generator-pc)
-- [ ] **Baseline C mit getrenntem Generator fahren:** 5k RPS sustained, Gueltigkeit nach Dropped-Policy; danach die echten Decken bewerten. Lauf nur mit Freigabe.
+- [x] **Baseline C mit getrenntem Generator fahren:** Gefahren 2026-08-17: `degraded` (3,10 % dropped), `system pass`, echter Sellout, ~8k Iterationen/s sustained (REQ-P01 mit Vorbehalt uebertroffen). → [Report](reports/baseline-c-split-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
 - [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.
+- [ ] **Transportfehler auf dem Buy-Bein untersuchen:** bleiben auch mit getrenntem Generator (Phase A: buy 94 598, availability 18 872); Host-Contention-Hypothese widerlegt. → [Befund](reports/baseline-c-split-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
+- [ ] **Valid-Baseline nachziehen:** 3,10 % dropped liegt ueber der Warnschwelle; Zielrate senken oder Generator-VU-Budget erhoehen und erneut fahren. Lauf nur mit Freigabe.
 
 ## Phase 5: Cloud Deployment (GCP)
 
