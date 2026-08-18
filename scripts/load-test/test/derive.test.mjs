@@ -125,10 +125,11 @@ test("evaluateInvariants passes when every source converges", () => {
   assert.ok(inv.every((i) => i.ok === true));
 });
 
-// Phase 4.10: die Ablauf-Checks gehoeren nur ins Funnel-Profil. Im
-// capacity-Profil waeren sie entweder trivial erfuellt oder garantiert
-// verletzt und wuerden einen korrekten Lauf faelschlich auf `fail` setzen.
-test("evaluateInvariants adds the expiry checks only for the funnel profile", () => {
+// Phase 4.10/4.12: die Ablauf-Checks haengen an der Semantik (kurze Deadline,
+// Denkzeit), nicht am Profilnamen. Bei langer Deadline waeren sie garantiert
+// verletzt und wuerden einen korrekten Lauf faelschlich auf `fail` setzen;
+// ohne Denkzeit kann kein Zahler in die Deadline laufen.
+test("evaluateInvariants adds the expiry checks only when the deadline can elapse", () => {
   const base = {
     published: 100,
     completed: 90,
@@ -141,22 +142,52 @@ test("evaluateInvariants adds the expiry checks only for the funnel profile", ()
     activeReservations: 0,
   };
 
-  const capacityRun = evaluateInvariants({ ...base, loadProfile: "capacity" });
+  // Lange Deadline (900 s): kein Ablauf im Lauf, keine Zusatz-Checks.
+  const longDeadline = evaluateInvariants({
+    ...base,
+    checkoutDeadlineSeconds: 900,
+    thinkTimeKind: "none",
+  });
   assert.equal(
-    capacityRun.some((i) => i.id.startsWith("funnel:")),
+    longDeadline.some(
+      (i) => i.id.startsWith("sellout:") || i.id.startsWith("expiry:"),
+    ),
     false,
   );
 
-  const funnelRun = evaluateInvariants({
+  // Kurze Deadline + Denkzeit (human-pace): alle drei Checks.
+  const humanPace = evaluateInvariants({
     ...base,
-    loadProfile: "funnel",
+    checkoutDeadlineSeconds: 120,
+    thinkTimeKind: "normal",
     reaperReleases: 412,
     expiredRejections: 87,
   });
-  assert.equal(funnelRun.filter((i) => i.id.startsWith("funnel:")).length, 3);
+  assert.equal(
+    humanPace.filter(
+      (i) => i.id.startsWith("sellout:") || i.id.startsWith("expiry:"),
+    ).length,
+    3,
+  );
+
+  // Kurze Deadline ohne Denkzeit (full-speed): Sellout + Reaper ja, aber kein
+  // Expired-Pay-Check — ohne Denkzeit zahlt niemand zu spaet, eine legitime 0
+  // wuerde den Lauf sonst faelschlich kippen.
+  const fullSpeed = evaluateInvariants({
+    ...base,
+    checkoutDeadlineSeconds: 60,
+    thinkTimeKind: "none",
+    reaperReleases: 412,
+    expiredRejections: 0,
+  });
+  assert.equal(fullSpeed.filter((i) => i.id.startsWith("sellout:")).length, 2);
+  assert.equal(
+    fullSpeed.some((i) => i.id.startsWith("expiry:")),
+    false,
+  );
 });
 
-test("the funnel run fails when inventory was lost or the reaper never ran", () => {
+test("the expiry run fails when inventory was lost or the reaper never ran", () => {
   const base = {
     published: 100,
     completed: 90,
@@ -167,17 +198,18 @@ test("the funnel run fails when inventory was lost or the reaper never ran", () 
     capacity: 100,
     redisAvailable: 10,
     activeReservations: 0,
-    loadProfile: "funnel",
+    checkoutDeadlineSeconds: 120,
+    thinkTimeKind: "normal",
   };
 
-  // 90 verkauft bei Kapazitaet 100 — genau der Verlust, den das Profil
+  // 90 verkauft bei Kapazitaet 100 — genau der Verlust, den der Check
   // ausschliessen soll.
   const lost = evaluateInvariants({
     ...base,
     reaperReleases: 5,
     expiredRejections: 5,
   });
-  assert.equal(lost.find((i) => i.id === "funnel: sold == totalCapacity").ok, false);
+  assert.equal(lost.find((i) => i.id === "sellout: sold == totalCapacity").ok, false);
 
   // Nie ausgeuebter Ablauf-Pfad: der Lauf beweist die Frage nicht.
   const noReaper = evaluateInvariants({

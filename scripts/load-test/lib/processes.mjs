@@ -230,10 +230,10 @@ export const fetchCompletedCount = async (
 };
 
 /**
- * Read `reservation_ledger_active` — the claims Redis still holds. Only the
- * funnel profile cares: there, expired claims are released by the reaper and
- * must be re-sold, so an exhausted `available` alone does not mean the sale is
- * over.
+ * Read `reservation_ledger_active` — the claims Redis still holds. Nur Laeufe
+ * mit kurzer Checkout-Deadline brauchen das: dort gibt der Reaper abgelaufene
+ * Ansprueche zurueck in den Verkauf, ein erschoepftes `available` allein heisst
+ * also noch nicht, dass der Verkauf vorbei ist.
  */
 export const fetchLedgerActive = async (
   metricsUrl,

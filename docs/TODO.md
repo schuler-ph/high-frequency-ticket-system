@@ -351,7 +351,7 @@ Details: [Plan](notes/phases/phase-4-10-checkout-expiry.md), Herkunft: [Gedanken
 - [x] **Lasttest-Stack-Env:** `CHECKOUT_PENDING_TIMEOUT_SECONDS=120` und `SEED_CAPACITY=100000` dort setzen, wo API und Worker starten; Defaults bleiben. → [Schnitt 6](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [x] **Abbruchbedingung und Verdict:** Abbruch erst bei `available == 0` **und** leerem Ledger; neue Checks `sold == totalCapacity`, Reaper-Releases > 0, Expired-Rejects > 0. → [Schnitt 7](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [x] **Panels ergaenzen:** Expired-Serie im Checkout-Funnel, Abandon-Rate ohne Ablaeufe, plus das bisher nirgends geplottete `reservation_reaper_run_duration_seconds`. → [Schnitt 8](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
-- [ ] **Funnel-Lauf fahren:** `LOAD_PROFILE=funnel`, 100k Kapazitaet. Lauf nur mit Freigabe. → [Schnitt 9](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
+- [ ] **Funnel-Lauf fahren:** `HTS_ENV_PROFILE=browse-and-buy-human-pace` (frueher `funnel`, ADR-035), 100k Kapazitaet. Lauf nur mit Freigabe. → [Schnitt 9](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [ ] **Optional: 1M mit komprimierter Zeit:** Denkzeit ~6 s, Deadline ~12 s, Reaper-Intervall vom `COUNT`-Zyklus entkoppelt. Erst nach der 100k-Variante. → [Schnitt 10](notes/phases/phase-4-10-checkout-expiry.md#schnitt)
 - [x] **Golden-Report-Test reparieren (vorgefunden):** Golden aus dem Renderer regeneriert — ungepolsterte Tabellen sind die gewollte Form. → [Entscheidung](notes/phases/phase-4-10-checkout-expiry.md#vorgefundener-defekt-golden-report-test)
 
@@ -375,6 +375,7 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 - [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.
 - [ ] **Transportfehler auf dem Buy-Bein untersuchen:** bleiben auch mit getrenntem Generator (Phase A: buy 94 598, availability 18 872); Host-Contention-Hypothese widerlegt. → [Befund](reports/baseline-c-split-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
 - [ ] **Valid-Baseline nachziehen:** 3,10 % dropped liegt ueber der Warnschwelle; Zielrate senken oder Generator-VU-Budget erhoehen und erneut fahren. Lauf nur mit Freigabe.
+- [x] **Lastprofile konsolidieren und nach Szenario benennen:** 4 → 3 Profile (`browse-and-buy-full-speed` als Default mit Sellout-Semantik, `browse-and-buy-human-pace`, `buy-only-full-speed`); `realism` entfaellt, Gates haengen an Semantik statt Namen. → ADR-035
 
 ## Phase 5: Cloud Deployment (GCP)
 

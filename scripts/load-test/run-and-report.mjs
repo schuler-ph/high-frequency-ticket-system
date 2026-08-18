@@ -269,13 +269,15 @@ const main = async () => {
     eventId: EVENT_ID,
     // Lets the plateau detector tell a real sell-out from host contention.
     readAvailable: (eventId) => readAvailableTickets(eventId),
-    // Nur das Funnel-Profil braucht den leeren Ledger als zweite Bedingung:
-    // dort gibt der Reaper abgelaufene Ansprueche zurueck in den Verkauf, und
-    // ein Stopp bei `available == 0` wuerde den Lauf mit unverkauftem Inventar
-    // beenden. In den anderen Profilen halten Abandon-Kohorten ihre Ansprueche
-    // bis zur 900-s-Deadline — dort wuerde dieselbe Bedingung nie greifen.
+    // Ablauf-Semantik statt Profilname: ist die Checkout-Deadline kurz genug,
+    // um innerhalb des Phase-A-Fensters (max ~990 s) abzulaufen, gibt der
+    // Reaper Ansprueche zurueck in den Verkauf — ein Stopp bei
+    // `available == 0` wuerde den Lauf dann mit unverkauftem Inventar beenden,
+    // also wartet er zusaetzlich auf den leeren Ledger. Bei langer Deadline
+    // (900 s) wuerde dieselbe Bedingung nie greifen und der Lauf ins
+    // 15-min-Sicherheitsnetz laufen.
     readLedgerActive:
-      requireEnv("LOAD_PROFILE") === "funnel"
+      Number(requireEnv("CHECKOUT_PENDING_TIMEOUT_SECONDS")) <= 600
         ? (eventId) => fetchLedgerActive(WORKER_METRICS, eventId)
         : undefined,
     spawnPhase,

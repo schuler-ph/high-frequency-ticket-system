@@ -106,7 +106,7 @@ until curl -sf -o /dev/null localhost:10002/metrics \
    && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; done
 ```
 
-**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` — fragt zuerst das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`); dasselbe Profil versorgt Provisionierung **und** Services, sodass Generator und Backend nicht mehr mit verschiedenen Annahmen laufen können. (Für `stack:wait-ready` gibt es keinen eigenen Button — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar.)
+**Tasks:** `loadtest:stack up`, danach `stack:wait-ready` · **Button:** `LT Stack` — fragt zuerst das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`); dasselbe Profil versorgt Provisionierung **und** Services, sodass Generator und Backend nicht mehr mit verschiedenen Annahmen laufen können. (Für `stack:wait-ready` gibt es keinen eigenen Button — der `Spike Report`-Button prüft die Bereitschaft selbst; einzeln über die Task-Liste aufrufbar.)
 
 > **`LT Stack` setzt den Zustand nicht zurück.** Es provisioniert nur Schema, Topic und Subscription — idempotent und gefahrlos wiederholbar. Der Reset gehört unmittelbar vor die Last und läuft deshalb in `Spike Report` (Begründung in §4). Wer zwischendurch einen sauberen Stand ohne kompletten Lauf will, nimmt den Button `Reset` (Task `stack:reset`).
 
@@ -132,13 +132,18 @@ gibt es keine `.env` und keine Defaults mehr. Welche Konfiguration gilt, steht i
 genau einer Variable, und die Werte stehen in genau einer Datei:
 
 ```bash
-HTS_ENV_PROFILE=funnel pnpm --filter api run start:loadtest
-HTS_ENV_PROFILE=funnel pnpm --filter worker run start:loadtest
-HTS_ENV_PROFILE=funnel pnpm spike:report
+HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm --filter api run start:loadtest
+HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm --filter worker run start:loadtest
+HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report
 ```
 
-Verfügbare Profile: `dev`, `test`, `ci`, `capacity`, `realism`, `checkout`,
-`funnel` — je eine Datei unter `config/env/`. Die frühere Zweiteilung in
+Verfügbare Profile: `dev`, `test`, `ci`, `browse-and-buy-full-speed`,
+`browse-and-buy-human-pace`, `buy-only-full-speed` — je eine Datei unter
+`config/env/`. Die Lasttest-Namen folgen dem Schema
+`<Traffic-Mix>-<Tempo>`: was die Last tut (browsen + kaufen vs. nur kaufen)
+und wie schnell (Maschinentempo vs. menschliche Denkzeit); Details in
+[load-tests/README.md](../load-tests/README.md#lastprofile-load_profile).
+Die frühere Zweiteilung in
 „Service-Env" und „Spike-Env" entfällt: dieselbe Datei versorgt beide, weil sie
 sowohl `CHECKOUT_PENDING_TIMEOUT_SECONDS` als auch `SEED_CAPACITY` und die
 k6-Knöpfe trägt. Damit verschwindet auch die Falle, dass ein Wert im Manifest
@@ -148,7 +153,7 @@ Fehlt `HTS_ENV_PROFILE` oder ist es vertippt, startet nichts und die Meldung
 zählt die verfügbaren Profile auf. `pnpm run debug:env` prüft, dass jedes Profil
 vollständig ist.
 
-Warum das Funnel-Profil Batch 5000 statt 1000 fährt:
+Warum das Human-Pace-Profil (früher `funnel`) Batch 5000 statt 1000 fährt:
 [Phasennotiz 4.10](notes/phases/phase-4-10-checkout-expiry.md#reaper-dimensionierung-fuer-das-funnel-profil).
 
 ### Vier Fallen, die hier real aufgetreten sind
@@ -207,8 +212,8 @@ bleiben damit unverändert auf localhost.
 
 ```bash
 ipconfig getifaddr en0                    # die <mac-ip> für BASE_URL auf dem PC
-FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=capacity pnpm --filter api    run start:loadtest
-FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=capacity pnpm --filter worker run start:loadtest
+FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm --filter api    run start:loadtest
+FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm --filter worker run start:loadtest
 ```
 
 Beim ersten Start fragt die macOS-Firewall, ob `node` eingehende Verbindungen
@@ -293,7 +298,7 @@ Wenn der ssh-Spawn klemmt, lässt sich die Last von Hand fahren. Auf dem PC
 cd C:/hts
 k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e BASE_URL=http://<mac-ip>:10002 -e EVENT_ID=00000000-0000-4000-8000-000000000000 ^
-  -e LOAD_PROFILE=capacity -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
+  -e LOAD_PROFILE=browse-and-buy-full-speed -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
   -e CHECKOUT_POLL_INTERVAL=1 load-tests/spike-phase-a.js
@@ -388,14 +393,14 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 
 # Varianten
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
-LOAD_PROFILE=realism pnpm spike:report       # mit Denkzeit (2–8s) statt back-to-back
-LOAD_PROFILE=checkout pnpm spike:report      # nur buy→pay, keine Availability-Reads
+HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
+HTS_ENV_PROFILE=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 
 > **k6-Remote-Write ist standardmäßig aus.** Der Report liest keine k6-Serien aus Prometheus — alle Queries gehen gegen `job="api"`/`job="worker"`. Das Remote-Write diente nur dem Live-Blick, trieb Prometheus aber auf 5,5 GiB bis zum `503` und nahm dabei genau die Daten mit, die der Report braucht.
 
-**Task:** `loadtest:run+report` — fragt das Env-Profil ab (`capacity` / `realism` / `checkout` / `funnel`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
+**Task:** `loadtest:run+report` — fragt das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
@@ -422,7 +427,7 @@ K6_SSH_HOST=<user>@<pc-ip> \
 K6_REMOTE_DIR=C:/hts \
 K6_REST_URL=http://<pc-ip>:6565 \
 BASE_URL=http://<mac-ip>:10002 \
-HTS_ENV_PROFILE=capacity pnpm spike:report
+HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report
 ```
 
 Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).

@@ -345,23 +345,19 @@
       "id": "loadtestEnvProfile",
       "type": "pickString",
       "description": "Env-Profil für den Lasttest",
-      "default": "capacity",
+      "default": "browse-and-buy-full-speed",
       "options": [
         {
-          "label": "capacity — buy→pay back-to-back, 60 % Availability-Reads",
-          "value": "capacity"
+          "label": "browse-and-buy-full-speed — Reads + Checkouts ohne Denkzeit, Sellout bis 1M (Default)",
+          "value": "browse-and-buy-full-speed"
         },
         {
-          "label": "realism — Denkzeit 2–8 s zwischen Reserve und Pay",
-          "value": "realism"
+          "label": "browse-and-buy-human-pace — menschliche Denkzeit gegen kurzes Checkout-Fenster (Ablauf/Reaper/410)",
+          "value": "browse-and-buy-human-pace"
         },
         {
-          "label": "checkout — nur buy→pay, keine Availability-Reads",
-          "value": "checkout"
-        },
-        {
-          "label": "funnel — Denkzeit ~60 s gegen kurzes Checkout-Fenster (Ablauf/Reaper)",
-          "value": "funnel"
+          "label": "buy-only-full-speed — nur buy→pay, keine Availability-Reads (Write-Pfad-Isolat)",
+          "value": "buy-only-full-speed"
         }
       ]
     },
@@ -376,10 +372,9 @@
       "options": [
         "dev",
         "test",
-        "capacity",
-        "realism",
-        "checkout",
-        "funnel",
+        "browse-and-buy-full-speed",
+        "browse-and-buy-human-pace",
+        "buy-only-full-speed",
         "bench"
       ]
     },

@@ -351,10 +351,14 @@ export const deriveReport = (input) => {
     capacity,
     redisAvailable,
     activeReservations,
-    // Profilabhaengige Zusatzchecks (Phase 4.10). Das Profil kommt aus dem
-    // Orchestrator-Env und ist genau dort auch richtig aufgehoben — es formt
-    // die Last, nicht die Services.
-    loadProfile: manifest?.configuration?.LOAD_PROFILE ?? null,
+    // Ablauf-Checks haengen an der Semantik der Lauf-Konfiguration (Deadline,
+    // Denkzeit), nicht am Profilnamen — ein Rename kann sie nicht abhaengen.
+    checkoutDeadlineSeconds: Number.isFinite(
+      Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS),
+    )
+      ? Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS)
+      : null,
+    thinkTimeKind: manifest?.configuration?.THINK_TIME_KIND ?? null,
     reaperReleases: sumSamples(
       samples.workerAfter,
       "reservation_reaper_releases_total",

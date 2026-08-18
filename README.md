@@ -85,9 +85,11 @@ pnpm dev
 Die Konfiguration kommt vollständig aus `config/env/<profil>.env`; es gibt keine
 `.env` und keine Defaults. `HTS_ENV_PROFILE` wählt die Datei — fehlt sie,
 startet nichts und die Fehlermeldung zählt die verfügbaren Profile auf
-(`dev`, `test`, `ci`, `capacity`, `realism`, `checkout`, `funnel`).
+(`dev`, `test`, `ci`, `browse-and-buy-full-speed`, `browse-and-buy-human-pace`,
+`buy-only-full-speed`).
 Begründung: [ADR-034](docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md).
-Lastläufe brauchen ein Lasttest-Profil, z. B. `HTS_ENV_PROFILE=capacity pnpm spike`.
+Lastläufe brauchen ein Lasttest-Profil, z. B.
+`HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike`.
 
 Danach sind die wichtigsten Oberflächen erreichbar:
 

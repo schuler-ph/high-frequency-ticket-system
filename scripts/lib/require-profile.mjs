@@ -31,7 +31,7 @@ const profile = process.env.HTS_ENV_PROFILE;
 if (profile === undefined || profile.trim() === "") {
   console.error(
     `[env] HTS_ENV_PROFILE ist nicht gesetzt. Verfuegbare Profile: ${available()}.\n` +
-      `[env] Beispiel: HTS_ENV_PROFILE=capacity pnpm spike:report`,
+      `[env] Beispiel: HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report`,
   );
   process.exit(1);
 }

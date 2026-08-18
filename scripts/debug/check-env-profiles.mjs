@@ -75,10 +75,9 @@ const BENCH_VARIABLES = [
 const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
 const LOADTEST_PROFILES = new Set([
-  "capacity",
-  "realism",
-  "checkout",
-  "funnel",
+  "browse-and-buy-full-speed",
+  "browse-and-buy-human-pace",
+  "buy-only-full-speed",
 ]);
 
 const keysOf = (file) =>

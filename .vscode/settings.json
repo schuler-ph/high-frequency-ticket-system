@@ -93,7 +93,7 @@
       {
         "name": "$(dashboard) Spike Report",
         "color": "#FF8C00",
-        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Env-Profil ab: capacity / realism / checkout / funnel. Die Auswertung läuft im Anschluss automatisch.",
+        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Env-Profil ab: browse-and-buy-full-speed / browse-and-buy-human-pace / buy-only-full-speed. Die Auswertung läuft im Anschluss automatisch.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report"]

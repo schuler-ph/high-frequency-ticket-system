@@ -142,29 +142,30 @@ Nach `buy` verzweigt jede Iteration (env-konfigurierbar):
 Da das Backend nach dem Reserve/Pay-Split **keine** kuenstliche Latenz mehr hat,
 lebt die Checkout-Denkzeit als explizites `sleep()` im k6-Skript (ADR-028):
 
-- **`capacity`**: keine Denkzeit, `buy`→`pay` back-to-back → misst rohe
-  Infra-Kapazitaet (Vergleichsgrundlage fuer Baseline B).
-- **`realism`**: randomisierte Denkzeit ~2–8 s (`THINK_TIME_MIN`/`THINK_TIME_MAX`)
-  → misst gleichzeitig gehaltene Ledger-Reservierungen + Redis-Memory. Die
-  Denkzeit blaeht die VU-Zahl massiv auf und ist der Grund fuer die ~20k-VU-/
-  verteilter-Runner-Anforderung in Stage 4.
-- **`checkout`**: keine Availability-Reads (im capacity-Profil 60 % der
-  Requests) und keine Denkzeit — jede Iteration geht direkt `buy`→`pay`. Zeigt
-  den Write-Pfad (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle
-  im Mix. Der Funnel zahlt hier vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`).
-- **`funnel`**: menschliche Denkzeit als truncated Normal um 60 s
-  (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
-  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster. Uebt
-  Ablauf und Reaper aus und beweist exakten Sellout. Der Checkout-Anteil ist
-  bewusst klein (`CHECKOUT_SHARE=0.05`): gleichzeitige Reservierungen sind
-  Checkout-Rate mal Denkzeit und damit VU-teuer, waehrend Availability-Reads
-  VU-billig sind. So traegt derselbe Lauf echte RPS **und** die gewuenschte
-  Checkout-Rate, ohne das VU-Budget zu sprengen.
+Die Namen folgen dem Schema `<Traffic-Mix>-<Tempo>`: was die Last tut
+(browsen + kaufen vs. nur kaufen) und wie schnell (Maschinentempo vs.
+menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
+`funnel` sind darin aufgegangen (ADR-035).
 
-  Das Profil braucht ein kurzes `CHECKOUT_PENDING_TIMEOUT_SECONDS` **im
-  Service-Env** (nicht am Spike-Prozess — die laufenden API-/Worker-Prozesse
-  lesen es beim Start) und eine kleinere `SEED_CAPACITY`. Details in
+- **`browse-and-buy-full-speed`** (Default): 40 % Checkouts, 60 %
+  Availability-Reads, keine Denkzeit → misst die rohe Infra-Decke. Die kurze
+  Checkout-Deadline (60 s) laesst die Abandon-Kohorte noch im Lauf ablaufen;
+  der Reaper verkauft die Ansprueche zurueck, sodass der Lauf bei exakt
+  `SEED_CAPACITY` verkauften Tickets endet — Reaper und Wiederverkauf werden
+  im selben Lauf mitgetestet.
+- **`browse-and-buy-human-pace`** (frueher `funnel`): menschliche Denkzeit als
+  truncated Normal um 60 s (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
+  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster
+  (120 s). Uebt Ablauf, Reaper und 410-Expired aus und beweist exakten Sellout
+  unter realistischem Verhalten. Der Checkout-Anteil ist bewusst klein
+  (`CHECKOUT_SHARE=0.05`): gleichzeitige Reservierungen sind Checkout-Rate mal
+  Denkzeit und damit VU-teuer, waehrend Availability-Reads VU-billig sind.
+  Details in
   [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md).
+- **`buy-only-full-speed`** (frueher `checkout`): keine Availability-Reads und
+  keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
+  vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
+  (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle im Mix.
 
 Das Lastprofil steht als `LOAD_PROFILE` in `manifest.json` und damit im Report;
 `spike:compare` verweigert den Vergleich zweier Laeufe mit verschiedenen
@@ -176,27 +177,28 @@ Alle Werte kommen aus der Profil-Datei, die `HTS_ENV_PROFILE` auswählt —
 `config/env/<profil>.env`. Es gibt keine `.env` und keine Defaults mehr
 ([ADR-034](../docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)).
 Precedence: **Shell-inline > Profil-Datei**; ein inline gesetzter Wert wie
-`SALE_OPENS_IN_SECONDS=0 HTS_ENV_PROFILE=capacity pnpm seed` schlägt die Datei.
-Fehlt das Profil, startet nichts.
+`SALE_OPENS_IN_SECONDS=0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm seed`
+schlägt die Datei. Fehlt das Profil, startet nichts.
 
 Die Spalte „Default" unten nennt deshalb keinen Fallback, sondern den Wert, den
-das `capacity`-Profil setzt; die anderen Profile weichen bewusst davon ab.
+das `browse-and-buy-full-speed`-Profil setzt; die anderen Profile weichen
+bewusst davon ab.
 
-| Variable                         | Wert im `capacity`-Profil              | Beschreibung                                                                |
+| Variable                         | Wert im Default-Profil                 | Beschreibung                                                                |
 | -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
 | `BASE_URL`                       | `http://localhost:10002`               | API-Basis-URL                                                               |
 | `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000` | Event-ID für Ticket-Requests                                                |
 | `CHECKOUT_POLL`                  | `false`                                | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`   |
 | `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                   | Max. Poll-Versuche pro Order, bevor aufgegeben wird                         |
 | `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                       |
-| `LOAD_PROFILE`                   | `capacity`                             | `capacity`, `realism`, `checkout` oder `funnel` (siehe oben)                |
+| `LOAD_PROFILE`                   | `browse-and-buy-full-speed`            | Profilname fürs Manifest (siehe oben)                                       |
 | `CHECKOUT_SHARE`                 | profilabhängig                         | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read) |
-| `THINK_TIME_MIN`                 | `2` (funnel: `10`)                     | minimale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MAX`                 | `8` (funnel: `180`)                    | maximale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MEAN`                | funnel: `60`                           | funnel: Erwartungswert der truncated-Normal-Denkzeit                        |
-| `THINK_TIME_SIGMA`               | funnel: `35`                           | funnel: Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler         |
-| `PAY_RATE`                       | `0.88` (checkout: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
-| `CANCEL_RATE`                    | `0.08` (checkout: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)              |
+| `THINK_TIME_MIN`                 | `0` (human-pace: `10`)                 | minimale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MAX`                 | `0` (human-pace: `180`)                | maximale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MEAN`                | human-pace: `60`                       | Erwartungswert der truncated-Normal-Denkzeit                                |
+| `THINK_TIME_SIGMA`               | human-pace: `35`                       | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
+| `PAY_RATE`                       | `0.88` (buy-only: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
+| `CANCEL_RATE`                    | `0.08` (buy-only: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)              |
 | `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                |
 | `SPIKE_POLL_INTERVAL_MS`         | `3000`                                 | Intervall der Completion-Counter-Polls in der Orchestrierung                |
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                    | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt        |

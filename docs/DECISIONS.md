@@ -35,6 +35,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-032 Progressive Dokumentationsarchitektur](decisions/ADR-032-progressive-dokumentationsarchitektur.md)
 - [ADR-033 Abgelaufener Checkout ist ein eigener Endzustand](decisions/ADR-033-abgelaufener-checkout-ist-ein-eigener-endzustand.md)
 - [ADR-034 Ein Profil ist eine Datei — keine impliziten Defaults](decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)
+- [ADR-035 Lastprofile nach Szenario benannt und konsolidiert](decisions/ADR-035-lastprofile-nach-szenario-benannt-und-konsolidiert.md)
 
 ## Teilweise umgesetzt
 

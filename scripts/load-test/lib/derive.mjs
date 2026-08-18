@@ -214,7 +214,8 @@ export const capacityDelta = ({
  *   capacity?: number | null,
  *   redisAvailable?: number | null,
  *   activeReservations?: number | null,
- *   loadProfile?: string | null,
+ *   checkoutDeadlineSeconds?: number | null,
+ *   thinkTimeKind?: string | null,
  *   reaperReleases?: number | null,
  *   expiredRejections?: number | null,
  * }} facts
@@ -231,7 +232,8 @@ export const evaluateInvariants = (facts) => {
     capacity = null,
     redisAvailable = null,
     activeReservations = null,
-    loadProfile = null,
+    checkoutDeadlineSeconds = null,
+    thinkTimeKind = null,
     reaperReleases = null,
     expiredRejections = null,
   } = facts;
@@ -291,24 +293,36 @@ export const evaluateInvariants = (facts) => {
     ),
   ];
 
-  // Nur das Funnel-Profil beweist den Ablauf-Pfad. Im capacity-Profil waeren
-  // diese Checks entweder trivial erfuellt (exakter Sellout) oder garantiert
-  // verletzt (kein Ablauf bei 900-s-Deadline), also gehoeren sie nicht dorthin.
-  if (loadProfile === "funnel") {
+  // Ablauf-Checks nach Semantik statt Profilname (Phase 4.12): sobald die
+  // Checkout-Deadline kurz genug ist, um innerhalb des Phase-A-Fensters
+  // (max ~990 s) abzulaufen, uebt der Lauf Reaper + Wiederverkauf aus — dann
+  // ist exakter Sellout beweispflichtig. Bei langer Deadline (900 s) waeren
+  // dieselben Checks garantiert verletzt, also gehoeren sie nicht dorthin.
+  const expiryExercised =
+    checkoutDeadlineSeconds !== null &&
+    checkoutDeadlineSeconds !== undefined &&
+    checkoutDeadlineSeconds <= 600;
+  if (expiryExercised) {
     invariants.push(
       // Der Kernbeweis: Abbrueche und Ablaeufe haben kein Inventar verloren.
-      check("funnel: sold == totalCapacity", capacity ?? null, dbTickets),
+      check("sellout: sold == totalCapacity", capacity ?? null, dbTickets),
       // Ohne ausgeuebten Reaper ist der Lauf fuer diese Frage inconclusive,
       // nicht bestanden.
       observed(
-        "funnel: reaper released at least one expired claim",
+        "sellout: reaper released at least one expired claim",
         reaperReleases,
       ),
-      observed(
-        "funnel: at least one payment rejected as expired",
-        expiredRejections,
-      ),
     );
+    // Zu-spaet-Zahler gibt es nur mit Denkzeit: ohne sie liegt der Pay
+    // Millisekunden nach dem Reserve und laeuft nie in die Deadline.
+    if (thinkTimeKind !== null && thinkTimeKind !== "none") {
+      invariants.push(
+        observed(
+          "expiry: at least one payment rejected as expired",
+          expiredRejections,
+        ),
+      );
+    }
   }
 
   return invariants;

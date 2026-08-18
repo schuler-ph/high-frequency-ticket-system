@@ -37,7 +37,7 @@ test("mismatched capacity is rejected", () => {
 test("mismatched load profile is rejected", () => {
   const c = compareRuns(
     makeRun(),
-    makeRun({ configuration: { LOAD_PROFILE: "realism" } }),
+    makeRun({ configuration: { LOAD_PROFILE: "browse-and-buy-human-pace" } }),
   );
   assert.equal(c.compatible, false);
   assert.match(c.incompatibilities.join(" "), /profile/i);
