@@ -46,6 +46,7 @@
     {
       "label": "spike:open-dashboards",
       "detail": "Öffnet Web-App (10001) und Grafana (10008) im integrierten Simple Browser.",
+      "hide": true,
       "type": "shell",
       "command": ": '${input:openWebApp}' '${input:openGrafana}'",
       "presentation": {
@@ -196,6 +197,7 @@
     {
       "label": "dev:stack up",
       "detail": "RUNBOOK §2 — Infra → Seed → pnpm dev. Reihenfolge ist Pflicht: der Worker scheitert hart, wenn die Pub/Sub-Subscription beim Boot fehlt.",
+      "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "dev:seed", "dev:services"],
       "problemMatcher": []
@@ -203,6 +205,7 @@
     {
       "label": "loadtest:stack up",
       "detail": "RUNBOOK §3 — Infra → Provision → API + Worker + Web (Dev, je eigenes Terminal). Fragt Profil UND Topologie ab (localhost = co-located, 0.0.0.0 = Zwei-Maschinen-Setup). Die Services stehen als LETZTER Schritt, weil sie dauerhaft laufen; ein Schritt danach wuerde nie starten. Bereitschaft pruefen: Task 'stack:wait-ready' — 'loadtest:run+report' macht das automatisch.",
+      "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["infra:up", "loadtest:provision", "loadtest:services"],
       "problemMatcher": []
@@ -244,6 +247,7 @@
     {
       "label": "loadtest:run+report",
       "detail": "RUNBOOK §4 — fragt das Lastprofil ab, prueft die Bereitschaft von API/Worker und faehrt dann den vollen Lauf mit Belegerhebung nach artifacts/load-tests/<run-id>/. Der Readiness-Check vorweg verhindert, dass der Lauf erst die DB zuruecksetzt und dann an einem nicht laufenden Stack scheitert. Laufzeit: viele Minuten.",
+      "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report"],
       "problemMatcher": []
@@ -264,6 +268,7 @@
     {
       "label": "loadtest:run+report (split)",
       "detail": "RUNBOOK §4, Zwei-Maschinen-Lauf — k6 via ssh auf dem Generator-PC, Stop per REST. Liest die Split-Werte aus config/env/split.local.env (gitignoriert); Stack vorher mit 'loadtest:stack up' und Topologie 0.0.0.0 starten.",
+      "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report (split)"],
       "problemMatcher": []
