@@ -1,4 +1,9 @@
-# Baseline C (Split) — Erster Zwei-Maschinen-Lasttest 2026-08-17
+# Baseline D — Erster Zwei-Maschinen-Lasttest 2026-08-17
+
+> Nachtrag 2026-08-19: umbenannt von „Baseline C (Split)" zu Baseline D; das
+> Verzeichnis hiess bis dahin `baseline-c-split-2026-08-17`. Messwerte und
+> Befunde sind unveraendert. Der offene Transportfehler-Befund aus §4 ist in
+> [Baseline E](../baseline-e-2026-08-18/LOAD-TEST-REPORT-2026-08-18.md) geklaert.
 
 Run-ID: `2026-08-17T19-36-50-348Z-8feefc9`
 Commit: `8feefc9` (`main`)
