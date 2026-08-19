@@ -371,6 +371,7 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 - [ ] **Valid-Baseline nachziehen:** 3,10 % dropped liegt ueber der Warnschwelle; Zielrate senken oder Generator-VU-Budget erhoehen und erneut fahren. Lauf nur mit Freigabe.
 - [x] **Lastprofile konsolidieren und nach Szenario benennen:** 4 → 3 Profile (`browse-and-buy-full-speed` als Default mit Sellout-Semantik, `browse-and-buy-human-pace`, `buy-only-full-speed`); `realism` entfaellt, Gates haengen an Semantik statt Namen. → ADR-035
 - [x] **Generator-Kardinalitaet begrenzen:** die orderId im k6-`name`/`url`-Tag erzeugte eine Zeitreihe pro Bestellung (3,2 Mio nach ~3,5 min). Statischer `name`-Tag plus `SYSTEM_TAGS` ohne `url`.
+- [ ] **Iterieren, bis je Profil ein gueltiger und korrekter Lauf steht:** Baseline-E-Befunde — erst Verdict und Gates reparieren, dann Lastform per Env parametrisieren, dann Baseline F. Nur mit Freigabe. → [Details](notes/backlogs/baseline-f-valid-runs.md#baseline-f-vorspann)
 
 ## Phase 5: Cloud Deployment (GCP)
 
