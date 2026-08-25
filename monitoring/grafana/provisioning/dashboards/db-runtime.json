@@ -172,11 +172,11 @@
       "targets": [
         {
           "expr": "max_over_time(db_locks_waiting{job=\"worker\"}[$__range]) or vector(0)",
-          "legendFormat": "backends waiting on lock",
+          "legendFormat": "{{wait_event_type}}",
           "refId": "A"
         }
       ],
-      "title": "Lock Waits (max im Zeitraum, hot-row contention)",
+      "title": "Lock Waits (max im Zeitraum, Lock vs. LWLock)",
       "type": "gauge"
     },
     {

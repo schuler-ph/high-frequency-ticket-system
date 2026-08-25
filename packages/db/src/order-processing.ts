@@ -74,12 +74,38 @@ export async function persistEventSoldCounts(
  * `buy_ticket`). Read-only Sample aus `pg_stat_activity`; die Query selbst
  * wartet nicht auf einen Lock und verfaelscht die Zaehlung daher nicht.
  */
-export async function countWaitingLockBackends(): Promise<number> {
-  const result = await db.execute<{ waiting: number }>(
-    sql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'`,
+export type WaitEventType = "Lock" | "LWLock";
+
+export const OBSERVED_WAIT_EVENT_TYPES: readonly WaitEventType[] = [
+  "Lock",
+  "LWLock",
+];
+
+/**
+ * Backends currently blocked, grouped by PostgreSQL wait-event class.
+ *
+ * `Lock` is heavyweight row/relation lock contention — the hot-row signal
+ * ADR-026 introduced this for. `LWLock` was added in Phase 4.13: the foreign
+ * keys of `orders`/`tickets` take `FOR KEY SHARE` on the same `events` row
+ * twice per `buy_ticket`, which surfaces as MultiXact/SLRU pressure under
+ * `LWLock`, not `Lock`. A measured `Lock = 0` alone is therefore no acquittal.
+ * Types with no waiting backend are absent from the result; the caller fills
+ * zeros so every series exists.
+ */
+export async function countWaitingBackendsByWaitEventType(): Promise<
+  Array<{ waitEventType: WaitEventType; waiting: number }>
+> {
+  const result = await db.execute<{
+    wait_event_type: WaitEventType;
+    waiting: number;
+  }>(
+    sql`SELECT wait_event_type, count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type IN ('Lock', 'LWLock') GROUP BY wait_event_type`,
   );
 
-  return result.rows[0]?.waiting ?? 0;
+  return result.rows.map((row) => ({
+    waitEventType: row.wait_event_type,
+    waiting: row.waiting,
+  }));
 }
 
 export async function markOrderFailed(

@@ -7,6 +7,8 @@ import { eq } from "drizzle-orm";
 import { env } from "@repo/env";
 import { events, orders, tickets } from "../src/schema.ts";
 import {
+  OBSERVED_WAIT_EVENT_TYPES,
+  countWaitingBackendsByWaitEventType,
   executeBuyTicket,
   listEventInventorySnapshots,
   markOrderFailed,
@@ -18,6 +20,22 @@ void describe("order processing actions", () => {
 
   after(async () => {
     await pool.end();
+  });
+
+  // Phase 4.13: der Lock-Wait-Sampler liest beide Warteklassen; nur Klassen
+  // mit wartenden Backends kommen zurueck, das Auffuellen mit 0 ist Sache des
+  // Aufrufers. Hier zaehlt der Vertrag, nicht ein erzwungener Lock-Wait.
+  void it("countWaitingBackendsByWaitEventType reports only observed wait-event classes", async () => {
+    const rows = await countWaitingBackendsByWaitEventType();
+    for (const row of rows) {
+      assert.ok(OBSERVED_WAIT_EVENT_TYPES.includes(row.waitEventType));
+      assert.ok(Number.isInteger(row.waiting) && row.waiting >= 0);
+    }
+    assert.equal(
+      new Set(rows.map((row) => row.waitEventType)).size,
+      rows.length,
+      "one row per wait-event class",
+    );
   });
 
   void it("executeBuyTicket persists ticket and completes the order", async () => {

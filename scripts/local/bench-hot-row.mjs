@@ -164,7 +164,10 @@ const parseBuyTicketMetrics = (text) => {
     ) {
       count = Number(line.trim().split(/\s+/).pop());
     } else if (line.startsWith("db_locks_waiting")) {
-      locksWaiting = Number(line.trim().split(/\s+/).pop());
+      // Seit Phase 4.13 eine Serie je wait_event_type (Lock, LWLock) — hier
+      // zaehlt die Summe wartender Backends.
+      locksWaiting =
+        (locksWaiting ?? 0) + Number(line.trim().split(/\s+/).pop());
     }
   }
   const avgMs = sum !== null && count ? (sum / count) * 1000 : null;

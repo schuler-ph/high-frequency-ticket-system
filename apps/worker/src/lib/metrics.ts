@@ -283,11 +283,14 @@ export const dbQueryDurationSeconds = new Histogram({
   registers: [workerRegistry],
 });
 
-// Backends currently blocked waiting on a lock (hot-row contention indicator).
-// Sampled by the db-metrics plugin, not on scrape, because it costs a query.
+// Backends currently blocked, by wait-event class (hot-row and MultiXact/SLRU
+// contention). Sampled by the db-metrics plugin, not on scrape, because it
+// costs a query. `Lock` = heavyweight locks, `LWLock` = the form the FK
+// `FOR KEY SHARE` contention on the `events` row actually takes (ADR-026).
 export const dbLocksWaiting = new Gauge({
   name: "db_locks_waiting",
-  help: "PostgreSQL backends currently waiting to acquire a lock (pg_stat_activity wait_event_type = 'Lock')",
+  help: "PostgreSQL backends currently waiting, by pg_stat_activity wait_event_type (Lock, LWLock)",
+  labelNames: ["wait_event_type"] as const,
   registers: [workerRegistry],
 });
 
