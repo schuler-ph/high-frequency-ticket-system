@@ -11,6 +11,15 @@ pnpm --filter @repo/db run db:generate
 pnpm --filter @repo/db run db:push
 ```
 
+`drizzle-kit generate` vergibt als Dateiprefix den Journal-Index. Die
+handnummerierten Function-Migrationen (0008, 0009, 0010) laufen dieser Zaehlung
+um eins voraus, deshalb kollidiert der Vorschlag: Nach `db:generate` die
+erzeugte SQL-Datei, ihren `meta/*_snapshot.json` und den `tag` im
+`meta/_journal.json` auf die naechste freie Nummer umbenennen (der `idx` im
+Journal bleibt). `pnpm run debug:migrations` meldet doppelte Prefixe. Braucht
+`drizzle.config.ts` das Profil (`HTS_ENV_PROFILE=dev`), muss `@repo/env` gebaut
+sein (`pnpm --filter @repo/env run build`).
+
 ## Raw SQL Function Migrations
 
 `db:push` synchronisiert nur den Drizzle-Schema-Diff aus `src/schema.ts`.

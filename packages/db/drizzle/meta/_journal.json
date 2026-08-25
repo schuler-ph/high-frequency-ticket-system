@@ -64,6 +64,13 @@
       "when": 1784385859000,
       "tag": "0009_buy_ticket_without_sold_count_hot_row",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787650751177,
+      "tag": "0010_tickets_order_id_idx_drop_legacy_buy_ticket",
+      "breakpoints": true
     }
   ]
 }
