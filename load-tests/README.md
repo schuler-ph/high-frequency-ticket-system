@@ -158,14 +158,19 @@ menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
   `SEED_CAPACITY` verkauften Tickets endet — Reaper und Wiederverkauf werden
   im selben Lauf mitgetestet.
 - **`browse-and-buy-human-pace`** (frueher `funnel`): menschliche Denkzeit als
-  truncated Normal um 60 s (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
-  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster
-  (120 s). Uebt Ablauf, Reaper und 410-Expired aus und beweist exakten Sellout
-  unter realistischem Verhalten. Der Checkout-Anteil ist bewusst klein
-  (`CHECKOUT_SHARE=0.05`): gleichzeitige Reservierungen sind Checkout-Rate mal
-  Denkzeit und damit VU-teuer, waehrend Availability-Reads VU-billig sind.
-  Details in
-  [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md).
+  truncated Normal (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
+  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster, in
+  **komprimierter Zeit**: 6 s Denkzeit gegen 12 s Deadline, Reaper alle 6 s
+  (Faktor 10 gegenueber der menschlichen Wandzeit 60 s / 120 s, das Verhaeltnis
+  und damit der Ablauf-Funnel bleiben erhalten). Uebt Ablauf, Reaper und
+  410-Expired aus und beweist exakten Sellout unter realistischem Verhalten.
+  Der Checkout-Anteil ist bewusst klein (`CHECKOUT_SHARE=0.05`): gleichzeitige
+  Reservierungen sind Checkout-Rate mal Denkzeit und damit VU-teuer, waehrend
+  Availability-Reads VU-billig sind — mit 60 s Denkzeit brauchte die Kohorte
+  allein ~15.700 VUs (Baseline E), komprimiert ~1.600. Details in
+  [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md)
+  und
+  [`docs/notes/backlogs/baseline-f-valid-runs.md`](../docs/notes/backlogs/baseline-f-valid-runs.md).
 - **`buy-only-full-speed`** (frueher `checkout`): keine Availability-Reads und
   keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
   vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
@@ -197,10 +202,10 @@ bewusst davon ab.
 | `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                       |
 | `LOAD_PROFILE`                   | `browse-and-buy-full-speed`            | Profilname fürs Manifest (siehe oben)                                       |
 | `CHECKOUT_SHARE`                 | profilabhängig                         | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read) |
-| `THINK_TIME_MIN`                 | `0` (human-pace: `10`)                 | minimale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MAX`                 | `0` (human-pace: `180`)                | maximale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MEAN`                | human-pace: `60`                       | Erwartungswert der truncated-Normal-Denkzeit                                |
-| `THINK_TIME_SIGMA`               | human-pace: `35`                       | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
+| `THINK_TIME_MIN`                 | `0` (human-pace: `1`)                  | minimale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MAX`                 | `0` (human-pace: `18`)                 | maximale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MEAN`                | human-pace: `6`                        | Erwartungswert der truncated-Normal-Denkzeit (komprimierte Zeit, s. o.)     |
+| `THINK_TIME_SIGMA`               | human-pace: `3.5`                      | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
 | `K6_TARGET_RATE`                 | `10000` (buy-only: `5000`)             | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                  |
 | `K6_MAX_VUS`                     | `16000` (human-pace/buy-only: `10000`) | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped  |
 | `K6_COOLDOWN_RATE`               | `1000`                                 | feste Rate (it/s) der Cool-down-Phase B                                     |
