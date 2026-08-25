@@ -22,7 +22,7 @@ import {
   systemResult,
 } from "./validate.mjs";
 
-export const DERIVED_SCHEMA_VERSION = 3;
+export const DERIVED_SCHEMA_VERSION = 4;
 export const RENDERER_VERSION = 3;
 
 /**
@@ -342,6 +342,12 @@ export const deriveReport = (input) => {
         count: e2eHist.count,
         sum: e2eHist.sum,
         mean: histogramMean({ sum: e2eHist.sum, count: e2eHist.count }),
+        // Die Bucket-Leiter, auf der die Quantile interpoliert wurden.
+        // `spike:compare` verweigert Latenzvergleiche ueber verschiedene
+        // Leitern (Phase 4.13 hat den 1–5-s-Bereich verdichtet).
+        bucketBoundaries: e2eHist.buckets
+          .map((b) => b.le)
+          .filter((le) => Number.isFinite(le)),
         saturation: histogramSaturation(e2eHist.buckets),
         quantiles: {
           p50: quantileFromBuckets(e2eHist.buckets, 0.5),

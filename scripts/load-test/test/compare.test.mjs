@@ -49,6 +49,29 @@ test("dirty candidate git state is rejected", () => {
   assert.match(c.incompatibilities.join(" "), /dirty/i);
 });
 
+// Phase 4.13 densified the 1–5 s range of the E2E histogram. Quantiles are
+// interpolated within buckets, so a pre-change baseline must not be compared
+// silently against a post-change candidate.
+test("differing E2E bucket ladders are flagged, identical or absent ones are not", () => {
+  const before = [0.001, 0.5, 1, 2.5, 5, 10];
+  const after = [0.001, 0.5, 1, 1.5, 2, 2.5, 3, 5, 10];
+  const differ = compareRuns(
+    makeRun({ e2eLatency: { mean: 0.01, bucketBoundaries: before } }),
+    makeRun({ e2eLatency: { mean: 0.01, bucketBoundaries: after } }),
+  );
+  assert.equal(differ.compatible, false);
+  assert.match(differ.incompatibilities.join(" "), /bucket ladders differ/i);
+
+  const same = compareRuns(
+    makeRun({ e2eLatency: { mean: 0.01, bucketBoundaries: after } }),
+    makeRun({ e2eLatency: { mean: 0.01, bucketBoundaries: after } }),
+  );
+  assert.equal(same.compatible, true);
+
+  // Pre-schema-4 artifacts carry no ladder: nothing to compare, no complaint.
+  assert.equal(compareRuns(makeRun(), makeRun()).compatible, true);
+});
+
 test("invalid candidate benchmark is rejected for a capacity claim", () => {
   const c = compareRuns(
     makeRun(),

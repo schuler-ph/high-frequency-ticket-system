@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "rendererVersion": 3,
   "runId": "2026-08-18T19-09-19-323Z-a05409f",
   "git": {
@@ -305,6 +305,20 @@
     "count": 1000000,
     "sum": 217461.35399999237,
     "mean": 0.21746135399999236,
+    "bucketBoundaries": [
+      0.001,
+      0.005,
+      0.01,
+      0.025,
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      1,
+      2.5,
+      5,
+      10
+    ],
     "saturation": {
       "largestFiniteLe": 10,
       "countAtLargestFinite": 1000000,

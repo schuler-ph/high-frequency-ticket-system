@@ -242,7 +242,16 @@ export const orderE2eLatencySeconds = new Histogram({
   // range, so the buckets are back to a millisecond-resolution ladder; the
   // 600s tail tuned for the sleep-bound flow would leave everything in the
   // first bucket and clip p50/p95/p99 flat.
-  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  //
+  // The 1–5 s range is deliberately denser than the default ladder (1 → 2.5
+  // → 5). Under pool back-pressure the tail lands exactly there: Baseline E's
+  // buy-only run put 6.6 % of orders into the 1–2.5 s bucket with p95 AND p99
+  // both inside it, so the report could only say "somewhere between 1 and
+  // 2.5 s". Every cloud-vs-local latency statement above 1 s depends on this
+  // resolution (Phase 4.13, ADR-023 addendum).
+  buckets: [
+    0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2, 2.5, 3, 5, 10,
+  ],
   registers: [workerRegistry],
 });
 

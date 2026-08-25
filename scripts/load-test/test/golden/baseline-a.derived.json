@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "rendererVersion": 3,
   "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
   "git": {
@@ -186,6 +186,11 @@
     "count": 1000,
     "sum": 406000,
     "mean": 406,
+    "bucketBoundaries": [
+      1,
+      10,
+      30
+    ],
     "saturation": {
       "largestFiniteLe": 30,
       "countAtLargestFinite": 141,
