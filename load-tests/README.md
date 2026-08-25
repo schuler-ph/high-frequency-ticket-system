@@ -122,8 +122,12 @@ Counter (`k6/metrics`), damit Funnel und Fehlerbild lastseitig auswertbar sind:
 - **`requests_by_status`** — getaggt nach `{ endpoint, status }`: HTTP-Status-
   Verteilung je Stufe.
 - **`transport_errors`** — getaggt nach `{ endpoint, error_code }`: Requests, die
-  gar keine App-Response bekamen (Status 0 / gesetzter `error_code`) — genau die
-  ~0,28 % aus Baseline A, jetzt nach Stufe und Fehlerklasse aufschlüsselbar.
+  gar keine App-Response bekamen (Status **0** und gesetzter `error_code`) —
+  genau die ~0,28 % aus Baseline A, jetzt nach Stufe und Fehlerklasse
+  aufschlüsselbar. Fachantworten wie 409 (ausverkauft) oder 425 (Sale noch zu)
+  zählen **nicht**, obwohl k6 auch für sie einen `error_code` setzt; bis
+  Baseline E fehlte diese Statusbedingung, und ~97 % der gezählten
+  „Transportfehler" auf dem Buy-Bein waren Fachstatus.
 
 Die Tags erscheinen als Labels im Prometheus-Remote-Write bzw. als Sub-Metriken
 im JSON-/`--summary-mode=full`-Output (die kompakte End-Summary aggregiert sie).
