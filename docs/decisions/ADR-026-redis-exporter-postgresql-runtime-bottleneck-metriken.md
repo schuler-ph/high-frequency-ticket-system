@@ -24,3 +24,7 @@
   - `apps/worker/src/routes/pubsub-listener.ts` (Query-Timing an den DB-Deps)
   - `monitoring/grafana/provisioning/dashboards/db-runtime.json`
   - `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`
+
+## Nachtrag 2026-08-25: Event-Loop-Lag entfernt
+
+Die `nodejs_eventloop_lag_*`-Defaults von `prom-client` (Entscheidung 4, „Event-Loop-Lag (p99/mean)") sind aus beiden Registries und aus dem Dashboard entfernt. Sie haben nie gemessen, was sie versprachen: die Abtastung laeuft mit 10 ms Aufloesung, sodass der Boden der Verteilung die Abtastperiode selbst ist, und das zugrunde liegende Histogramm wird in jedem Collect zurueckgesetzt. In Baseline E lag der Mittelwert vor dem `buy-only`-Lauf bei 10,6 ms und danach bei 11,0 ms — die Metrik hat die Last nicht gesehen. Eine tote Metrik ist schlimmer als keine, weil sie als Entlastungsbeweis gelesen wird („Event-Loop war frei, also …"). Eine belastbare Event-Loop-Messung braucht eine eigene Sampling-Strategie und ist bewusst nicht Teil von Phase 4.13; bis dahin fehlt das Signal sichtbar statt falsch. Prozess-CPU bleibt als Runtime-Signal erhalten.

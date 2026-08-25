@@ -334,55 +334,6 @@
           "custom": {
             "lineWidth": 2
           },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "expr": "nodejs_eventloop_lag_p99_seconds{job=~\"worker|api\"}",
-          "legendFormat": "{{job}} p99",
-          "refId": "A"
-        },
-        {
-          "expr": "nodejs_eventloop_lag_mean_seconds{job=~\"worker|api\"}",
-          "legendFormat": "{{job}} mean",
-          "refId": "B"
-        }
-      ],
-      "title": "Event Loop Lag (p99 / mean)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "lineWidth": 2
-          },
           "unit": "short",
           "min": 0
         },

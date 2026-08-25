@@ -357,7 +357,8 @@ visualisiert sie. Die wichtigsten Systemsignale sind:
 - Auditor- und Projector-Health: Dauer, Fehler und letzter Erfolg;
 - Reaper-Kandidaten, Freigaben, übersprungene Zustände und ältester fälliger
   Pending-Anspruch;
-- DB-Pool-Wait, Query-Latenz, Locks, CPU und Event-Loop-Lag;
+- DB-Pool-Wait, Query-Latenz, Lock-Waits nach `wait_event_type` und CPU (der
+  Event-Loop-Lag der prom-client-Defaults ist bewusst entfernt, ADR-026);
 - k6 dropped iterations und Zielraten-Erfüllung.
 
 Die Dashboards gruppieren diese Signale als `API Performance`,
