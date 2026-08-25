@@ -201,8 +201,8 @@ bewusst davon ab.
 | `THINK_TIME_MAX`                 | `0` (human-pace: `180`)                | maximale Denkzeit (Sekunden) nach dem Reserve                               |
 | `THINK_TIME_MEAN`                | human-pace: `60`                       | Erwartungswert der truncated-Normal-Denkzeit                                |
 | `THINK_TIME_SIGMA`               | human-pace: `35`                       | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
-| `K6_TARGET_RATE`                 | `10000`                                | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                  |
-| `K6_MAX_VUS`                     | `10000`                                | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped  |
+| `K6_TARGET_RATE`                 | `10000` (buy-only: `5000`)             | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                  |
+| `K6_MAX_VUS`                     | `16000` (human-pace/buy-only: `10000`) | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped  |
 | `K6_COOLDOWN_RATE`               | `1000`                                 | feste Rate (it/s) der Cool-down-Phase B                                     |
 | `K6_COOLDOWN_MAX_VUS`            | `5000`                                 | VU-Deckel der Cool-down-Phase B                                             |
 | `PAY_RATE`                       | `0.88` (buy-only: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
