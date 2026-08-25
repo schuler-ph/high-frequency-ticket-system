@@ -367,11 +367,15 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 - [x] **Generator-Host (Ryzen-PC) anbinden:** ssh-Spawn als Hauptpfad, manueller Lauf nur Fallback; Ethernet, WLAN nur Fallback. → [RUNBOOK §3](RUNBOOK.md#generator-host-einrichten-windows-pc), [§4 Split-Kommando](RUNBOOK.md#zwei-maschinen-lauf-k6-auf-dem-generator-pc)
 - [x] **Baseline C mit getrenntem Generator fahren:** Gefahren 2026-08-17: `degraded` (3,10 % dropped), `system pass`, echter Sellout, ~8k Iterationen/s sustained (REQ-P01 mit Vorbehalt uebertroffen). → [Report](reports/baseline-d-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
 - [x] **Transportfehler nach Endpunkt aufschluesseln:** Threshold-Sub-Metriken (`count>=0`) in beiden Phasen-Skripten, Aufschluesselung in Report §4; bewusst endpoint-only, kein `error_code`-Kreuzprodukt.
-- [ ] **Transportfehler auf dem Buy-Bein untersuchen:** bleiben auch mit getrenntem Generator (Phase A: buy 94 598, availability 18 872); Host-Contention-Hypothese widerlegt. → [Befund](reports/baseline-d-2026-08-17/LOAD-TEST-REPORT-2026-08-17.md)
-- [ ] **Valid-Baseline nachziehen:** 3,10 % dropped liegt ueber der Warnschwelle; Zielrate senken oder Generator-VU-Budget erhoehen und erneut fahren. Lauf nur mit Freigabe.
+- [x] ~~Transportfehler auf dem Buy-Bein · Valid-Baseline nachziehen · je Profil ein gueltiger Lauf.~~ **Aufgeloest 2026-08-25:** Transportfehler waren zu 97 % Fachstatus (409/425); der Rest lebt mit den Laeufen in Phase 4.13.
 - [x] **Lastprofile konsolidieren und nach Szenario benennen:** 4 → 3 Profile (`browse-and-buy-full-speed` als Default mit Sellout-Semantik, `browse-and-buy-human-pace`, `buy-only-full-speed`); `realism` entfaellt, Gates haengen an Semantik statt Namen. → ADR-035
 - [x] **Generator-Kardinalitaet begrenzen:** die orderId im k6-`name`/`url`-Tag erzeugte eine Zeitreihe pro Bestellung (3,2 Mio nach ~3,5 min). Statischer `name`-Tag plus `SYSTEM_TAGS` ohne `url`.
-- [ ] **Iterieren, bis je Profil ein gueltiger und korrekter Lauf steht:** Baseline-E-Befunde — erst Verdict und Gates reparieren, dann Lastform per Env parametrisieren, dann Baseline F. Nur mit Freigabe. → [Details](notes/backlogs/baseline-f-valid-runs.md#baseline-f-vorspann)
+
+## Phase 4.13: Baseline F — gueltiger Lauf je Profil
+
+- [x] **Harness und System vorbereitet (A–D, 2026-08-25):** ADR-036, ADR-037, Lastform als Profilwerte, komprimierte Zeit, Buckets, Lock-Waits, Pool-Timeout, Index. → [Details](notes/backlogs/baseline-f-valid-runs.md#baseline-f-vorspann)
+- [ ] **Baseline F fahren:** drei Profile, ein Commit; Ziel `valid`/`pass`/`pass`. Nur mit Freigabe.
+- [ ] **`POST /pay` unter Contention verstehen,** dann Referenz-Baseline in 5.6 verankern.
 
 ## Phase 5: Cloud Deployment (GCP)
 
@@ -409,7 +413,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 ### Phase 5.7 — Cloud-Zielprofil
 
-- [ ] **Verteilter Generator** inkl. Quantil-Merge der Teil-Summaries; Kapazitaet fuer den 50k-Lauf entscheiden (REQ-P02). Haengt an den offenen 4.12-Todos. Lauf nur mit Freigabe.
+- [ ] **Verteilter Generator** inkl. Quantil-Merge der Teil-Summaries; Kapazitaet fuer den 50k-Lauf entscheiden (REQ-P02). Haengt an Phase 4.13. Lauf nur mit Freigabe.
 
 ## Phase 6: Optional & Resilience (Maximum Learning)
 
