@@ -86,7 +86,7 @@ const extractThresholds = (metrics) => {
  * Normalise one k6 phase summary + orchestrator meta into a flat record.
  *
  * @param {object | null} summary Raw k6 summary JSON.
- * @param {{ exitCode?: number, reason?: string } | null} meta
+ * @param {{ exitCode?: number, reason?: string, stopReason?: string, availableAtStop?: number | null } | null} meta
  * @param {string} name
  * @returns {object | null}
  */
@@ -142,6 +142,10 @@ export const summarisePhase = (summary, meta, name) => {
     vusMax: vus.max ?? vus.value ?? null,
     exitCode: meta?.exitCode ?? null,
     reason: meta?.reason ?? null,
+    // Abbruchgrund des reaktiven Phase-A-Stops (`sold-out` | `stalled` |
+    // `k6-exited`); nur Phase A traegt ihn, Vor-4.12-Artefakte gar nicht.
+    stopReason: meta?.stopReason ?? null,
+    availableAtStop: meta?.availableAtStop ?? null,
   };
 };
 
@@ -413,6 +417,9 @@ export const deriveReport = (input) => {
       ? Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS)
       : null,
     thinkTimeKind: manifest?.configuration?.THINK_TIME_KIND ?? null,
+    // Nur ein per Ausverkauf beendeter Lauf macht `sold == totalCapacity`
+    // beweispflichtig (Phase 4.13).
+    stopReason: phaseAMeta?.stopReason ?? null,
     reaperReleases: sumSamples(
       samples.workerAfter,
       "reservation_reaper_releases_total",

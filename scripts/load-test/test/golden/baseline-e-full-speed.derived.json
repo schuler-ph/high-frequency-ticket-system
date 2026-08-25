@@ -134,7 +134,9 @@
         "failedRate": 0.008109962620732101,
         "vusMax": 10000,
         "exitCode": 103,
-        "reason": "reactive-phase-a"
+        "reason": "reactive-phase-a",
+        "stopReason": "sold-out",
+        "availableAtStop": 0
       },
       {
         "name": "phase-b",
@@ -209,7 +211,9 @@
         "failedRate": 0,
         "vusMax": 960,
         "exitCode": 0,
-        "reason": "cool-down"
+        "reason": "cool-down",
+        "stopReason": null,
+        "availableAtStop": null
       }
     ],
     "totalIterations": 6536269,

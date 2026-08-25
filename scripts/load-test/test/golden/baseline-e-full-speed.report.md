@@ -65,6 +65,8 @@
 | phase-b | 59 225 | 776 | 60 001 | 98.71% | 960 |
 | **total** | 6 536 269 | 357 302 | 6 893 571 | 94.82% | |
 
+- **Phase A stop reason:** `sold-out` (available at stop: 0)
+
 - **Transport errors (phase-a):** 1 492 585 — availability 36 725, buy 1 455 860
 - **Transport errors (phase-b):** 23 804 — buy 23 804
 

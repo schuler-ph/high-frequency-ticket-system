@@ -79,6 +79,12 @@ test("analysis reproduces the Baseline-E story: invalid, correct, too slow", () 
   );
   // The export-only selectors are carried in the phase record...
   const phaseA = derived.offeredLoad.phases[0];
+  // ...as is the orchestrator's stop reason, which gates the sellout check.
+  assert.equal(phaseA.stopReason, "sold-out");
+  assert.equal(phaseA.availableAtStop, 0);
+  assert.ok(
+    derived.invariants.some((i) => i.id === "sellout: sold == totalCapacity"),
+  );
   assert.ok(
     phaseA.thresholds.some(
       (t) => t.metric === "transport_errors{endpoint:buy}",

@@ -161,6 +161,17 @@ export const renderReport = (derived) => {
     `| **total** | ${fmtInt(derived.offeredLoad.totalIterations)} | ${fmtInt(derived.offeredLoad.totalDropped)} | ${fmtInt(derived.offeredLoad.scheduled)} | ${fmtPct(derived.offeredLoad.executedShare)} | |`,
   );
   push("");
+  // Wie Phase A endete: `sold-out` ist der einzige Abbruchgrund, der einen
+  // exakten Sellout beweispflichtig macht; `stalled` und `k6-exited` sind
+  // kein Ausverkauf und duerfen nicht als einer gelesen werden.
+  const phaseA = derived.offeredLoad.phases.find((p) => p.name === "phase-a");
+  if (phaseA?.stopReason) {
+    const available =
+      phaseA.availableAtStop === null || phaseA.availableAtStop === undefined
+        ? ""
+        : ` (available at stop: ${fmtInt(phaseA.availableAtStop)})`;
+    push(`- **Phase A stop reason:** \`${phaseA.stopReason}\`${available}`, "");
+  }
   // Transportfehler pro Phase: nur wenn der Lauf die Metrik exportiert hat
   // (`total !== null`); Endpunkte mit 0 bleiben aus dem Breakdown, das Total
   // macht "gemessen, und es war 0" trotzdem explizit.

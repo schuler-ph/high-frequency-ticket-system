@@ -216,6 +216,7 @@ export const capacityDelta = ({
  *   activeReservations?: number | null,
  *   checkoutDeadlineSeconds?: number | null,
  *   thinkTimeKind?: string | null,
+ *   stopReason?: "sold-out" | "stalled" | "k6-exited" | null,
  *   reaperReleases?: number | null,
  *   expiredRejections?: number | null,
  * }} facts
@@ -234,6 +235,7 @@ export const evaluateInvariants = (facts) => {
     activeReservations = null,
     checkoutDeadlineSeconds = null,
     thinkTimeKind = null,
+    stopReason = null,
     reaperReleases = null,
     expiredRejections = null,
   } = facts;
@@ -295,17 +297,32 @@ export const evaluateInvariants = (facts) => {
 
   // Ablauf-Checks nach Semantik statt Profilname (Phase 4.12): sobald die
   // Checkout-Deadline kurz genug ist, um innerhalb des Phase-A-Fensters
-  // (max ~990 s) abzulaufen, uebt der Lauf Reaper + Wiederverkauf aus — dann
-  // ist exakter Sellout beweispflichtig. Bei langer Deadline (900 s) waeren
-  // dieselben Checks garantiert verletzt, also gehoeren sie nicht dorthin.
-  const expiryExercised =
+  // (max ~990 s) abzulaufen, uebt der Lauf Reaper + Wiederverkauf aus. Bei
+  // langer Deadline (900 s) waeren dieselben Checks garantiert verletzt, also
+  // gehoeren sie nicht dorthin.
+  const deadlineCanElapse =
     checkoutDeadlineSeconds !== null &&
     checkoutDeadlineSeconds !== undefined &&
     checkoutDeadlineSeconds <= 600;
-  if (expiryExercised) {
+
+  // Exakter Sellout ist nur beweispflichtig, wenn der Lauf tatsaechlich per
+  // Ausverkauf endete (Phase 4.13): `stopReason` ist der Abbruchgrund des
+  // reaktiven Orchestrator-Stops, und bei kurzer Deadline verlangt dieser
+  // zusaetzlich einen leeren Ledger — dann ist jeder Anspruch aufgeloest und
+  // `sold == totalCapacity` entscheidbar. Ein Lauf, der stattdessen in den
+  // k6-Zeitdeckel lief (Baseline E human-pace: 99 788 von 100 000 bei exakt
+  // aufgehender Buchfuehrung), hat die Frage nicht beantwortet: der Check
+  // entfaellt, statt zu scheitern. Die Erhaltung prueft die Kapazitaets-
+  // Invariante oben in jedem Fall.
+  if (stopReason === "sold-out" && deadlineCanElapse) {
     invariants.push(
       // Der Kernbeweis: Abbrueche und Ablaeufe haben kein Inventar verloren.
       check("sellout: sold == totalCapacity", capacity ?? null, dbTickets),
+    );
+  }
+
+  if (deadlineCanElapse) {
+    invariants.push(
       // Ohne ausgeuebten Reaper ist der Lauf fuer diese Frage inconclusive,
       // nicht bestanden.
       observed(

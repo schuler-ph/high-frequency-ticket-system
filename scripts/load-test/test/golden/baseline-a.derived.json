@@ -58,7 +58,9 @@
         "failedRate": 0.0028,
         "vusMax": 500,
         "exitCode": 99,
-        "reason": "sold-out-sigint"
+        "reason": "sold-out-sigint",
+        "stopReason": null,
+        "availableAtStop": null
       },
       {
         "name": "phase-b",
@@ -90,7 +92,9 @@
         "failedRate": 0,
         "vusMax": 50,
         "exitCode": 0,
-        "reason": "completed"
+        "reason": "completed",
+        "stopReason": null,
+        "availableAtStop": null
       }
     ],
     "totalIterations": 420,

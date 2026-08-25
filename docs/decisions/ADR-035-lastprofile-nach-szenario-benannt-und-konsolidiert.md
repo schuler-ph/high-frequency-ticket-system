@@ -44,3 +44,14 @@
   Baseline-C-Split-Lauf vom 2026-08-17 sind nur mit diesem Vorbehalt zulässig.
   Historische Reports und Notizen behalten die alten Namen; sie beschreiben
   vergangene Läufe.
+
+- **Nachtrag 2026-08-25 (Phase 4.13):** Punkt 3 ist für den Sellout-Check
+  präzisiert. `sellout: sold == totalCapacity` hängt nicht mehr allein an der
+  Deadline, sondern zusätzlich am Abbruchgrund des reaktiven Stops
+  (`stopReason === "sold-out"`). Baseline E hatte gezeigt, dass ein
+  `human-pace`-Lauf, der in den 15-Minuten-Deckel von k6 läuft, mit exakt
+  aufgehender Buchführung ein `fail` bekam — die Deadline war kurz genug, der
+  Lauf hatte die Frage aber nie gestellt. Ohne Ausverkauf entfällt der Check;
+  die Erhaltungs-Invariante prüft das Inventar weiterhin. Reaper- und
+  Expiry-Check behalten das Deadline-Gate, weil sie den Ablaufpfad prüfen, nicht
+  das Ende des Laufs.
