@@ -27,6 +27,14 @@ export const env = createEnv({
     PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce.number().int().positive(),
     // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
     DATABASE_POOL_MAX: z.coerce.number().int().positive(),
+    // Obere Schranke fuer das Warten auf eine freie Pool-Connection. Ohne sie
+    // warten Acquirer unbegrenzt — am buy-only-Plateau von Baseline E bis zu
+    // 3.760 gleichzeitig — und Pool-Saettigung erscheint als unbegrenzte
+    // Latenz statt als Fehler. Mit Timeout wird sie ein transienter Fehler:
+    // der Worker NACKt, Pub/Sub liefert erneut, `worker_redeliveries_total`
+    // macht es sichtbar. Deutlich ueber der normalen Wartezeit im Rueckstau
+    // (~0,7 s) waehlen, damit nur echte Saettigung ausloest.
+    DATABASE_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive(),
     // Startup-Fail-Fast: obere Schranke, wie lange API/Worker beim Boot auf
     // eine erreichbare Infrastruktur warten, bevor sie mit einer klaren,
     // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).

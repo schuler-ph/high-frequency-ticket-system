@@ -332,7 +332,10 @@ Konkrete Intervalle, Batch-Größen und Deadlines leben in
   Queue-Depth und E2E-Latenz zeigen Backpressure.
 - **Worker:** Parallelität wird durch Subscriber-Flow-Control und
   PostgreSQL-Poolgröße begrenzt. Die DB-Function vermeidet den früheren
-  `events.sold_count`-Hot-Row-Write.
+  `events.sold_count`-Hot-Row-Write. Das Warten auf eine Pool-Connection ist
+  begrenzt (`DATABASE_POOL_CONNECTION_TIMEOUT_MS`): Pool-Sättigung wird zu
+  einem transienten Fehler mit NACK und Redelivery — sichtbar in
+  `worker_redeliveries_total` — statt zu unbegrenzter Latenz.
 - **Worker-Wartung:** Der Worker läuft aktuell als `replicas: 1`. Da Auditor und
   Projector nichts am Live-Inventar korrigieren, wäre eine zweite Instanz
   höchstens ineffizient und kein Korrektheitsproblem — Leader Election ist für
