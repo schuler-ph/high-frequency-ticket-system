@@ -35,6 +35,12 @@ export const CONFIG_ALLOWLIST = [
   // Lauf unterscheidbar und `spike:compare` wuerde Aepfel mit Birnen messen.
   "BASE_URL",
   "K6_RUNNER",
+  // Lastform (Phase 4.13): ohne diese vier Werte ist ein Lauf nicht
+  // rekonstruierbar — die Dropped-Rate ist nur gegen den VU-Deckel lesbar.
+  "K6_TARGET_RATE",
+  "K6_MAX_VUS",
+  "K6_COOLDOWN_RATE",
+  "K6_COOLDOWN_MAX_VUS",
   "PAY_RATE",
   "CANCEL_RATE",
   "THINK_TIME_KIND",

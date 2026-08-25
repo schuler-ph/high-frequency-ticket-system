@@ -301,7 +301,8 @@ k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e LOAD_PROFILE=browse-and-buy-full-speed -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
-  -e CHECKOUT_POLL_INTERVAL=1 load-tests/spike-phase-a.js
+  -e CHECKOUT_POLL_INTERVAL=1 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=10000 ^
+  -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 load-tests/spike-phase-a.js
 ```
 
 Stop beim Ausverkauf (vom Mac; auf k6 v2.0.0 endet der Lauf mit Exit 103,
@@ -429,6 +430,8 @@ K6_REST_URL=http://<pc-ip>:6565 \
 BASE_URL=http://<mac-ip>:10002 \
 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report
 ```
+
+Die Lastform — `K6_TARGET_RATE`, `K6_MAX_VUS`, `K6_COOLDOWN_RATE`, `K6_COOLDOWN_MAX_VUS` — kommt aus dem Profil und lässt sich auf demselben Weg inline übersteuern (z. B. `K6_MAX_VUS=16000`); sie steht im Manifest des Laufs.
 
 Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
 

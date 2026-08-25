@@ -80,7 +80,7 @@ function requireEnv(name) {
   return value;
 }
 
-function requireEnvNumber(name) {
+export function requireEnvNumber(name) {
   const value = Number(requireEnv(name));
   if (!isFinite(value)) {
     throw new Error(`${name} ist keine Zahl: "${__ENV[name]}"`);
