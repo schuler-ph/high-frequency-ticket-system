@@ -18,6 +18,7 @@ import {
   buyTicketOutcomePolicy,
   createPubSubListenerRoutes,
   runInventoryCycle,
+  runReaperCycle,
 } from "../../src/routes/pubsub-listener.ts";
 
 type TestMessage = {
@@ -246,7 +247,7 @@ void test("a failing projector does not prevent the read-only audit", async () =
   const result = await runInventoryCycle({
     listEventInventorySnapshots: async () => {
       calls.push("snapshot");
-      return [];
+      return [{ eventId: "e-1", totalCapacity: 10, soldCount: 0 }];
     },
     persistEventSoldCounts: async () => undefined,
     projectSoldCounts: async () => {
@@ -257,22 +258,102 @@ void test("a failing projector does not prevent the read-only audit", async () =
       calls.push("audit");
       return [];
     },
-    reapPendingReservations: async () => {
-      calls.push("reap");
-      return [];
-    },
     redis: {
       ...fastifyRedisReadStub(),
       zrangebyscore: async () => [],
-      reapPendingReservation: async () => 0,
     },
     now: () => 1_000,
   });
 
-  assert.deepEqual(calls, ["snapshot", "project", "audit", "reap"]);
+  assert.deepEqual(calls, ["snapshot", "project", "audit"]);
   assert.equal(result.projector.status, "rejected");
   assert.equal(result.auditor.status, "fulfilled");
-  assert.equal(result.reaper.status, "fulfilled");
+  // Die Event-Ids sind das Einzige, was der Reaper aus dem Zyklus braucht.
+  assert.deepEqual(result.eventIds, ["e-1"]);
+});
+
+// ADR-037: der Reaper laeuft in eigenem Takt und braucht keinen Snapshot —
+// nur die Event-Ids. Ein Fehler wird gemeldet, nicht geworfen, damit der
+// Scheduler den naechsten Lauf planen kann.
+void test("runReaperCycle reaps the given events on its own clock and never throws", async () => {
+  const seen: Array<{ eventIds: readonly string[]; nowMs: number }> = [];
+  const redis = {
+    zcount: async () => 0,
+    zrangebyscore: async () => [],
+    reapPendingReservation: async () => 0,
+  };
+
+  const ok = await runReaperCycle({
+    reapPendingReservations: async (deps) => {
+      seen.push({ eventIds: deps.eventIds, nowMs: deps.nowMs });
+      return [];
+    },
+    redis,
+    eventIds: ["e-1", "e-2"],
+    now: () => 5_000,
+  });
+  assert.deepEqual(ok, { status: "fulfilled" });
+  assert.deepEqual(seen, [{ eventIds: ["e-1", "e-2"], nowMs: 5_000 }]);
+
+  const failed = await runReaperCycle({
+    reapPendingReservations: async () => {
+      throw new Error("redis down");
+    },
+    redis,
+    eventIds: ["e-1"],
+  });
+  assert.equal(failed.status, "rejected");
+});
+
+// Vor dem ersten Snapshot kennt der Worker keine Events: der Reaper darf erst
+// starten, wenn der Zyklus Event-Ids geliefert hat — und dann genau mit diesen.
+void test("the reaper starts from the first successful snapshot and reaps its event ids", async () => {
+  const buildRoute = (
+    listEventInventorySnapshots: () => Promise<
+      Array<{ eventId: string; totalCapacity: number; soldCount: number }>
+    >,
+    reaped: Array<readonly string[]>,
+  ) =>
+    createPubSubListenerRoutes({
+      executeBuyTicket: async () => "ticket-1",
+      listEventInventorySnapshots,
+      persistEventSoldCounts: async () => undefined,
+      markOrderFailed: async () => "updated",
+      projectSoldCounts: async () => undefined,
+      auditTicketInventory: async () => [],
+      reapPendingReservations: async (deps) => {
+        reaped.push(deps.eventIds);
+        return [];
+      },
+    });
+  const settle = () =>
+    new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+
+  // Snapshot schlaegt fehl: kein Reaper-Lauf, nichts zu reapen.
+  const withoutSnapshot: Array<readonly string[]> = [];
+  const failing = createRouteTestFastify();
+  await buildRoute(async () => {
+    throw new Error("db not ready");
+  }, withoutSnapshot)(failing.fastify as never, {} as never);
+  await failing.fastify.runHook("onReady");
+  await settle();
+  assert.deepEqual(withoutSnapshot, []);
+  await failing.fastify.runHook("onClose");
+
+  // Snapshot liefert Events: der erste Reaper-Lauf folgt direkt und nimmt
+  // genau diese Ids.
+  const withSnapshot: Array<readonly string[]> = [];
+  const succeeding = createRouteTestFastify();
+  await buildRoute(
+    async () => [{ eventId: "e-1", totalCapacity: 10, soldCount: 0 }],
+    withSnapshot,
+  )(succeeding.fastify as never, {} as never);
+  await succeeding.fastify.runHook("onReady");
+  await settle();
+  assert.deepEqual(withSnapshot, [["e-1"]]);
+  await succeeding.fastify.runHook("onClose");
 });
 
 void test("pubsub-listener message handler applies the outcome policy (completed → ACK)", async () => {

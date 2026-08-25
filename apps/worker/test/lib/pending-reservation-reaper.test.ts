@@ -21,7 +21,7 @@ void test("reaper processes only due candidates and reports every outcome", asyn
   const observed: EventReaperResult[] = [];
 
   const results = await reapPendingReservations({
-    snapshots: [{ eventId: EVENT_ID, totalCapacity: 100, soldCount: 20 }],
+    eventIds: [EVENT_ID],
     nowMs: 10_000,
     batchSize: 100,
     expiredTtlSeconds: 86400,
@@ -81,7 +81,7 @@ void test("one candidate error does not block later releases", async () => {
   let calls = 0;
 
   const [result] = await reapPendingReservations({
-    snapshots: [{ eventId: EVENT_ID, totalCapacity: 2, soldCount: 0 }],
+    eventIds: [EVENT_ID],
     nowMs: 10_000,
     batchSize: 100,
     expiredTtlSeconds: 86400,
@@ -112,7 +112,7 @@ void test("one candidate error does not block later releases", async () => {
 
 void test("empty event ledger is a successful no-op", async () => {
   const [result] = await reapPendingReservations({
-    snapshots: [{ eventId: EVENT_ID, totalCapacity: 10, soldCount: 10 }],
+    eventIds: [EVENT_ID],
     nowMs: 10_000,
     batchSize: 100,
     expiredTtlSeconds: 86400,

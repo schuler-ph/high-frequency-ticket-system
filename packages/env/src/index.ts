@@ -37,6 +37,15 @@ export const env = createEnv({
     // Reaper seinen Zustand sicher pruefen kann (ADR-031).
     CHECKOUT_PENDING_TIMEOUT_SECONDS: z.coerce.number().int().positive(),
     WORKER_RESERVATION_REAPER_BATCH_SIZE: z.coerce.number().int().positive(),
+    // Eigener Takt des Pending-Reapers (ADR-037): er braucht keinen
+    // DB-Snapshot, nur die Event-Ids des letzten Inventory-Cycles, und darf
+    // deshalb dichter laufen als der COUNT(tickets)-Zyklus. Bei kurzer
+    // Checkout-Deadline (12 s im komprimierten human-pace-Profil) hielte ein
+    // 60-s-Takt abgelaufene Ansprueche bis zum Fuenffachen der Deadline.
+    WORKER_RESERVATION_REAPER_INTERVAL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive(),
     REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce.number().int().positive(),
     REDIS_WORKER_PROCESSED_TTL_SECONDS: z.coerce.number().int().positive(),
     // Read-only inventory cycle (ADR-031): one grouped ticket count is shared

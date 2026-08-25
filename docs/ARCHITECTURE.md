@@ -271,15 +271,20 @@ exhaustiv ab:
 ## Inventory-Wartung
 
 Der Worker startet den Pub/Sub-Consumer unabhängig von der Inventar-Wartung. Ein
-nicht überlappender Zyklus läuft sofort nach dem Start und danach periodisch; er
-teilt genau einen gruppierten `COUNT(tickets)`-Snapshot auf drei Komponenten auf:
+nicht überlappender Zyklus läuft sofort nach dem Start und danach periodisch
+(`WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS`); er teilt genau einen gruppierten
+`COUNT(tickets)`-Snapshot auf Projector und Auditor auf. Der Pending-Reaper
+läuft in einem eigenen, dichteren Takt (`WORKER_RESERVATION_REAPER_INTERVAL_SECONDS`,
+ADR-037): er braucht keinen DB-Snapshot, nur die Event-Ids, die der letzte
+Zyklus geliefert hat, und arbeitet ausschließlich auf Redis.
 
 ```text
 Subscriber startet (unabhängig)
-COUNT(tickets)-Snapshot
+COUNT(tickets)-Snapshot                    (Inventory-Cycle)
     ├─ Sold-count Projector → events.sold_count
     ├─ Inventory Auditor    → nur GET/ZCARD/ZCOUNT + Metriken
-    └─ Pending-Reaper       → gibt nur fälliges pending frei
+    └─ Event-Ids ─────────► Pending-Reaper  (eigener Takt)
+                             → gibt nur fälliges pending frei
 ```
 
 | Komponente           | Darf                                                                                         | Darf nicht                                           |
@@ -288,11 +293,13 @@ COUNT(tickets)-Snapshot
 | Inventory Auditor    | Capacity-Komponenten und signiertes Delta messen                                             | korrigieren oder fehlende Keys anlegen               |
 | Pending-Reaper       | einen fälligen `pending`-Anspruch per `orderId` atomar freigeben und als `expired` markieren | `publishing`, `paid` oder terminale Orders freigeben |
 
-Ein `setTimeout` wird erst nach Abschluss neu geplant, sodass lange DB-Scans nie
-überlappen. Die drei Komponenten laufen nach dem geteilten Snapshot unabhängig
-voneinander; ein Fehler in ihnen stoppt den Consumer nicht. Nicht
-freigabefähige Recovery-Zustände meldet der Reaper als Skip und quarantiniert sie
-aus dem fälligen Score-Bereich — im Ledger bleiben sie aktive Ansprüche.
+Beide Timer werden erst nach Abschluss ihres Laufs neu geplant, sodass weder
+lange DB-Scans noch Reaper-Läufe überlappen. Projector und Auditor laufen nach
+dem geteilten Snapshot unabhängig voneinander; der Reaper startet, sobald der
+erste Snapshot Event-Ids geliefert hat. Ein Fehler in einer Komponente stoppt
+weder den Consumer noch die anderen. Nicht freigabefähige Recovery-Zustände
+meldet der Reaper als Skip und quarantiniert sie aus dem fälligen Score-Bereich
+— im Ledger bleiben sie aktive Ansprüche.
 
 Es gibt keinen schreibenden Cross-System-Reconcile mehr: kein Startup-Job, keine
 periodische `available`-Korrektur und keine `WORKER_RECONCILE_*`-Konfiguration.

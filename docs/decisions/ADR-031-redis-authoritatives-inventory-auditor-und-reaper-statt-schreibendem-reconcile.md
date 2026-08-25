@@ -54,3 +54,14 @@ Subscriber startet unabhängig von ihnen. Der Ist-Zustand steht in
 Offen bleibt allein der Nachweis unter Last: der Abschluss-Lasttest und die
 Messung des Projector-Einflusses auf den Pool-Wait sind in `docs/TODO.md`
 Phase 4.9 als eigene Todos geführt.
+
+## Nachtrag 2026-08-25: der Reaper hat einen eigenen Takt
+
+„Ein Zyklus, ein Snapshot" gilt weiterhin — für Projector und Auditor. Der
+Pending-Reaper läuft seit Phase 4.13 in einem eigenen, dichteren Intervall
+(`WORKER_RESERVATION_REAPER_INTERVAL_SECONDS`) und bekommt die Event-Ids aus
+dem letzten Cycle statt an dessen Snapshot gebunden zu sein. Anlass und
+Alternativen stehen in
+[ADR-037](ADR-037-pending-reaper-in-eigenem-takt.md); Ziffer 6 und 7 dieses
+ADRs (identitätsbasierte Freigabe, Score als Fälligkeitsautorität) sind der
+Grund, warum die Entkopplung keine neue Race-Klasse öffnet.

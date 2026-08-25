@@ -26,6 +26,7 @@ export const serviceConfigInfo = new Gauge({
     "database_pool_max",
     "worker_inventory_cycle_interval_seconds",
     "worker_reservation_reaper_batch_size",
+    "worker_reservation_reaper_interval_seconds",
   ] as const,
   registers: [workerRegistry],
 });
@@ -45,6 +46,9 @@ serviceConfigInfo.set(
     ),
     worker_reservation_reaper_batch_size: String(
       env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
+    ),
+    worker_reservation_reaper_interval_seconds: String(
+      env.WORKER_RESERVATION_REAPER_INTERVAL_SECONDS,
     ),
   },
   1,
