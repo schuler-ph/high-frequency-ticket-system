@@ -35,6 +35,19 @@ export const RENDERER_VERSION = 3;
  */
 const metricValues = (metric) => metric?.values ?? metric ?? {};
 
+/**
+ * A numeric manifest setting, or `null` when absent or not a number. Manifest
+ * values are strings (redacted process env), and an absent key must stay
+ * distinguishable from `0`.
+ *
+ * @param {string | undefined} value
+ * @returns {number | null}
+ */
+const configNumber = (value) =>
+  value !== undefined && value !== null && Number.isFinite(Number(value))
+    ? Number(value)
+    : null;
+
 /** `p(95)<500` → `p(95)`, `rate<0.05` → `rate`: the aggregation a threshold judges. */
 const THRESHOLD_AGGREGATION = /^([a-z0-9_]+(?:\([^)]*\))?)\s*[<>=!]/i;
 
@@ -411,15 +424,17 @@ export const deriveReport = (input) => {
     activeReservations,
     // Ablauf-Checks haengen an der Semantik der Lauf-Konfiguration (Deadline,
     // Denkzeit), nicht am Profilnamen — ein Rename kann sie nicht abhaengen.
-    checkoutDeadlineSeconds: Number.isFinite(
-      Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS),
-    )
-      ? Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS)
-      : null,
+    checkoutDeadlineSeconds: configNumber(
+      manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS,
+    ),
     thinkTimeKind: manifest?.configuration?.THINK_TIME_KIND ?? null,
     // Nur ein per Ausverkauf beendeter Lauf macht `sold == totalCapacity`
     // beweispflichtig (Phase 4.13).
     stopReason: phaseAMeta?.stopReason ?? null,
+    // Ob Abbruch ueberhaupt moeglich ist, entscheidet, ob der Reaper etwas
+    // zu tun hatte (PAY_RATE + CANCEL_RATE < 1).
+    payRate: configNumber(manifest?.configuration?.PAY_RATE),
+    cancelRate: configNumber(manifest?.configuration?.CANCEL_RATE),
     reaperReleases: sumSamples(
       samples.workerAfter,
       "reservation_reaper_releases_total",
