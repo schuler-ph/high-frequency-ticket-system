@@ -1,0 +1,300 @@
+# HELP service_config_info Effective runtime configuration of this service (labels carry the values, value is always 1)
+# TYPE service_config_info gauge
+service_config_info{service="api",node_env="production",log_level="warn",disable_request_logging="true"} 1
+
+# HELP orders_accepted_total Ticket purchase orders accepted (HTTP 202)
+# TYPE orders_accepted_total counter
+orders_accepted_total{event_id="00000000-0000-4000-8000-000000000000"} 1136706
+
+# HELP reservations_created_total Ticket reservations atomically created in Redis
+# TYPE reservations_created_total counter
+reservations_created_total{event_id="00000000-0000-4000-8000-000000000000"} 1136706
+
+# HELP publish_rollbacks_total Reservations rolled back due to Pub/Sub publish failure (pay route)
+# TYPE publish_rollbacks_total counter
+
+# HELP payments_confirmed_total Simulated payments confirmed and BuyTicketEvent published (HTTP 200)
+# TYPE payments_confirmed_total counter
+payments_confirmed_total{event_id="00000000-0000-4000-8000-000000000000"} 1000000
+
+# HELP payments_rejected_total Payment attempts rejected, by reason (expired, not-found, conflict)
+# TYPE payments_rejected_total counter
+
+# HELP checkouts_cancelled_total Checkouts cancelled by the user, releasing an active reservation
+# TYPE checkouts_cancelled_total counter
+checkouts_cancelled_total{event_id="00000000-0000-4000-8000-000000000000"} 91055
+
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{le="0.005",method="GET",route="/metrics",status_code="200"} 70
+http_request_duration_seconds_bucket{le="0.01",method="GET",route="/metrics",status_code="200"} 163
+http_request_duration_seconds_bucket{le="0.025",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="0.05",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="0.1",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="0.25",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="0.5",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="1",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="2.5",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="5",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="10",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_sum{method="GET",route="/metrics",status_code="200"} 0.9738855820521711
+http_request_duration_seconds_count{method="GET",route="/metrics",status_code="200"} 174
+http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 1605020
+http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 1834798
+http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 2118636
+http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 2773735
+http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3635457
+http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3880090
+http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3882898
+http_request_duration_seconds_bucket{le="1",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883175
+http_request_duration_seconds_bucket{le="2.5",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883535
+http_request_duration_seconds_bucket{le="5",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883535
+http_request_duration_seconds_bucket{le="10",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883535
+http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883535
+http_request_duration_seconds_sum{method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 126549.76373091133
+http_request_duration_seconds_count{method="GET",route="/api/tickets/:eventId/availability",status_code="200"} 3883535
+http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29530
+http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29685
+http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29743
+http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="1",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="2.5",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="5",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="10",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_sum{method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 23.18821934507053
+http_request_duration_seconds_count{method="POST",route="/api/tickets/:eventId/buy",status_code="425"} 29775
+http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 51290
+http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 59382
+http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 100673
+http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 453229
+http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 979875
+http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1135167
+http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="1",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="2.5",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="5",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="10",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_sum{method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 71982.57084027785
+http_request_duration_seconds_count{method="POST",route="/api/tickets/:eventId/buy",status_code="202"} 1136706
+http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 3461
+http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 4079
+http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 5575
+http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 16088
+http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 55594
+http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 89804
+http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 90995
+http_request_duration_seconds_bucket{le="1",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_bucket{le="2.5",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_bucket{le="5",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_bucket{le="10",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_sum{method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 8676.340523100042
+http_request_duration_seconds_count{method="POST",route="/api/orders/:orderId/cancel",status_code="200"} 91055
+http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 1321
+http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 11799
+http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 34787
+http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 41372
+http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 46591
+http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 126022
+http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 355418
+http_request_duration_seconds_bucket{le="1",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 781282
+http_request_duration_seconds_bucket{le="2.5",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 997114
+http_request_duration_seconds_bucket{le="5",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 1000000
+http_request_duration_seconds_bucket{le="10",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 1000000
+http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/orders/:orderId/pay",status_code="200"} 1000000
+http_request_duration_seconds_sum{method="POST",route="/api/orders/:orderId/pay",status_code="200"} 696175.0424330523
+http_request_duration_seconds_count{method="POST",route="/api/orders/:orderId/pay",status_code="200"} 1000000
+http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 979118
+http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1127111
+http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1273011
+http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1343367
+http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1404171
+http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1424614
+http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425020
+http_request_duration_seconds_bucket{le="1",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425189
+http_request_duration_seconds_bucket{le="2.5",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425420
+http_request_duration_seconds_bucket{le="5",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425420
+http_request_duration_seconds_bucket{le="10",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425420
+http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425420
+http_request_duration_seconds_sum{method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 14603.465720208624
+http_request_duration_seconds_count{method="POST",route="/api/tickets/:eventId/buy",status_code="409"} 1425420
+
+# HELP process_cpu_user_seconds_total Total user CPU time spent in seconds.
+# TYPE process_cpu_user_seconds_total counter
+process_cpu_user_seconds_total 455.9755889999995
+
+# HELP process_cpu_system_seconds_total Total system CPU time spent in seconds.
+# TYPE process_cpu_system_seconds_total counter
+process_cpu_system_seconds_total 239.45304099999998
+
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 695.4286300000002
+
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1787080150
+
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 888553472
+
+# HELP nodejs_eventloop_lag_seconds Lag of event loop in seconds.
+# TYPE nodejs_eventloop_lag_seconds gauge
+nodejs_eventloop_lag_seconds 0.001107042
+
+# HELP nodejs_eventloop_lag_min_seconds The minimum recorded event loop delay.
+# TYPE nodejs_eventloop_lag_min_seconds gauge
+nodejs_eventloop_lag_min_seconds 0.009650176
+
+# HELP nodejs_eventloop_lag_max_seconds The maximum recorded event loop delay.
+# TYPE nodejs_eventloop_lag_max_seconds gauge
+nodejs_eventloop_lag_max_seconds 0.012075007
+
+# HELP nodejs_eventloop_lag_mean_seconds The mean of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_mean_seconds gauge
+nodejs_eventloop_lag_mean_seconds 0.011147576406779661
+
+# HELP nodejs_eventloop_lag_stddev_seconds The standard deviation of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_stddev_seconds gauge
+nodejs_eventloop_lag_stddev_seconds 0.0007323918714107771
+
+# HELP nodejs_eventloop_lag_p50_seconds The 50th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p50_seconds gauge
+nodejs_eventloop_lag_p50_seconds 0.011042815
+
+# HELP nodejs_eventloop_lag_p90_seconds The 90th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p90_seconds gauge
+nodejs_eventloop_lag_p90_seconds 0.012050431
+
+# HELP nodejs_eventloop_lag_p99_seconds The 99th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p99_seconds gauge
+nodejs_eventloop_lag_p99_seconds 0.012066815
+
+# HELP nodejs_active_resources Number of active resources that are currently keeping the event loop alive, grouped by async resource type.
+# TYPE nodejs_active_resources gauge
+nodejs_active_resources{type="TTYWrap"} 2
+nodejs_active_resources{type="TCPSocketWrap"} 4
+nodejs_active_resources{type="TCPServerWrap"} 1
+nodejs_active_resources{type="Immediate"} 1
+
+# HELP nodejs_active_resources_total Total number of active resources.
+# TYPE nodejs_active_resources_total gauge
+nodejs_active_resources_total 8
+
+# HELP nodejs_active_handles Number of active libuv handles grouped by handle type. Every handle type is C++ class name.
+# TYPE nodejs_active_handles gauge
+nodejs_active_handles{type="WriteStream"} 2
+nodejs_active_handles{type="Socket"} 4
+nodejs_active_handles{type="Server"} 1
+
+# HELP nodejs_active_handles_total Total number of active handles.
+# TYPE nodejs_active_handles_total gauge
+nodejs_active_handles_total 7
+
+# HELP nodejs_active_requests Number of active libuv requests grouped by request type. Every request type is C++ class name.
+# TYPE nodejs_active_requests gauge
+
+# HELP nodejs_active_requests_total Total number of active requests.
+# TYPE nodejs_active_requests_total gauge
+nodejs_active_requests_total 0
+
+# HELP nodejs_heap_size_total_bytes Process heap size from Node.js in bytes.
+# TYPE nodejs_heap_size_total_bytes gauge
+nodejs_heap_size_total_bytes 201490432
+
+# HELP nodejs_heap_size_used_bytes Process heap size used from Node.js in bytes.
+# TYPE nodejs_heap_size_used_bytes gauge
+nodejs_heap_size_used_bytes 92025192
+
+# HELP nodejs_external_memory_bytes Node.js external memory size in bytes.
+# TYPE nodejs_external_memory_bytes gauge
+nodejs_external_memory_bytes 3339774
+
+# HELP nodejs_heap_space_size_total_bytes Process heap space size total from Node.js in bytes.
+# TYPE nodejs_heap_space_size_total_bytes gauge
+nodejs_heap_space_size_total_bytes{space="read_only"} 0
+nodejs_heap_space_size_total_bytes{space="new"} 134217728
+nodejs_heap_space_size_total_bytes{space="old"} 52707328
+nodejs_heap_space_size_total_bytes{space="code"} 5505024
+nodejs_heap_space_size_total_bytes{space="shared"} 0
+nodejs_heap_space_size_total_bytes{space="trusted"} 5341184
+nodejs_heap_space_size_total_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_total_bytes{space="new_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="large_object"} 3522560
+nodejs_heap_space_size_total_bytes{space="code_large_object"} 196608
+nodejs_heap_space_size_total_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_heap_space_size_used_bytes Process heap space size used from Node.js in bytes.
+# TYPE nodejs_heap_space_size_used_bytes gauge
+nodejs_heap_space_size_used_bytes{space="read_only"} 0
+nodejs_heap_space_size_used_bytes{space="new"} 28839664
+nodejs_heap_space_size_used_bytes{space="old"} 51484616
+nodejs_heap_space_size_used_bytes{space="code"} 4365728
+nodejs_heap_space_size_used_bytes{space="shared"} 0
+nodejs_heap_space_size_used_bytes{space="trusted"} 3679224
+nodejs_heap_space_size_used_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_used_bytes{space="new_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="large_object"} 3475224
+nodejs_heap_space_size_used_bytes{space="code_large_object"} 184416
+nodejs_heap_space_size_used_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_heap_space_size_available_bytes Process heap space size available from Node.js in bytes.
+# TYPE nodejs_heap_space_size_available_bytes gauge
+nodejs_heap_space_size_available_bytes{space="read_only"} 0
+nodejs_heap_space_size_available_bytes{space="new"} 38265104
+nodejs_heap_space_size_available_bytes{space="old"} 1017488
+nodejs_heap_space_size_available_bytes{space="code"} 1138624
+nodejs_heap_space_size_available_bytes{space="shared"} 0
+nodejs_heap_space_size_available_bytes{space="trusted"} 1653544
+nodejs_heap_space_size_available_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_available_bytes{space="new_large_object"} 67108864
+nodejs_heap_space_size_available_bytes{space="large_object"} 0
+nodejs_heap_space_size_available_bytes{space="code_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_version_info Node.js version info.
+# TYPE nodejs_version_info gauge
+nodejs_version_info{version="v24.14.1",major="24",minor="14",patch="1"} 1
+
+# HELP nodejs_gc_duration_seconds Garbage collection duration by kind, one of major, minor, incremental or weakcb.
+# TYPE nodejs_gc_duration_seconds histogram
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="minor"} 2973
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="minor"} 2989
+nodejs_gc_duration_seconds_bucket{le="1",kind="minor"} 2989
+nodejs_gc_duration_seconds_bucket{le="2",kind="minor"} 2989
+nodejs_gc_duration_seconds_bucket{le="5",kind="minor"} 2989
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="minor"} 2989
+nodejs_gc_duration_seconds_sum{kind="minor"} 8.879998727969822
+nodejs_gc_duration_seconds_count{kind="minor"} 2989
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="incremental"} 89
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="1",kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="2",kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="5",kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="incremental"} 90
+nodejs_gc_duration_seconds_sum{kind="incremental"} 0.0464572440609336
+nodejs_gc_duration_seconds_count{kind="incremental"} 90
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="major"} 0
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="major"} 99
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="major"} 100
+nodejs_gc_duration_seconds_bucket{le="1",kind="major"} 100
+nodejs_gc_duration_seconds_bucket{le="2",kind="major"} 100
+nodejs_gc_duration_seconds_bucket{le="5",kind="major"} 100
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="major"} 100
+nodejs_gc_duration_seconds_sum{kind="major"} 0.32873529295623305
+nodejs_gc_duration_seconds_count{kind="major"} 100

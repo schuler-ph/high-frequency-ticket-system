@@ -114,6 +114,16 @@ export const renderReport = (derived) => {
   push(
     `- **System result:** ${VERDICT_ICON[system.verdict] ?? ""} \`${system.verdict}\``,
   );
+  // Drittes Verdict (ADR-036): ein Lauf kann valid und pass sein und trotzdem
+  // seine Latenz-Gates reissen. Ein `derived.json` vor Schema 3 traegt es
+  // nicht — dann ehrlich `inconclusive` statt eines erfundenen `pass`.
+  const perf = derived.validity.performance ?? {
+    verdict: "inconclusive",
+    reasons: ["Performance verdict not available (derived schema < 3)."],
+  };
+  push(
+    `- **Performance:** ${VERDICT_ICON[perf.verdict] ?? ""} \`${perf.verdict}\``,
+  );
   push("");
 
   // 3. Benchmark validity detail
@@ -122,6 +132,19 @@ export const renderReport = (derived) => {
     for (const reason of bench.reasons) push(`- ${reason}`);
   } else {
     push("- No validity concerns recorded.");
+  }
+  push("");
+
+  // 3a. Performance (k6 thresholds)
+  push("## 3a. Performance (k6 thresholds)", "");
+  for (const reason of perf.reasons) push(`- ${reason}`);
+  // k6 meldet gerissene Thresholds mit Exit-Code 99. Der Orchestrator stuft
+  // das als erwarteten Exit ein, damit der Report trotzdem entsteht — hier
+  // wird das Signal sichtbar gemacht statt verschluckt.
+  for (const p of derived.offeredLoad.phases) {
+    if (p.exitCode === 99) {
+      push(`- k6 exited ${p.name} with code 99 (thresholds crossed).`);
+    }
   }
   push("");
 

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-08-18T19-09-19-323Z-a05409f",
+  "git": {
+    "commit": "a05409f09f7030c1cc4b9890d2c2262cf54cd573",
+    "branch": "main",
+    "dirty": false
+  },
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpuCount": 11,
+    "memoryBytes": 38654705664
+  },
+  "profile": {
+    "phaseA": "load-tests/spike-phase-a.js",
+    "phaseB": "load-tests/spike-phase-b.js",
+    "eventId": "00000000-0000-4000-8000-000000000000"
+  },
+  "configuration": {
+    "HTS_ENV_PROFILE": "browse-and-buy-full-speed",
+    "NODE_ENV": "production",
+    "LOG_LEVEL": "warn",
+    "DISABLE_REQUEST_LOGGING": "true",
+    "PUBSUB_FLOW_CONTROL_MAX_MESSAGES": "500",
+    "DATABASE_POOL_MAX": "50",
+    "CHECKOUT_PENDING_TIMEOUT_SECONDS": "60",
+    "WORKER_RESERVATION_REAPER_BATCH_SIZE": "10000",
+    "REDIS_FINAL_ORDER_TTL_SECONDS": "86400",
+    "REDIS_WORKER_PROCESSED_TTL_SECONDS": "86400",
+    "WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS": "60",
+    "LOAD_PROFILE": "browse-and-buy-full-speed",
+    "BASE_URL": "http://sut.lan:10002",
+    "K6_RUNNER": "ssh",
+    "PAY_RATE": "0.88",
+    "CANCEL_RATE": "0.08",
+    "THINK_TIME_KIND": "none",
+    "THINK_TIME_MIN": "0",
+    "THINK_TIME_MAX": "0",
+    "THINK_TIME_MEAN": "0",
+    "THINK_TIME_SIGMA": "0",
+    "CHECKOUT_SHARE": "0.4",
+    "SEED_CAPACITY": "1000000",
+    "SALE_OPENS_IN_SECONDS": "60"
+  },
+  "capacity": {
+    "totalCapacity": 1000000,
+    "opensAt": null
+  },
+  "timestamps": {
+    "seededAt": "2026-08-18T19:09:20.942Z",
+    "workloadStartedAt": "2026-08-18T19:09:21.557Z",
+    "phaseAEndedAt": "2026-08-18T19:21:49.783Z",
+    "workloadEndedAt": "2026-08-18T19:22:52.115Z",
+    "drainEndedAt": "2026-08-18T19:23:07.400Z"
+  }
+}

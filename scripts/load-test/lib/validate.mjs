@@ -133,3 +133,95 @@ export const systemResult = (facts, policy) => {
 
   return { verdict: "pass", reasons: ["All evaluated invariants hold."] };
 };
+
+/**
+ * Up to four decimals, trailing zeros trimmed — enough to show `0.0512` next
+ * to a `rate<0.05` gate without rounding it onto the limit.
+ *
+ * @param {number} value
+ * @returns {string}
+ */
+const fmtObserved = (value) =>
+  Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+
+/**
+ * Performance verdict from the k6 thresholds the phase scripts declare
+ * (`load-tests/spike-phase-*.js`). Third, independent dimension next to
+ * benchmark validity (was the generator big enough?) and system result (did
+ * the inventory stay correct?): a run can be valid and correct and still too
+ * slow for its users. Baseline E reported `system: pass` twice with a p95 of
+ * 876 ms against a 500 ms threshold, because latency entered neither verdict
+ * (ADR-036).
+ *
+ * Only the metrics listed in `policy.gates` are judged. The same `thresholds`
+ * map also carries export-only selectors (`transport_errors{endpoint:*}` with
+ * `count>=0`) that exist purely to materialise sub-metrics in the summary;
+ * treating "any breached threshold" as a failure would be right today by
+ * accident and wrong the first time such a selector flips.
+ *
+ * @param {{
+ *   phases: Array<{
+ *     name: string,
+ *     thresholds: Array<{
+ *       metric: string,
+ *       expression: string,
+ *       breached: boolean,
+ *       observed: number | null,
+ *     }> | null,
+ *   }>,
+ * }} facts
+ * @param {{ gates: string[] } | undefined} policy
+ * @returns {{ verdict: "pass" | "fail" | "inconclusive", reasons: string[] }}
+ */
+export const performanceVerdict = (facts, policy) => {
+  const gates = policy?.gates ?? [];
+  if (gates.length === 0) {
+    return {
+      verdict: "inconclusive",
+      reasons: ["No performance gates are configured in the report policy."],
+    };
+  }
+
+  const phases = (facts.phases ?? []).filter(
+    (p) => p.thresholds !== null && p.thresholds !== undefined,
+  );
+  if (phases.length === 0) {
+    return {
+      verdict: "inconclusive",
+      reasons: [
+        "No k6 thresholds were exported; the artifact predates the performance verdict.",
+      ],
+    };
+  }
+
+  const breached = [];
+  const missing = [];
+  for (const phase of phases) {
+    for (const gate of gates) {
+      const declared = phase.thresholds.filter((t) => t.metric === gate);
+      if (declared.length === 0) {
+        missing.push(`Gate ${gate} was not declared in ${phase.name}.`);
+        continue;
+      }
+      for (const t of declared) {
+        if (!t.breached) continue;
+        const observed =
+          t.observed === null
+            ? "observed value not exported"
+            : `observed ${fmtObserved(t.observed)}`;
+        breached.push(
+          `${t.metric} ${t.expression} breached in ${phase.name} (${observed}).`,
+        );
+      }
+    }
+  }
+
+  if (breached.length > 0) return { verdict: "fail", reasons: breached };
+  if (missing.length > 0) return { verdict: "inconclusive", reasons: missing };
+  return {
+    verdict: "pass",
+    reasons: ["All performance gates held in every phase."],
+  };
+};

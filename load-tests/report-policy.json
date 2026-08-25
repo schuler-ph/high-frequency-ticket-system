@@ -9,6 +9,9 @@
     "requireCounterBaselines": true,
     "requireDrainForCorrectnessVerdict": true
   },
+  "performance": {
+    "gates": ["http_req_duration", "http_req_failed"]
+  },
   "histogram": {
     "maxFractionAboveLargestBucketForValid": 0.05
   },

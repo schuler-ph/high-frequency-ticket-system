@@ -1,0 +1,438 @@
+{
+  "schemaVersion": 3,
+  "rendererVersion": 3,
+  "runId": "2026-08-18T19-09-19-323Z-a05409f",
+  "git": {
+    "commit": "a05409f09f7030c1cc4b9890d2c2262cf54cd573",
+    "branch": "main",
+    "dirty": false
+  },
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpuCount": 11,
+    "memoryBytes": 38654705664
+  },
+  "configuration": {
+    "HTS_ENV_PROFILE": "browse-and-buy-full-speed",
+    "NODE_ENV": "production",
+    "LOG_LEVEL": "warn",
+    "DISABLE_REQUEST_LOGGING": "true",
+    "PUBSUB_FLOW_CONTROL_MAX_MESSAGES": "500",
+    "DATABASE_POOL_MAX": "50",
+    "CHECKOUT_PENDING_TIMEOUT_SECONDS": "60",
+    "WORKER_RESERVATION_REAPER_BATCH_SIZE": "10000",
+    "REDIS_FINAL_ORDER_TTL_SECONDS": "86400",
+    "REDIS_WORKER_PROCESSED_TTL_SECONDS": "86400",
+    "WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS": "60",
+    "LOAD_PROFILE": "browse-and-buy-full-speed",
+    "BASE_URL": "http://sut.lan:10002",
+    "K6_RUNNER": "ssh",
+    "PAY_RATE": "0.88",
+    "CANCEL_RATE": "0.08",
+    "THINK_TIME_KIND": "none",
+    "THINK_TIME_MIN": "0",
+    "THINK_TIME_MAX": "0",
+    "THINK_TIME_MEAN": "0",
+    "THINK_TIME_SIGMA": "0",
+    "CHECKOUT_SHARE": "0.4",
+    "SEED_CAPACITY": "1000000",
+    "SALE_OPENS_IN_SECONDS": "60"
+  },
+  "serviceConfig": {
+    "api": {
+      "node_env": "production",
+      "log_level": "warn",
+      "disable_request_logging": "true"
+    },
+    "worker": {
+      "node_env": "production",
+      "log_level": "warn",
+      "disable_request_logging": "true",
+      "pubsub_flow_control_max_messages": "500",
+      "database_pool_max": "50",
+      "worker_inventory_cycle_interval_seconds": "60",
+      "worker_reservation_reaper_batch_size": "10000"
+    }
+  },
+  "capacity": {
+    "totalCapacity": 1000000,
+    "opensAt": null
+  },
+  "offeredLoad": {
+    "phases": [
+      {
+        "name": "phase-a",
+        "iterations": 6477044,
+        "droppedIterations": 356526,
+        "scheduled": 6833570,
+        "executedShare": 0.9478272703725871,
+        "droppedShare": 0.05217272962741291,
+        "httpReqs": 7568099,
+        "transportErrors": {
+          "total": 1492585,
+          "byEndpoint": {
+            "availability": 36725,
+            "buy": 1455860,
+            "cancel": 0,
+            "orders": 0,
+            "pay": 0
+          }
+        },
+        "thresholds": [
+          {
+            "metric": "http_req_duration",
+            "expression": "p(95)<500",
+            "breached": true,
+            "observed": 876.0995
+          },
+          {
+            "metric": "http_req_failed",
+            "expression": "rate<0.05",
+            "breached": false,
+            "observed": 0.008109962620732101
+          },
+          {
+            "metric": "transport_errors{endpoint:availability}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 36725
+          },
+          {
+            "metric": "transport_errors{endpoint:buy}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 1455860
+          },
+          {
+            "metric": "transport_errors{endpoint:cancel}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:orders}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:pay}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          }
+        ],
+        "duration": {
+          "avg": 189.8660216587611,
+          "med": 95.4757,
+          "p90": 483.5545,
+          "p95": 876.0995,
+          "p99": null,
+          "max": 19390.8499
+        },
+        "failedRate": 0.008109962620732101,
+        "vusMax": 10000,
+        "exitCode": 103,
+        "reason": "reactive-phase-a"
+      },
+      {
+        "name": "phase-b",
+        "iterations": 59225,
+        "droppedIterations": 776,
+        "scheduled": 60001,
+        "executedShare": 0.9870668822186297,
+        "droppedShare": 0.01293311778137031,
+        "httpReqs": 59225,
+        "transportErrors": {
+          "total": 23804,
+          "byEndpoint": {
+            "availability": 0,
+            "buy": 23804,
+            "cancel": 0,
+            "orders": 0,
+            "pay": 0
+          }
+        },
+        "thresholds": [
+          {
+            "metric": "http_req_duration",
+            "expression": "p(95)<500",
+            "breached": false,
+            "observed": 4.2443199999999965
+          },
+          {
+            "metric": "http_req_failed",
+            "expression": "rate<0.05",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:availability}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:buy}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 23804
+          },
+          {
+            "metric": "transport_errors{endpoint:cancel}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:orders}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          },
+          {
+            "metric": "transport_errors{endpoint:pay}",
+            "expression": "count>=0",
+            "breached": false,
+            "observed": 0
+          }
+        ],
+        "duration": {
+          "avg": 24.23587321907982,
+          "med": 1.0354,
+          "p90": 1.6895799999999996,
+          "p95": 4.2443199999999965,
+          "p99": null,
+          "max": 1611.5164
+        },
+        "failedRate": 0,
+        "vusMax": 960,
+        "exitCode": 0,
+        "reason": "cool-down"
+      }
+    ],
+    "totalIterations": 6536269,
+    "totalDropped": 357302,
+    "scheduled": 6893571,
+    "droppedShare": 0.051831191700208785,
+    "executedShare": 0.9481688082997912
+  },
+  "counters": {
+    "ordersAccepted": {
+      "before": 0,
+      "after": 1136706,
+      "value": 1136706,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "reservationsCreated": {
+      "before": 0,
+      "after": 1136706,
+      "value": 1136706,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "paymentsConfirmed": {
+      "before": 0,
+      "after": 1000000,
+      "value": 1000000,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "publishRollbacks": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "checkoutsCancelled": {
+      "before": 0,
+      "after": 91055,
+      "value": 91055,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "ordersCompleted": {
+      "before": 0,
+      "after": 1000000,
+      "value": 1000000,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "ordersFailed": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerRedeliveries": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerIdempotencyHits": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerDuplicateDeliveries": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    },
+    "workerCompensations": {
+      "before": 0,
+      "after": 0,
+      "value": 0,
+      "reset": false,
+      "hasBaseline": true
+    }
+  },
+  "e2eLatency": {
+    "count": 1000000,
+    "sum": 217461.35399999237,
+    "mean": 0.21746135399999236,
+    "saturation": {
+      "largestFiniteLe": 10,
+      "countAtLargestFinite": 1000000,
+      "totalCount": 1000000,
+      "fractionAboveLargestFinite": 0
+    },
+    "quantiles": {
+      "p50": {
+        "le": 0.25,
+        "censored": false
+      },
+      "p95": {
+        "le": 1,
+        "censored": false
+      },
+      "p99": {
+        "le": 1,
+        "censored": false
+      }
+    }
+  },
+  "drain": {
+    "status": "complete",
+    "pendingAtEnd": 0,
+    "durationSeconds": 15.025
+  },
+  "state": {
+    "postgres": {
+      "capacity": 1000000,
+      "soldCount": 1000000,
+      "orders": 1000000,
+      "tickets": 1000000,
+      "pendingOrders": 0,
+      "dbSizeBytes": 280984599
+    },
+    "redis": {
+      "total": 1000000,
+      "available": 0,
+      "activeReservations": 0,
+      "dbSize": 2045654,
+      "usedMemoryBytes": 567680344
+    }
+  },
+  "drift": {
+    "min": 0,
+    "final": 0
+  },
+  "inventory": {
+    "capacity": 1000000,
+    "available": 0,
+    "dbTickets": 1000000,
+    "activeReservations": 0,
+    "capacityDelta": 0
+  },
+  "invariants": [
+    {
+      "id": "published == completed + failed",
+      "ok": true,
+      "expected": 1000000,
+      "actual": 1000000
+    },
+    {
+      "id": "dbOrders == completed + failed",
+      "ok": true,
+      "expected": 1000000,
+      "actual": 1000000
+    },
+    {
+      "id": "dbTickets == completed",
+      "ok": true,
+      "expected": 1000000,
+      "actual": 1000000
+    },
+    {
+      "id": "pendingOrders == 0",
+      "ok": true,
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "id": "available + dbTickets + activeReservations == totalCapacity",
+      "ok": true,
+      "expected": 1000000,
+      "actual": 1000000
+    },
+    {
+      "id": "sellout: sold == totalCapacity",
+      "ok": true,
+      "expected": 1000000,
+      "actual": 1000000
+    },
+    {
+      "id": "sellout: reaper released at least one expired claim",
+      "ok": true,
+      "expected": 1,
+      "actual": 1
+    }
+  ],
+  "validity": {
+    "benchmark": {
+      "verdict": "invalid",
+      "reasons": [
+        "Dropped-iteration rate 5.18% indicates load-generator saturation; capacity cannot be claimed."
+      ]
+    },
+    "system": {
+      "verdict": "pass",
+      "reasons": [
+        "All evaluated invariants hold."
+      ]
+    },
+    "performance": {
+      "verdict": "fail",
+      "reasons": [
+        "http_req_duration p(95)<500 breached in phase-a (observed 876.0995)."
+      ]
+    }
+  },
+  "recommendations": [
+    {
+      "id": "performance-gate-breached",
+      "message": "A k6 performance gate was breached; the run is not a latency-clean reference even where benchmark and system pass.",
+      "evidence": [
+        "http_req_duration p(95)<500 breached in phase-a (observed 876.0995)."
+      ]
+    },
+    {
+      "id": "generator-saturated",
+      "message": "Load generator dropped scheduled iterations; do not claim the target RPS as backend capacity.",
+      "evidence": [
+        "droppedShare=0.051831191700208785"
+      ]
+    }
+  ]
+}

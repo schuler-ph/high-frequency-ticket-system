@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "rendererVersion": 2,
+  "schemaVersion": 3,
+  "rendererVersion": 3,
   "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
   "git": {
     "commit": "0000000",
@@ -46,6 +46,7 @@
             "pay": 1
           }
         },
+        "thresholds": null,
         "duration": {
           "avg": 15,
           "med": 12,
@@ -77,6 +78,7 @@
             "pay": 0
           }
         },
+        "thresholds": null,
         "duration": {
           "avg": 5,
           "med": 4,
@@ -277,6 +279,12 @@
       "verdict": "pass",
       "reasons": [
         "All evaluated invariants hold."
+      ]
+    },
+    "performance": {
+      "verdict": "inconclusive",
+      "reasons": [
+        "No k6 thresholds were exported; the artifact predates the performance verdict."
       ]
     }
   },

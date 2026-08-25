@@ -14,10 +14,16 @@
 
 - **Benchmark validity:** ❌ `invalid`
 - **System result:** ✅ `pass`
+- **Performance:** ❔ `inconclusive`
 
 ## 3. Benchmark Validity
 
 - Dropped-iteration rate 61.82% indicates load-generator saturation; capacity cannot be claimed.
+
+## 3a. Performance (k6 thresholds)
+
+- No k6 thresholds were exported; the artifact predates the performance verdict.
+- k6 exited phase-a with code 99 (thresholds crossed).
 
 ## 4. Offered vs. Executed Load
 
@@ -84,4 +90,4 @@
 - **e2e-histogram-censored:** Extend the E2E histogram buckets; the reported upper quantiles are censored at the largest finite bucket.
   - evidence: `fractionAboveLargestFinite=0.859`
 
-_Renderer v2. Regenerated deterministically from artifacts; no wall-clock timestamp embedded._
+_Renderer v3. Regenerated deterministically from artifacts; no wall-clock timestamp embedded._

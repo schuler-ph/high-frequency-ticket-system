@@ -85,10 +85,12 @@ export const compareRuns = (baseline, candidate) => {
       baseline: {
         benchmark: baseline?.validity?.benchmark?.verdict ?? null,
         system: baseline?.validity?.system?.verdict ?? null,
+        performance: baseline?.validity?.performance?.verdict ?? null,
       },
       candidate: {
         benchmark: candidate?.validity?.benchmark?.verdict ?? null,
         system: candidate?.validity?.system?.verdict ?? null,
+        performance: candidate?.validity?.performance?.verdict ?? null,
       },
     },
   };

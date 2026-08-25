@@ -36,6 +36,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-033 Abgelaufener Checkout ist ein eigener Endzustand](decisions/ADR-033-abgelaufener-checkout-ist-ein-eigener-endzustand.md)
 - [ADR-034 Ein Profil ist eine Datei — keine impliziten Defaults](decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)
 - [ADR-035 Lastprofile nach Szenario benannt und konsolidiert](decisions/ADR-035-lastprofile-nach-szenario-benannt-und-konsolidiert.md)
+- [ADR-036 Performance ist ein drittes Verdict](decisions/ADR-036-performance-ist-ein-drittes-verdict.md)
 
 ## Teilweise umgesetzt
 

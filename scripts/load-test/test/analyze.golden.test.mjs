@@ -11,6 +11,9 @@ import { loadPolicy } from "../lib/config.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUN_DIR = join(HERE, "fixtures", "baseline-a");
+// Baseline E, `browse-and-buy-full-speed` (2026-08-18, a05409f): the run whose
+// p95 of 876 ms against `p(95)<500` was invisible to both older verdicts.
+const RUN_DIR_E = join(HERE, "fixtures", "baseline-e-full-speed");
 const GOLDEN_DIR = join(HERE, "golden");
 
 const policy = loadPolicy();
@@ -36,6 +39,56 @@ test("analysis reproduces the Baseline-A story: invalid capacity, correct system
   assert.equal(derived.validity.system.verdict, "pass");
   // Upper E2E quantiles are censored at the largest finite bucket, not measured.
   assert.equal(derived.e2eLatency.quantiles.p95.censored, true);
+  // Baseline A exported no k6 thresholds: the performance question is open,
+  // not answered in its favour (ADR-036).
+  assert.equal(derived.validity.performance.verdict, "inconclusive");
+  assert.equal(derived.offeredLoad.phases[0].thresholds, null);
+});
+
+test("derived.json matches the approved Baseline-E full-speed golden", () => {
+  const derived = analyzeRunDir(RUN_DIR_E, policy);
+  const golden = JSON.parse(
+    readFileSync(
+      join(GOLDEN_DIR, "baseline-e-full-speed.derived.json"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(derived, golden);
+});
+
+test("report.md matches the approved Baseline-E full-speed golden", () => {
+  const derived = analyzeRunDir(RUN_DIR_E, policy);
+  const markdown = renderReport(derived);
+  const golden = readFileSync(
+    join(GOLDEN_DIR, "baseline-e-full-speed.report.md"),
+    "utf8",
+  );
+  assert.equal(markdown, golden);
+});
+
+// The story the older verdicts could not tell: generator saturated (invalid),
+// inventory exact (pass) — and the latency gate torn (fail), with the number.
+test("analysis reproduces the Baseline-E story: invalid, correct, too slow", () => {
+  const derived = analyzeRunDir(RUN_DIR_E, policy);
+  assert.equal(derived.validity.benchmark.verdict, "invalid");
+  assert.equal(derived.validity.system.verdict, "pass");
+  assert.equal(derived.validity.performance.verdict, "fail");
+  assert.match(
+    derived.validity.performance.reasons.join(" "),
+    /http_req_duration p\(95\)<500 breached in phase-a \(observed 876\.0995\)/,
+  );
+  // The export-only selectors are carried in the phase record...
+  const phaseA = derived.offeredLoad.phases[0];
+  assert.ok(
+    phaseA.thresholds.some(
+      (t) => t.metric === "transport_errors{endpoint:buy}",
+    ),
+  );
+  // ...but the failed-rate gate held, and the selectors did not enter the verdict.
+  assert.equal(derived.validity.performance.reasons.length, 1);
+  assert.ok(
+    derived.recommendations.some((r) => r.id === "performance-gate-breached"),
+  );
 });
 
 test("analysis is idempotent (byte-identical Markdown across runs)", () => {

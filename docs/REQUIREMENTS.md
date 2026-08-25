@@ -165,8 +165,11 @@ ein belastbarer Kapazitätsnachweis.
 
 Ein Lauf darf die Zielrate nicht als Backend-Kapazität ausweisen, wenn der
 Lastgenerator relevante Iterationen verworfen hat oder der Mess-Stack
-unvollständig war. Benchmark-Validität und Systemkorrektheit werden getrennt
-bewertet.
+unvollständig war. Benchmark-Validität, Systemkorrektheit und Performance
+(die im Lastskript deklarierten Latenz- und Fehlerraten-Gates) werden als drei
+unabhängige Verdicts bewertet; keines ersetzt oder überdeckt ein anderes
+(ADR-036). Ein Lauf ohne auswertbare Gates ist in dieser Dimension
+`inconclusive`, nicht bestanden.
 
 ### REQ-P04 — Backpressure
 
