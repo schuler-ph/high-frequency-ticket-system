@@ -137,7 +137,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 - [ ] **Zugriffspfade abstrahieren** (Snapshots, Preflight, Reset/Seed, TSDB-Wipe, Sold-out-Quelle ADR-025); eigener ADR.
 - [ ] **Aggregation bei N Instanzen fixen:** `targetUp`/Erst-Serie-Queries, `sum()` ueber replizierte Gauges (REQ-D04).
-- [ ] **Smoke-Profil `browse-and-buy-smoke` abnehmen:** 1k Tickets, 50 it/s, ~4 min — prueft Metriken, Panels und alle drei Verdicts ohne Kapazitaetsanspruch; erst lokal, dann in jeder Cloud-Stufe. Lauf nur mit Freigabe. → ADR-035 Nachtrag
+- [ ] **Smoke-Profil `browse-and-buy-smoke` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig (alle Zaehler exakt 1 000)? Erst lokal, dann in jeder Cloud-Stufe. Lauf nur mit Freigabe. → ADR-035 Nachtrag
 
 ### Phase 5.4 — Cloud-Fundament
 
