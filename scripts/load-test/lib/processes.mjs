@@ -11,6 +11,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { createWriteStream } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const K6_THRESHOLD_FAILED_EXIT_CODE = 99;
@@ -95,8 +96,62 @@ export const buildK6Args = (
 };
 
 /**
+ * k6s Konsolenausgabe gehoert ins Artefakt. Baseline F (2026-08-26) konnte
+ * die Frage „warum 10 000 aktive VUs?" nur aus den Summaries beantworten —
+ * die `WARN Insufficient VUs`- und `dial tcp … i/o timeout`-Zeilen standen
+ * ausschliesslich im VS-Code-Terminal des Tasks. Mit `logPath` laufen stdout
+ * und stderr des Kindes weiter aufs Terminal UND in die Datei; die erste
+ * Zeile haelt das Kommando fest. Ohne `logPath` bleibt es beim `inherit`.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ * @param {string | undefined} logPath
+ * @param {string} commandLine
+ * @returns {import("node:fs").WriteStream | null}
+ */
+const teeChildOutput = (child, logPath, commandLine) => {
+  if (!logPath) return null;
+  const log = createWriteStream(logPath, { flags: "a" });
+  log.write(`# ${commandLine}\n`);
+  for (const [stream, target] of [
+    [child.stdout, process.stdout],
+    [child.stderr, process.stderr],
+  ]) {
+    if (!stream) continue;
+    stream.on("data", (chunk) => {
+      target.write(chunk);
+      log.write(chunk);
+    });
+  }
+  return log;
+};
+
+/**
+ * Exit-Code des Kindes. Mit Log-Datei erst nach `close` (alle stdio-Streams
+ * geleert) und nachdem die Datei geschrieben ist — `exit` kann vor den letzten
+ * Datenblöcken feuern.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ * @param {import("node:fs").WriteStream | null} log
+ * @returns {Promise<number>}
+ */
+const awaitExit = (child, log) =>
+  new Promise((resolve) => {
+    if (!log) {
+      child.on("exit", (code) => resolve(code ?? 0));
+      return;
+    }
+    let exitCode = null;
+    child.on("exit", (code) => {
+      exitCode = code ?? 0;
+    });
+    child.on("close", (code) => {
+      log.end(() => resolve(exitCode ?? code ?? 0));
+    });
+  });
+
+/**
  * @param {string} scriptPath
- * @param {{ runId: string, summaryPath: string, env: NodeJS.ProcessEnv, prometheusRw?: boolean }} opts
+ * @param {{ runId: string, summaryPath: string, env: NodeJS.ProcessEnv, prometheusRw?: boolean, logPath?: string }} opts
  */
 export const spawnK6 = (
   scriptPath,
@@ -105,14 +160,16 @@ export const spawnK6 = (
     summaryPath,
     env,
     prometheusRw = env?.K6_PROMETHEUS_RW === "true",
+    logPath,
   },
 ) => {
   const args = buildK6Args(scriptPath, { runId, summaryPath, prometheusRw });
-  const child = spawn("k6", args, { stdio: "inherit", env });
-  const exitPromise = new Promise((resolve) => {
-    child.on("exit", (code) => resolve(code ?? 0));
+  const child = spawn("k6", args, {
+    stdio: logPath ? ["inherit", "pipe", "pipe"] : "inherit",
+    env,
   });
-  return { child, exitPromise };
+  const log = teeChildOutput(child, logPath, ["k6", ...args].join(" "));
+  return { child, exitPromise: awaitExit(child, log) };
 };
 
 /**
@@ -166,11 +223,11 @@ export const buildRemoteK6Args = (
  * auf dem Generator-Host beendet werden (`taskkill /F /IM k6.exe`, RUNBOOK).
  *
  * @param {string} scriptPath Pfad auf dem Generator-Host.
- * @param {{ runId: string, summaryPath: string, restAddress: string, env: NodeJS.ProcessEnv, sshHost: string, spawnImpl?: typeof spawn }} opts
+ * @param {{ runId: string, summaryPath: string, restAddress: string, env: NodeJS.ProcessEnv, sshHost: string, spawnImpl?: typeof spawn, logPath?: string }} opts
  */
 export const spawnK6Ssh = (
   scriptPath,
-  { runId, summaryPath, restAddress, env, sshHost, spawnImpl = spawn },
+  { runId, summaryPath, restAddress, env, sshHost, spawnImpl = spawn, logPath },
 ) => {
   const args = buildRemoteK6Args(scriptPath, {
     runId,
@@ -178,13 +235,17 @@ export const spawnK6Ssh = (
     restAddress,
     env,
   });
+  // ssh liefert k6s Ausgabe ohnehin zum Orchestrator zurueck — sie muss nur
+  // mitgeschrieben werden; die Log-Datei liegt damit lokal im Run-Ordner.
   const child = spawnImpl("ssh", [sshHost, "k6", ...args], {
-    stdio: "inherit",
+    stdio: logPath ? ["inherit", "pipe", "pipe"] : "inherit",
   });
-  const exitPromise = new Promise((resolve) => {
-    child.on("exit", (code) => resolve(code ?? 0));
-  });
-  return { child, exitPromise };
+  const log = teeChildOutput(
+    child,
+    logPath,
+    ["ssh", sshHost, "k6", ...args].join(" "),
+  );
+  return { child, exitPromise: awaitExit(child, log) };
 };
 
 /**
@@ -408,11 +469,13 @@ export const runPhaseAReactive = async ({
   spawnPhase = spawnK6,
   requestStop,
   fetchImpl = fetch,
+  logPath,
 }) => {
   const { child, exitPromise } = spawnPhase(scriptPath, {
     runId,
     summaryPath,
     env,
+    logPath,
   });
   const plateau = await pollUntilSoldOut(exitPromise, {
     metricsUrl,
@@ -471,7 +534,13 @@ export const runPhaseB = async ({
   summaryPath,
   env,
   spawnPhase = spawnK6,
+  logPath,
 }) => {
-  const { exitPromise } = spawnPhase(scriptPath, { runId, summaryPath, env });
+  const { exitPromise } = spawnPhase(scriptPath, {
+    runId,
+    summaryPath,
+    env,
+    logPath,
+  });
   return exitPromise;
 };

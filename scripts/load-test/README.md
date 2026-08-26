@@ -49,7 +49,7 @@ pnpm spike:report:test
 | `lib/snapshots.mjs`       | PostgreSQL/Redis state via the container CLIs (read-only).            |
 | `lib/prometheus.mjs`      | Prometheus instant query + target health.                             |
 | `lib/drain.mjs`           | Drain monitor (`pending = Δpublished − Δcompleted − Δfailed`).        |
-| `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop.                           |
+| `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop; k6 console → `k6/*.log`.  |
 | `lib/grafana.mjs`         | Panel discovery + `/render/d-solo` PNG export (ADR-030).              |
 | `export-grafana.mjs`      | CLI around it: time window from flags or a run's manifest.            |
 | `test/`                   | Unit tests + anonymized Baseline-A/-E fixtures and approved goldens.  |
