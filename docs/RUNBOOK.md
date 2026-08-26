@@ -229,6 +229,22 @@ sein:
 docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
 ```
 
+**Listen-Backlog anheben:** macOS deckelt die Accept-Queue jedes Listeners auf
+`kern.ipc.somaxconn` (Default 128); Nodes eigener Backlog-Wunsch (511) wird
+darauf gekappt, und fastify-cli kennt keinen Backlog-Parameter. Öffnen in der
+Öffnungsspitze Tausende k6-VUs gleichzeitig Verbindungen, läuft die Queue über:
+SYNs werden verworfen, der Client wiederholt nach 1+2+4+8 s — genau die
+15-s-Spitzen in `http_req_connecting` und die Buy-Transportfehler aus
+Baseline F (Runde 1). Vor dem Lauf setzen (nicht persistent, nach einem Reboot
+erneut); der Task `loadtest:split-check` prüft den Wert mit:
+
+```bash
+sudo sysctl -w kern.ipc.somaxconn=1024
+```
+
+Damit greift Nodes 511. Mehr als 1024 bringt ohne eigenes `listen({ backlog })`
+nichts.
+
 **Readiness vom PC prüfen** (Einzelrequests, kein Lasttest):
 
 ```bash
