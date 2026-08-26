@@ -114,3 +114,26 @@ Lasttest-Profils (`requireEnvNumber`, kein Skript-Default), fahren beim
 Split-Lauf als `-e`-Flags mit und stehen im Report-Manifest. Ein verteilter
 Generator (Phase 5.7) teilt die Zielrate über Shards auf — genau das war mit
 Skript-Konstanten unmöglich.
+
+## Nachtrag 2026-08-25: das Frontend liest das Profil
+
+Eine Lücke war offen geblieben: `apps/web` importiert `@repo/env` nicht, und
+Next.js lädt `.env*`-Dateien nur aus dem eigenen Verzeichnis. Die
+`NEXT_PUBLIC_*`-Zeilen in den Profilen erreichten den Browser deshalb nie —
+tatsächlich kamen `NEXT_PUBLIC_API_URL` und `NEXT_PUBLIC_EVENT_ID` aus einer
+gitignorierten `apps/web/.env.local`, einer zweiten Wahrheit, die niemand
+prüfte. Jetzt laden `dev`, `start` und `build` des Web-Pakets die
+`NEXT_PUBLIC_*`-Werte des Profils über
+`scripts/lib/run-with-profile.mjs --prefix=NEXT_PUBLIC_` ins Prozess-Env —
+nicht per `--env-file` wie die Root-Skripte, weil Next.js seine `execArgv` an
+Worker-Threads weiterreicht und Node `--env-file` dort ablehnt
+(`ERR_WORKER_INVALID_EXEC_ARGV`), und nur das Präfix, weil `next build` mit dem
+`NODE_ENV` eines Profils bricht und der Rest im Frontend-Prozess nichts verloren
+hat;
+`dev`/`start` verlangen das Profil über denselben Guard, `build` fällt auf `dev`
+zurück — dieselbe Klasse Ausnahme wie `${HTS_ENV_PROFILE:-test}` in den
+Test-Skripten: eine Aussage über die Auswahl, nicht über einen Wert, denn die
+Frontend-Werte sind in allen Profilen identisch und `pnpm build` (CI, `verify:all`)
+soll ohne Zeremonie laufen. `pnpm run debug:env` verlangt beide
+Frontend-Variablen in jedem Profil. Eine vorhandene `.env.local` bleibt
+wirkungslos, weil Next.js bereits gesetztes Prozess-Env nicht überschreibt.

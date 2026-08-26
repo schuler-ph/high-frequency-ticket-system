@@ -4,9 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 10001",
-    "build": "next build",
-    "start": "next start --port 10001",
+    "dev": "node ../../scripts/lib/run-with-profile.mjs --prefix=NEXT_PUBLIC_ next dev --port 10001",
+    "build": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-dev} node ../../scripts/lib/run-with-profile.mjs --prefix=NEXT_PUBLIC_ next build",
+    "start": "node ../../scripts/lib/run-with-profile.mjs --prefix=NEXT_PUBLIC_ next start --port 10001",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit"
   },
