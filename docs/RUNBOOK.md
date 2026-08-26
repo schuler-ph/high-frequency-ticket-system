@@ -229,6 +229,22 @@ sein:
 docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
 ```
 
+**Listen-Backlog anheben:** macOS deckelt die Accept-Queue jedes Listeners auf
+`kern.ipc.somaxconn` (Default 128); Nodes eigener Backlog-Wunsch (511) wird
+darauf gekappt, und fastify-cli kennt keinen Backlog-Parameter. Öffnen in der
+Öffnungsspitze Tausende k6-VUs gleichzeitig Verbindungen, läuft die Queue über:
+SYNs werden verworfen, der Client wiederholt nach 1+2+4+8 s — genau die
+15-s-Spitzen in `http_req_connecting` und die Buy-Transportfehler aus
+Baseline F (Runde 1). Vor dem Lauf setzen (nicht persistent, nach einem Reboot
+erneut); der Task `loadtest:split-check` prüft den Wert mit:
+
+```bash
+sudo sysctl -w kern.ipc.somaxconn=1024
+```
+
+Damit greift Nodes 511. Mehr als 1024 bringt ohne eigenes `listen({ backlog })`
+nichts.
+
 **Readiness vom PC prüfen** (Einzelrequests, kein Lasttest):
 
 ```bash
@@ -302,7 +318,8 @@ k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
   -e CHECKOUT_POLL_INTERVAL=1 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
-  -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 load-tests/spike-phase-a.js
+  -e K6_PREALLOCATED_VUS=8000 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
+  load-tests/spike-phase-a.js
 ```
 
 Stop beim Ausverkauf (vom Mac; auf k6 v2.0.0 endet der Lauf mit Exit 103,
@@ -433,7 +450,7 @@ HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report
 
 Die Lastform — `K6_TARGET_RATE`, `K6_MAX_VUS`, `K6_COOLDOWN_RATE`, `K6_COOLDOWN_MAX_VUS` — kommt aus dem Profil und lässt sich auf demselben Weg inline übersteuern (z. B. `K6_MAX_VUS=16000`); sie steht im Manifest des Laufs.
 
-Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
+Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Die k6-Konsolenausgabe beider Phasen (`Insufficient VUs`, `dial tcp … i/o timeout`, Threshold-Meldungen) liegt zusätzlich zum Terminal als `k6/phase-a.log` und `k6/phase-b.log` im Run-Ordner. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
 
 > **Wenn der Stop nicht zustellbar ist** (Netz weg, REST-Port zu): der SIGKILL-Fallback des Orchestrators trifft nur den lokalen ssh-Prozess. Ein weiterlaufendes k6 auf dem PC beenden: `taskkill /F /IM k6.exe`.
 

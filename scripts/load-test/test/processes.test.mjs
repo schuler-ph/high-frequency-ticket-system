@@ -109,6 +109,7 @@ const remoteEnv = () => ({
   CHECKOUT_POLL_INTERVAL: "1",
   K6_TARGET_RATE: "10000",
   K6_MAX_VUS: "16000",
+  K6_PREALLOCATED_VUS: "8000",
   K6_COOLDOWN_RATE: "1000",
   K6_COOLDOWN_MAX_VUS: "5000",
   HTS_ENV_PROFILE: "capacity",
@@ -167,6 +168,58 @@ test("spawnK6Ssh runs k6 on the ssh host and passes the exit code through", asyn
   assert.equal(calls[0].args.at(-1), "C:/hts/load-tests/spike-phase-a.js");
   fakeChild.handlers.exit(105);
   assert.equal(await exitPromise, 105);
+});
+
+// Baseline F (2026-08-26): die Frage "warum 10 000 aktive VUs?" liess sich nur
+// aus den Summaries beantworten — k6s Konsole (Insufficient VUs, dial-Fehler)
+// stand nur im Terminal. Mit `logPath` landet sie im Run-Ordner, samt
+// Kommandozeile; der Exit-Code wartet, bis die Datei geschrieben ist.
+test("spawnK6Ssh mirrors k6 stdout/stderr into the log file when logPath is set", async () => {
+  const { PassThrough } = await import("node:stream");
+  const { mkdtempSync, readFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const logPath = join(
+    mkdtempSync(join(tmpdir(), "hts-k6-log-")),
+    "phase-a.log",
+  );
+
+  const fakeChild = {
+    handlers: {},
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    on(event, cb) {
+      this.handlers[event] = cb;
+    },
+  };
+  const { exitPromise } = spawnK6Ssh("C:/hts/load-tests/spike-phase-a.js", {
+    runId: "r1",
+    summaryPath: "C:/hts/summary.json",
+    restAddress: "0.0.0.0:6565",
+    env: { BASE_URL: "http://x" },
+    sshHost: "loadgen",
+    logPath,
+    spawnImpl: (cmd, args, opts) => {
+      // Mit Log werden stdout/stderr gepiped, damit sie sich spiegeln lassen.
+      assert.deepEqual(opts.stdio, ["inherit", "pipe", "pipe"]);
+      assert.equal(cmd, "ssh");
+      assert.equal(args[0], "loadgen");
+      return fakeChild;
+    },
+  });
+
+  fakeChild.stdout.write("running (00m10.0s), 05777/16000 VUs\n");
+  fakeChild.stderr.write(
+    "WARN[0042] Insufficient VUs, reached 10000 active VUs and cannot initialize more  executor=ramping-arrival-rate\n",
+  );
+  fakeChild.handlers.exit(103);
+  fakeChild.handlers.close(103);
+
+  assert.equal(await exitPromise, 103);
+  const log = readFileSync(logPath, "utf8");
+  assert.match(log, /^# ssh loadgen k6 run --address 0\.0\.0\.0:6565/);
+  assert.match(log, /05777\/16000 VUs/);
+  assert.match(log, /Insufficient VUs/);
 });
 
 test("stopK6ViaRest PATCHes the JSON:API stop payload", async () => {

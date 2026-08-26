@@ -23,6 +23,17 @@ ein gueltiger und korrekter Lauf steht". Quelle der Befunde:
 > - **Verifikation ohne Lauf:** die drei Baseline-E-Artefakte neu gerendert — Full-Speed und Buy-only `performance: fail` (876 bzw. 809 ms), Human-pace `performance: pass`; Human-pace verliert sein `system: fail` (kein Ausverkauf, Check entfaellt), Buy-only bekommt erstmals `sellout: sold == totalCapacity = true`.
 > - **Restbefund Transportfehler** (aus A4): ~0,8–1,6 % der Requests der Full-Speed-Laeufe erreichten den Dienst nie (`http_req_connecting`-Spitzen um 15 s gegen 3,0 s unbelastet). Kleiner, eigener Befund auf der Verbindungsebene; bleibt fuer Baseline F zu beobachten.
 
+### Baseline F, Runde 1 (2026-08-26, `6e2687b`)
+
+> Drei Laeufe per `Spike Split`, Artefakte `2026-08-26T10-18-42` (full-speed), `10-35-15` (buy-only), `10-43-55` (human-pace). **System `pass` und Performance `pass` in allen drei** — erstmals: p95 228 / 392 / 16 ms (Baseline E: 876 / 809 / 14), exakter Sellout per `stopReason: sold-out`, Reaper und Expiry geuebt, 0 failed / rollbacks / redeliveries, Drift 0. **Benchmark dreimal `degraded`:** 0,36 % / 2,40 % / 0,40 % dropped gegen die 0,1-%-Grenze — die Zielrate ist damit noch nicht ohne Vorbehalt zitierbar (REQ-P03).
+>
+> Zwei Ursachen, beide ausserhalb des Systems:
+>
+> - **VU-Anlauf.** Full-speed belegte maximal 5 777 VUs von 16 000, human-pace 3 679 von 10 000 — der Deckel war nie das Problem. k6 startet aber mit `preAllocatedVUs: 200` (`vus_max` min = 200 in allen Summaries) und verwirft Iterationen, waehrend es nachallokiert. Das erklaert die ~0,4 % dieser beiden Laeufe. → `K6_PREALLOCATED_VUS` je Profil (8 000 / 10 000 / 4 000).
+> - **Connect-Stalls auf dem Buy-Bein.** `http_req_connecting` max 15,0 s (full-speed) und 15,1 s (buy-only), 21 ms in human-pace. 15 s ist die TCP-SYN-Retransmit-Leiter 1+2+4+8 s — Signatur eines ueberlaufenden Listen-Backlogs (macOS `kern.ipc.somaxconn` = 128, Node-Default 511 wird darauf gekappt). Buy-only hatte dadurch 15 640 echte Transportfehler (1,4 %), Iterationen bis 27 s und lief so — bei rechnerisch ~2 500 benoetigten VUs — in den 10 000er-Deckel (`vus` aktiv max = 10 000). → `somaxconn` auf dem SUT-Mac anheben (RUNBOOK §3); fastify-cli kennt keinen Backlog-Parameter, der Node-Default 511 greift, sobald das OS ihn zulaesst.
+>
+> Belegluecke: die k6-Konsolenausgabe (`Insufficient VUs`, `dial tcp … i/o timeout`) stand nur im VS-Code-Terminal — der Orchestrator spiegelt sie seit Runde 1 nach `k6/phase-*.log`.
+
 ### A — Verdict und Gates reparieren (Vorbedingung fuer jeden neuen Lauf)
 
 > Ohne diese Gruppe misst ein Lauf zwar richtig, wird aber falsch beurteilt. Alle vier Punkte sind reine Auswertungs-Logik, kein Systemverhalten — sie brauchen keinen Lauf, nur Golden-Fixture-Updates.

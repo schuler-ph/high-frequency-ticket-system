@@ -109,13 +109,14 @@ const fetchRemoteSummary = (localSummaryPath) => {
 // Prozessstart und Stop-Kanal je Runner; `undefined` laesst die lokalen
 // Defaults (spawnK6, SIGINT) in processes.mjs greifen.
 const spawnPhase = REMOTE
-  ? (scriptPath, { runId, summaryPath, env }) =>
+  ? (scriptPath, { runId, summaryPath, env, logPath }) =>
       spawnK6Ssh(toRemotePath(scriptPath), {
         runId,
         summaryPath: remoteSummaryPath(summaryPath),
         restAddress: REST_ADDRESS,
         env,
         sshHost: REMOTE.sshHost,
+        logPath,
       })
   : undefined;
 const requestStop = REMOTE ? () => stopK6ViaRest(REMOTE.restUrl) : undefined;
@@ -282,6 +283,8 @@ const main = async () => {
         : undefined,
     spawnPhase,
     requestStop,
+    // k6-Konsole (Insufficient VUs, dial-Fehler, Thresholds) als Beleg.
+    logPath: join(runDir, "k6", "phase-a.log"),
   });
   const phaseAExit = phaseA.exitCode;
   timestamps.phaseAEndedAt = nowIso();
@@ -310,6 +313,7 @@ const main = async () => {
     summaryPath: join(runDir, "k6", "phase-b-summary.json"),
     env: k6Env,
     spawnPhase,
+    logPath: join(runDir, "k6", "phase-b.log"),
   });
   timestamps.workloadEndedAt = nowIso();
   if (REMOTE) fetchRemoteSummary(join(runDir, "k6", "phase-b-summary.json"));

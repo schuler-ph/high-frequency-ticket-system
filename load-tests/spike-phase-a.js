@@ -11,6 +11,12 @@ import {
 // das nicht.
 const TARGET_RATE = requireEnvNumber("K6_TARGET_RATE");
 const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
+// k6 verwirft Iterationen, waehrend es neue VUs hochfaehrt — auch weit unter
+// `maxVUs`. Baseline F (2026-08-26): 200 vorallokiert, 5.777 gebraucht,
+// 0,36 % dropped ohne jede Deckelberuehrung. Deshalb den erwarteten Bedarf
+// vorab allokieren; die Verbindungen entstehen dann im 1.000-RPS-Warm-up
+// statt in der Oeffnungsspitze.
+const PREALLOCATED_VUS = requireEnvNumber("K6_PREALLOCATED_VUS");
 
 export const options = {
   // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
@@ -22,7 +28,7 @@ export const options = {
       // Flat 1.000 RPS for the first stage (startRate == first target).
       startRate: 1000,
       timeUnit: "1s",
-      preAllocatedVUs: 200,
+      preAllocatedVUs: PREALLOCATED_VUS,
       // VU-Budget muss die Zielrate auch bei steigender Latenz decken:
       // benoetigte VUs = Rate x Iterationsdauer. Reicht es nicht, verwirft k6
       // Iterationen (dropped) und der Lauf ist als Kapazitaetsnachweis
