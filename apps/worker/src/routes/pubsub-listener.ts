@@ -59,7 +59,9 @@ type TicketRedisClient = Pick<
 type InventoryCycleRedis = Pick<
   RedisClient,
   "get" | "zcard" | "zcount" | "zrangebyscore"
-> &
+>;
+
+type ReaperCycleRedis = Pick<RedisClient, "zcount" | "zrangebyscore"> &
   Pick<WorkerRedisScripts, "reapPendingReservation">;
 
 type PubSubListenerRouteDeps = {
@@ -172,7 +174,9 @@ type InventoryCycleResult =
  * Runs one inventory observation cycle from exactly one grouped ticket
  * snapshot. Projector and auditor are independent after that read: a failed
  * read-model write never prevents the read-only audit, and neither failure can
- * mutate or reconstruct Redis inventory (ADR-031).
+ * mutate or reconstruct Redis inventory (ADR-031). The event ids of the
+ * snapshot are handed back so the reaper — which runs on its own cadence
+ * (ADR-037) — knows which ledgers to inspect without a DB read of its own.
  */
 const runInventoryCycle = async (
   deps: Pick<
@@ -181,20 +185,14 @@ const runInventoryCycle = async (
     | "persistEventSoldCounts"
     | "auditTicketInventory"
     | "projectSoldCounts"
-    | "reapPendingReservations"
   > & {
     redis: InventoryCycleRedis;
     now?: () => number;
-    onReaperError?: (
-      eventId: string,
-      orderId: string | null,
-      error: unknown,
-    ) => void;
   },
 ): Promise<{
   projector: InventoryCycleResult;
   auditor: InventoryCycleResult;
-  reaper: InventoryCycleResult;
+  eventIds: string[];
 }> => {
   const now = deps.now ?? Date.now;
   const cycleNow = now();
@@ -276,53 +274,10 @@ const runInventoryCycle = async (
     }
   })();
 
-  const reaper = (async (): Promise<void> => {
-    const end = reservationReaperRunDurationSeconds.startTimer();
-    try {
-      await deps.reapPendingReservations({
-        snapshots,
-        redis: deps.redis,
-        nowMs: cycleNow,
-        batchSize: env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
-        // Der Grabstein ist ein finales Read-Model und bekommt dieselbe
-        // Cleanup-TTL wie `completed|failed`.
-        expiredTtlSeconds: env.REDIS_FINAL_ORDER_TTL_SECONDS,
-        onEventReaped: (result) => {
-          reservationReaperCandidates.set(
-            { event_id: result.eventId },
-            result.candidates,
-          );
-          reservationReaperOldestAgeSeconds.set(
-            { event_id: result.eventId },
-            result.oldestReleasedAgeSeconds,
-          );
-          if (result.released > 0) {
-            reservationReaperReleasesTotal.inc(
-              { event_id: result.eventId },
-              result.released,
-            );
-          }
-          for (const [reason, count] of Object.entries(result.skipped)) {
-            if (count > 0) {
-              reservationReaperSkipsTotal.inc(
-                { event_id: result.eventId, reason },
-                count,
-              );
-            }
-          }
-        },
-        onError: (eventId, orderId, error) => {
-          reservationReaperErrorsTotal.inc({ event_id: eventId });
-          deps.onReaperError?.(eventId, orderId, error);
-        },
-      });
-    } finally {
-      end();
-    }
-  })();
-
-  const [projectorResult, auditorResult, reaperResult] =
-    await Promise.allSettled([projector, auditor, reaper]);
+  const [projectorResult, auditorResult] = await Promise.allSettled([
+    projector,
+    auditor,
+  ]);
 
   return {
     projector:
@@ -333,11 +288,77 @@ const runInventoryCycle = async (
       auditorResult.status === "fulfilled"
         ? { status: "fulfilled" }
         : { status: "rejected", reason: auditorResult.reason },
-    reaper:
-      reaperResult.status === "fulfilled"
-        ? { status: "fulfilled" }
-        : { status: "rejected", reason: reaperResult.reason },
+    eventIds: snapshots.map((snapshot) => snapshot.eventId),
   };
+};
+
+/**
+ * Runs one reaper pass over the given events. Redis-only: candidates come from
+ * the ZSet score, the release is the identity-based Lua script, and the event
+ * list is whatever the last inventory cycle saw. Own cadence (ADR-037): an
+ * expired claim must not wait for the next `COUNT(tickets)` snapshot to be
+ * released — with a 12-s checkout deadline a 60-s cycle would hold it for five
+ * deadlines. Never throws; a failure is reported as `rejected` so the scheduler
+ * can log it and carry on.
+ */
+const runReaperCycle = async (
+  deps: Pick<PubSubListenerRouteDeps, "reapPendingReservations"> & {
+    redis: ReaperCycleRedis;
+    eventIds: readonly string[];
+    now?: () => number;
+    onReaperError?: (
+      eventId: string,
+      orderId: string | null,
+      error: unknown,
+    ) => void;
+  },
+): Promise<InventoryCycleResult> => {
+  const now = deps.now ?? Date.now;
+  const end = reservationReaperRunDurationSeconds.startTimer();
+  try {
+    await deps.reapPendingReservations({
+      eventIds: deps.eventIds,
+      redis: deps.redis,
+      nowMs: now(),
+      batchSize: env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
+      // Der Grabstein ist ein finales Read-Model und bekommt dieselbe
+      // Cleanup-TTL wie `completed|failed`.
+      expiredTtlSeconds: env.REDIS_FINAL_ORDER_TTL_SECONDS,
+      onEventReaped: (result) => {
+        reservationReaperCandidates.set(
+          { event_id: result.eventId },
+          result.candidates,
+        );
+        reservationReaperOldestAgeSeconds.set(
+          { event_id: result.eventId },
+          result.oldestReleasedAgeSeconds,
+        );
+        if (result.released > 0) {
+          reservationReaperReleasesTotal.inc(
+            { event_id: result.eventId },
+            result.released,
+          );
+        }
+        for (const [reason, count] of Object.entries(result.skipped)) {
+          if (count > 0) {
+            reservationReaperSkipsTotal.inc(
+              { event_id: result.eventId, reason },
+              count,
+            );
+          }
+        }
+      },
+      onError: (eventId, orderId, error) => {
+        reservationReaperErrorsTotal.inc({ event_id: eventId });
+        deps.onReaperError?.(eventId, orderId, error);
+      },
+    });
+    return { status: "fulfilled" };
+  } catch (error: unknown) {
+    return { status: "rejected", reason: error };
+  } finally {
+    end();
+  }
 };
 
 const createPubSubListenerRoutes = (
@@ -389,18 +410,20 @@ const createPubSubListenerRoutes = (
     });
 
     let inventoryCycleTimeout: ReturnType<typeof setTimeout> | undefined;
+    let reaperTimeout: ReturnType<typeof setTimeout> | undefined;
     let closing = false;
+    // Event-Ids des letzten erfolgreichen Snapshots — die einzige Zutat, die
+    // der Reaper aus der DB braucht (ADR-037). Vor dem ersten Snapshot gibt es
+    // nichts zu reapen; der Reaper startet deshalb aus dem ersten Cycle heraus
+    // und plant sich danach in seinem eigenen, dichteren Takt selbst neu.
+    let reaperEventIds: readonly string[] = [];
+    let reaperStarted = false;
 
-    const runAndScheduleInventoryCycle = (): void => {
-      void runInventoryCycle({
-        listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
-        persistEventSoldCounts: routeDeps.persistEventSoldCounts,
-        auditTicketInventory: routeDeps.auditTicketInventory,
-        projectSoldCounts: routeDeps.projectSoldCounts,
+    const runAndScheduleReaper = (): void => {
+      void runReaperCycle({
         reapPendingReservations: routeDeps.reapPendingReservations,
+        eventIds: reaperEventIds,
         redis: {
-          get: redis.get.bind(redis),
-          zcard: redis.zcard.bind(redis),
           zcount: redis.zcount.bind(redis),
           zrangebyscore: redis.zrangebyscore.bind(redis),
           reapPendingReservation: scripts.reapPendingReservation.bind(scripts),
@@ -413,6 +436,43 @@ const createPubSubListenerRoutes = (
         },
       })
         .then((result) => {
+          if (result.status === "rejected") {
+            fastify.log.error(
+              { err: result.reason },
+              "Pending reservation reaper failed",
+            );
+          }
+        })
+        .finally(() => {
+          if (!closing) {
+            reaperTimeout = setTimeout(
+              runAndScheduleReaper,
+              env.WORKER_RESERVATION_REAPER_INTERVAL_SECONDS * 1000,
+            );
+            reaperTimeout.unref();
+          }
+        });
+    };
+
+    const runAndScheduleInventoryCycle = (): void => {
+      void runInventoryCycle({
+        listEventInventorySnapshots: routeDeps.listEventInventorySnapshots,
+        persistEventSoldCounts: routeDeps.persistEventSoldCounts,
+        auditTicketInventory: routeDeps.auditTicketInventory,
+        projectSoldCounts: routeDeps.projectSoldCounts,
+        redis: {
+          get: redis.get.bind(redis),
+          zcard: redis.zcard.bind(redis),
+          zcount: redis.zcount.bind(redis),
+          zrangebyscore: redis.zrangebyscore.bind(redis),
+        },
+      })
+        .then((result) => {
+          reaperEventIds = result.eventIds;
+          if (!reaperStarted && !closing) {
+            reaperStarted = true;
+            runAndScheduleReaper();
+          }
           if (result.projector.status === "rejected") {
             fastify.log.error(
               { err: result.projector.reason },
@@ -423,12 +483,6 @@ const createPubSubListenerRoutes = (
             fastify.log.error(
               { err: result.auditor.reason },
               "Inventory audit failed",
-            );
-          }
-          if (result.reaper.status === "rejected") {
-            fastify.log.error(
-              { err: result.reaper.reason },
-              "Pending reservation reaper failed",
             );
           }
         })
@@ -458,6 +512,9 @@ const createPubSubListenerRoutes = (
       if (inventoryCycleTimeout !== undefined) {
         clearTimeout(inventoryCycleTimeout);
       }
+      if (reaperTimeout !== undefined) {
+        clearTimeout(reaperTimeout);
+      }
     });
   };
 
@@ -472,4 +529,5 @@ export {
   createPubSubListenerRoutes,
   handleBuyTicketMessage,
   runInventoryCycle,
+  runReaperCycle,
 };

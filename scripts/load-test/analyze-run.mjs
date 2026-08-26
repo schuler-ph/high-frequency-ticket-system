@@ -92,6 +92,6 @@ if (isDirectRun) {
   const { derived, reportPath, derivedPath } = analyzeAndWrite(runDir, policy);
   console.log(`[spike:analyze] Wrote ${derivedPath} and ${reportPath}`);
   console.log(
-    `[spike:analyze] benchmark=${derived.validity.benchmark.verdict} system=${derived.validity.system.verdict}`,
+    `[spike:analyze] benchmark=${derived.validity.benchmark.verdict} system=${derived.validity.system.verdict} performance=${derived.validity.performance.verdict}`,
   );
 }

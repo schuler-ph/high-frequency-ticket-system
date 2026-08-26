@@ -1,4 +1,7 @@
-import { countWaitingLockBackends } from "@repo/db";
+import {
+  OBSERVED_WAIT_EVENT_TYPES,
+  countWaitingBackendsByWaitEventType,
+} from "@repo/db";
 import fp from "fastify-plugin";
 import { dbLocksWaiting } from "../lib/metrics.ts";
 
@@ -18,7 +21,16 @@ export default fp(async (fastify) => {
 
   const sampleLockWaits = async (): Promise<void> => {
     try {
-      dbLocksWaiting.set(await countWaitingLockBackends());
+      const waiting = await countWaitingBackendsByWaitEventType();
+      // Jede beobachtete Klasse bekommt eine Serie — auch bei 0 —, damit
+      // "gemessen, und es war 0" von "nie gemessen" unterscheidbar bleibt.
+      for (const waitEventType of OBSERVED_WAIT_EVENT_TYPES) {
+        dbLocksWaiting.set(
+          { wait_event_type: waitEventType },
+          waiting.find((row) => row.waitEventType === waitEventType)?.waiting ??
+            0,
+        );
+      }
     } catch (err: unknown) {
       fastify.log.debug({ err }, "Failed to sample PostgreSQL lock waits");
     }

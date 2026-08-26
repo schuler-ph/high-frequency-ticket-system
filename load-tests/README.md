@@ -122,8 +122,12 @@ Counter (`k6/metrics`), damit Funnel und Fehlerbild lastseitig auswertbar sind:
 - **`requests_by_status`** — getaggt nach `{ endpoint, status }`: HTTP-Status-
   Verteilung je Stufe.
 - **`transport_errors`** — getaggt nach `{ endpoint, error_code }`: Requests, die
-  gar keine App-Response bekamen (Status 0 / gesetzter `error_code`) — genau die
-  ~0,28 % aus Baseline A, jetzt nach Stufe und Fehlerklasse aufschlüsselbar.
+  gar keine App-Response bekamen (Status **0** und gesetzter `error_code`) —
+  genau die ~0,28 % aus Baseline A, jetzt nach Stufe und Fehlerklasse
+  aufschlüsselbar. Fachantworten wie 409 (ausverkauft) oder 425 (Sale noch zu)
+  zählen **nicht**, obwohl k6 auch für sie einen `error_code` setzt; bis
+  Baseline E fehlte diese Statusbedingung, und ~97 % der gezählten
+  „Transportfehler" auf dem Buy-Bein waren Fachstatus.
 
 Die Tags erscheinen als Labels im Prometheus-Remote-Write bzw. als Sub-Metriken
 im JSON-/`--summary-mode=full`-Output (die kompakte End-Summary aggregiert sie).
@@ -154,14 +158,19 @@ menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
   `SEED_CAPACITY` verkauften Tickets endet — Reaper und Wiederverkauf werden
   im selben Lauf mitgetestet.
 - **`browse-and-buy-human-pace`** (frueher `funnel`): menschliche Denkzeit als
-  truncated Normal um 60 s (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
-  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster
-  (120 s). Uebt Ablauf, Reaper und 410-Expired aus und beweist exakten Sellout
-  unter realistischem Verhalten. Der Checkout-Anteil ist bewusst klein
-  (`CHECKOUT_SHARE=0.05`): gleichzeitige Reservierungen sind Checkout-Rate mal
-  Denkzeit und damit VU-teuer, waehrend Availability-Reads VU-billig sind.
-  Details in
-  [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md).
+  truncated Normal (`THINK_TIME_MEAN`/`THINK_TIME_SIGMA`, geklemmt auf
+  `THINK_TIME_MIN`/`THINK_TIME_MAX`) gegen ein kurzes Checkout-Fenster, in
+  **komprimierter Zeit**: 6 s Denkzeit gegen 12 s Deadline, Reaper alle 6 s
+  (Faktor 10 gegenueber der menschlichen Wandzeit 60 s / 120 s, das Verhaeltnis
+  und damit der Ablauf-Funnel bleiben erhalten). Uebt Ablauf, Reaper und
+  410-Expired aus und beweist exakten Sellout unter realistischem Verhalten.
+  Der Checkout-Anteil ist bewusst klein (`CHECKOUT_SHARE=0.05`): gleichzeitige
+  Reservierungen sind Checkout-Rate mal Denkzeit und damit VU-teuer, waehrend
+  Availability-Reads VU-billig sind — mit 60 s Denkzeit brauchte die Kohorte
+  allein ~15.700 VUs (Baseline E), komprimiert ~1.600. Details in
+  [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../docs/notes/phases/phase-4-10-checkout-expiry.md)
+  und
+  [`docs/notes/backlogs/baseline-f-valid-runs.md`](../docs/notes/backlogs/baseline-f-valid-runs.md).
 - **`buy-only-full-speed`** (frueher `checkout`): keine Availability-Reads und
   keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
   vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
@@ -193,10 +202,14 @@ bewusst davon ab.
 | `CHECKOUT_POLL_INTERVAL`         | `1`                                    | Sekunden zwischen zwei Poll-Versuchen                                       |
 | `LOAD_PROFILE`                   | `browse-and-buy-full-speed`            | Profilname fürs Manifest (siehe oben)                                       |
 | `CHECKOUT_SHARE`                 | profilabhängig                         | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read) |
-| `THINK_TIME_MIN`                 | `0` (human-pace: `10`)                 | minimale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MAX`                 | `0` (human-pace: `180`)                | maximale Denkzeit (Sekunden) nach dem Reserve                               |
-| `THINK_TIME_MEAN`                | human-pace: `60`                       | Erwartungswert der truncated-Normal-Denkzeit                                |
-| `THINK_TIME_SIGMA`               | human-pace: `35`                       | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
+| `THINK_TIME_MIN`                 | `0` (human-pace: `1`)                  | minimale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MAX`                 | `0` (human-pace: `18`)                 | maximale Denkzeit (Sekunden) nach dem Reserve                               |
+| `THINK_TIME_MEAN`                | human-pace: `6`                        | Erwartungswert der truncated-Normal-Denkzeit (komprimierte Zeit, s. o.)     |
+| `THINK_TIME_SIGMA`               | human-pace: `3.5`                      | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                 |
+| `K6_TARGET_RATE`                 | `10000` (buy-only: `5000`)             | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                  |
+| `K6_MAX_VUS`                     | `16000` (human-pace/buy-only: `10000`) | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped  |
+| `K6_COOLDOWN_RATE`               | `1000`                                 | feste Rate (it/s) der Cool-down-Phase B                                     |
+| `K6_COOLDOWN_MAX_VUS`            | `5000`                                 | VU-Deckel der Cool-down-Phase B                                             |
 | `PAY_RATE`                       | `0.88` (buy-only: `1`)                 | Anteil der Reservierungen, die bezahlt werden                               |
 | `CANCEL_RATE`                    | `0.08` (buy-only: `0`)                 | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)              |
 | `SALE_OPENS_IN_SECONDS`          | `60`                                   | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                |

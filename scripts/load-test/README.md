@@ -40,7 +40,7 @@ pnpm spike:report:test
 | `compare-runs.mjs`        | Pure: two `derived.json` → comparison report.                         |
 | `lib/openmetrics.mjs`     | Parse `/metrics` text; sum counters; reconstruct histograms.          |
 | `lib/derive.mjs`          | Counter delta/reset, dropped share, histogram saturation, invariants. |
-| `lib/validate.mjs`        | Benchmark-validity + system-result verdicts.                          |
+| `lib/validate.mjs`        | Benchmark-validity, system-result and performance verdicts (ADR-036). |
 | `lib/analyze.mjs`         | Compose artifacts → the full `derived` object.                        |
 | `lib/render-markdown.mjs` | Byte-stable Markdown renderer (idempotent).                           |
 | `lib/compare.mjs`         | Two-run compatibility checks + deltas.                                |
@@ -52,7 +52,7 @@ pnpm spike:report:test
 | `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop.                           |
 | `lib/grafana.mjs`         | Panel discovery + `/render/d-solo` PNG export (ADR-030).              |
 | `export-grafana.mjs`      | CLI around it: time window from flags or a run's manifest.            |
-| `test/`                   | Unit tests + anonymized Baseline-A fixture and approved golden files. |
+| `test/`                   | Unit tests + anonymized Baseline-A/-E fixtures and approved goldens.  |
 
 Policy/queries are versioned in [`load-tests/report-policy.json`](../../load-tests/report-policy.json)
 and [`load-tests/report-queries.json`](../../load-tests/report-queries.json).
@@ -83,8 +83,9 @@ Dinge beschreiben:
   **tatsaechlich** liefen — `NODE_ENV`, `LOG_LEVEL`,
   `DISABLE_REQUEST_LOGGING`, und beim Worker zusaetzlich
   `PUBSUB_FLOW_CONTROL_MAX_MESSAGES`, `DATABASE_POOL_MAX`,
-  `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS` und
-  `WORKER_RESERVATION_REAPER_BATCH_SIZE`.
+  `WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS`,
+  `WORKER_RESERVATION_REAPER_BATCH_SIZE` und
+  `WORKER_RESERVATION_REAPER_INTERVAL_SECONDS`.
 
 Vor dieser Trennung wies der Report die Orchestrator-Umgebung als
 Messkonfiguration aus und behauptete dadurch `NODE_ENV=test`, obwohl beide

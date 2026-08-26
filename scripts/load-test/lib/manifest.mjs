@@ -22,8 +22,10 @@ export const CONFIG_ALLOWLIST = [
   "DISABLE_REQUEST_LOGGING",
   "PUBSUB_FLOW_CONTROL_MAX_MESSAGES",
   "DATABASE_POOL_MAX",
+  "DATABASE_POOL_CONNECTION_TIMEOUT_MS",
   "CHECKOUT_PENDING_TIMEOUT_SECONDS",
   "WORKER_RESERVATION_REAPER_BATCH_SIZE",
+  "WORKER_RESERVATION_REAPER_INTERVAL_SECONDS",
   "REDIS_FINAL_ORDER_TTL_SECONDS",
   "REDIS_WORKER_PROCESSED_TTL_SECONDS",
   "WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS",
@@ -35,6 +37,12 @@ export const CONFIG_ALLOWLIST = [
   // Lauf unterscheidbar und `spike:compare` wuerde Aepfel mit Birnen messen.
   "BASE_URL",
   "K6_RUNNER",
+  // Lastform (Phase 4.13): ohne diese vier Werte ist ein Lauf nicht
+  // rekonstruierbar — die Dropped-Rate ist nur gegen den VU-Deckel lesbar.
+  "K6_TARGET_RATE",
+  "K6_MAX_VUS",
+  "K6_COOLDOWN_RATE",
+  "K6_COOLDOWN_MAX_VUS",
   "PAY_RATE",
   "CANCEL_RATE",
   "THINK_TIME_KIND",

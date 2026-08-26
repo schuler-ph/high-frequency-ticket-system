@@ -1,4 +1,3 @@
-import type { EventInventorySnapshot } from "@repo/db";
 import { orderRedisKeys, ticketRedisKeys } from "@repo/types/redis-keys";
 import type { RedisClient } from "@repo/types/redis-client";
 import type { WorkerRedisScripts } from "./redis-scripts.ts";
@@ -28,7 +27,12 @@ export type PendingReservationReaperRedis = Pick<
   Pick<WorkerRedisScripts, "reapPendingReservation">;
 
 export type ReapPendingReservationsDeps = {
-  snapshots: readonly EventInventorySnapshot[];
+  /**
+   * Events, deren Ledger geprueft wird. Nur die Ids — der Reaper hat vom
+   * Inventory-Snapshot nie mehr gelesen, und seit ADR-037 laeuft er in eigenem
+   * Takt mit den Ids des letzten Zyklus statt an dessen Snapshot gebunden.
+   */
+  eventIds: readonly string[];
   redis: PendingReservationReaperRedis;
   nowMs: number;
   batchSize: number;
@@ -77,10 +81,10 @@ export async function reapPendingReservations(
 ): Promise<EventReaperResult[]> {
   const results: EventReaperResult[] = [];
 
-  for (const snapshot of deps.snapshots) {
-    const keys = ticketRedisKeys(snapshot.eventId);
+  for (const eventId of deps.eventIds) {
+    const keys = ticketRedisKeys(eventId);
     const result: EventReaperResult = {
-      eventId: snapshot.eventId,
+      eventId,
       candidates: 0,
       processed: 0,
       released: 0,
@@ -111,7 +115,7 @@ export async function reapPendingReservations(
         if (orderId === undefined || deadlineRaw === undefined) {
           result.errors += 1;
           deps.onError?.(
-            snapshot.eventId,
+            eventId,
             orderId ?? null,
             new Error("Malformed ZRANGEBYSCORE WITHSCORES response"),
           );
@@ -140,12 +144,12 @@ export async function reapPendingReservations(
           }
         } catch (error: unknown) {
           result.errors += 1;
-          deps.onError?.(snapshot.eventId, orderId, error);
+          deps.onError?.(eventId, orderId, error);
         }
       }
     } catch (error: unknown) {
       result.errors += 1;
-      deps.onError?.(snapshot.eventId, null, error);
+      deps.onError?.(eventId, null, error);
     }
 
     results.push(result);

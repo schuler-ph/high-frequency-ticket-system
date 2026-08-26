@@ -1,4 +1,16 @@
-import { SYSTEM_TAGS, ticketSaleIteration } from "./lib/scenario-helpers.js";
+import {
+  SYSTEM_TAGS,
+  requireEnvNumber,
+  ticketSaleIteration,
+} from "./lib/scenario-helpers.js";
+
+// Lastform als Profil-Knoepfe (ADR-034: kein Skript-Default). Die Werte stehen
+// je Profil in config/env/<profil>.env und landen im Report-Manifest, damit ein
+// Lauf im Nachhinein rekonstruierbar bleibt. Ein verteilter Generator (Phase
+// 5.7) teilt die Zielrate ueber Shards auf — mit hartkodierten Groessen ginge
+// das nicht.
+const TARGET_RATE = requireEnvNumber("K6_TARGET_RATE");
+const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
 
 export const options = {
   // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
@@ -12,25 +24,26 @@ export const options = {
       timeUnit: "1s",
       preAllocatedVUs: 200,
       // VU-Budget muss die Zielrate auch bei steigender Latenz decken:
-      // benoetigte VUs = Rate x Iterationsdauer. Baseline C lief mit 5.000 in
-      // den Deckel, als die Latenz im Ausverkaufs-Crunch auf p95 ~874 ms stieg
-      // (benoetigt ~8.700) -> 21,85 % dropped iterations, Lauf invalid.
-      // 10.000 deckt die 10k-Zielrate bis ~1 s Iterationsdauer.
-      maxVUs: 10000,
+      // benoetigte VUs = Rate x Iterationsdauer. Reicht es nicht, verwirft k6
+      // Iterationen (dropped) und der Lauf ist als Kapazitaetsnachweis
+      // ungueltig — Baseline C (5.000 VUs, p95 ~874 ms im Crunch): 21,85 %
+      // dropped; Baseline E (10.000 VUs, p95-Iteration 1,25 s): 5,2 %. Die
+      // Herleitung je Profil steht in docs/notes/backlogs/baseline-f-valid-runs.md.
+      maxVUs: MAX_VUS,
       stages: [
         // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
         // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
         { target: 1000, duration: "45s" },
-        // Phase 2 – Ramp-Up:  1.000 → 5.000 RPS, 45s (Sale-Opening naehert
-        // sich; `opensAt` liegt typischerweise irgendwo in diesem Fenster)
-        { target: 10000, duration: "45s" },
-        // Phase 3 – Sustain:  5.000 RPS, 15 Minuten Sicherheitsnetz. Die
-        // Orchestrierung (scripts/local/run-spike.mjs) pollt die
-        // Verfuegbarkeit und stoppt diese Stage per SIGINT, sobald
-        // `available` auf 0 faellt — die 15 Minuten greifen nur, falls kein
-        // Sold-Out erkannt wird (z.B. bei einem manuellen `k6 run` ohne
-        // Orchestrator).
-        { target: 10000, duration: "15m" },
+        // Phase 2 – Ramp-Up:  1.000 → K6_TARGET_RATE RPS, 45s (Sale-Opening
+        // naehert sich; `opensAt` liegt typischerweise in diesem Fenster)
+        { target: TARGET_RATE, duration: "45s" },
+        // Phase 3 – Sustain:  K6_TARGET_RATE RPS, 15 Minuten Sicherheitsnetz.
+        // Die Orchestrierung (scripts/load-test/run-and-report.mjs) pollt die
+        // Verfuegbarkeit und stoppt diese Stage reaktiv (SIGINT lokal, REST
+        // remote), sobald `available` auf 0 faellt — die 15 Minuten greifen
+        // nur, falls kein Sold-Out erkannt wird (z.B. bei einem manuellen
+        // `k6 run` ohne Orchestrator).
+        { target: TARGET_RATE, duration: "15m" },
       ],
     },
   },

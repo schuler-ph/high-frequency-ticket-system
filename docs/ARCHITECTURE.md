@@ -271,15 +271,20 @@ exhaustiv ab:
 ## Inventory-Wartung
 
 Der Worker startet den Pub/Sub-Consumer unabhängig von der Inventar-Wartung. Ein
-nicht überlappender Zyklus läuft sofort nach dem Start und danach periodisch; er
-teilt genau einen gruppierten `COUNT(tickets)`-Snapshot auf drei Komponenten auf:
+nicht überlappender Zyklus läuft sofort nach dem Start und danach periodisch
+(`WORKER_INVENTORY_CYCLE_INTERVAL_SECONDS`); er teilt genau einen gruppierten
+`COUNT(tickets)`-Snapshot auf Projector und Auditor auf. Der Pending-Reaper
+läuft in einem eigenen, dichteren Takt (`WORKER_RESERVATION_REAPER_INTERVAL_SECONDS`,
+ADR-037): er braucht keinen DB-Snapshot, nur die Event-Ids, die der letzte
+Zyklus geliefert hat, und arbeitet ausschließlich auf Redis.
 
 ```text
 Subscriber startet (unabhängig)
-COUNT(tickets)-Snapshot
+COUNT(tickets)-Snapshot                    (Inventory-Cycle)
     ├─ Sold-count Projector → events.sold_count
     ├─ Inventory Auditor    → nur GET/ZCARD/ZCOUNT + Metriken
-    └─ Pending-Reaper       → gibt nur fälliges pending frei
+    └─ Event-Ids ─────────► Pending-Reaper  (eigener Takt)
+                             → gibt nur fälliges pending frei
 ```
 
 | Komponente           | Darf                                                                                         | Darf nicht                                           |
@@ -288,11 +293,13 @@ COUNT(tickets)-Snapshot
 | Inventory Auditor    | Capacity-Komponenten und signiertes Delta messen                                             | korrigieren oder fehlende Keys anlegen               |
 | Pending-Reaper       | einen fälligen `pending`-Anspruch per `orderId` atomar freigeben und als `expired` markieren | `publishing`, `paid` oder terminale Orders freigeben |
 
-Ein `setTimeout` wird erst nach Abschluss neu geplant, sodass lange DB-Scans nie
-überlappen. Die drei Komponenten laufen nach dem geteilten Snapshot unabhängig
-voneinander; ein Fehler in ihnen stoppt den Consumer nicht. Nicht
-freigabefähige Recovery-Zustände meldet der Reaper als Skip und quarantiniert sie
-aus dem fälligen Score-Bereich — im Ledger bleiben sie aktive Ansprüche.
+Beide Timer werden erst nach Abschluss ihres Laufs neu geplant, sodass weder
+lange DB-Scans noch Reaper-Läufe überlappen. Projector und Auditor laufen nach
+dem geteilten Snapshot unabhängig voneinander; der Reaper startet, sobald der
+erste Snapshot Event-Ids geliefert hat. Ein Fehler in einer Komponente stoppt
+weder den Consumer noch die anderen. Nicht freigabefähige Recovery-Zustände
+meldet der Reaper als Skip und quarantiniert sie aus dem fälligen Score-Bereich
+— im Ledger bleiben sie aktive Ansprüche.
 
 Es gibt keinen schreibenden Cross-System-Reconcile mehr: kein Startup-Job, keine
 periodische `available`-Korrektur und keine `WORKER_RECONCILE_*`-Konfiguration.
@@ -325,7 +332,10 @@ Konkrete Intervalle, Batch-Größen und Deadlines leben in
   Queue-Depth und E2E-Latenz zeigen Backpressure.
 - **Worker:** Parallelität wird durch Subscriber-Flow-Control und
   PostgreSQL-Poolgröße begrenzt. Die DB-Function vermeidet den früheren
-  `events.sold_count`-Hot-Row-Write.
+  `events.sold_count`-Hot-Row-Write. Das Warten auf eine Pool-Connection ist
+  begrenzt (`DATABASE_POOL_CONNECTION_TIMEOUT_MS`): Pool-Sättigung wird zu
+  einem transienten Fehler mit NACK und Redelivery — sichtbar in
+  `worker_redeliveries_total` — statt zu unbegrenzter Latenz.
 - **Worker-Wartung:** Der Worker läuft aktuell als `replicas: 1`. Da Auditor und
   Projector nichts am Live-Inventar korrigieren, wäre eine zweite Instanz
   höchstens ineffizient und kein Korrektheitsproblem — Leader Election ist für
@@ -350,7 +360,8 @@ visualisiert sie. Die wichtigsten Systemsignale sind:
 - Auditor- und Projector-Health: Dauer, Fehler und letzter Erfolg;
 - Reaper-Kandidaten, Freigaben, übersprungene Zustände und ältester fälliger
   Pending-Anspruch;
-- DB-Pool-Wait, Query-Latenz, Locks, CPU und Event-Loop-Lag;
+- DB-Pool-Wait, Query-Latenz, Lock-Waits nach `wait_event_type` und CPU (der
+  Event-Loop-Lag der prom-client-Defaults ist bewusst entfernt, ADR-026);
 - k6 dropped iterations und Zielraten-Erfüllung.
 
 Die Dashboards gruppieren diese Signale als `API Performance`,

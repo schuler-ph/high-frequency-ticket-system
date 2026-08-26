@@ -26,6 +26,7 @@ export const serviceConfigInfo = new Gauge({
     "database_pool_max",
     "worker_inventory_cycle_interval_seconds",
     "worker_reservation_reaper_batch_size",
+    "worker_reservation_reaper_interval_seconds",
   ] as const,
   registers: [workerRegistry],
 });
@@ -45,6 +46,9 @@ serviceConfigInfo.set(
     ),
     worker_reservation_reaper_batch_size: String(
       env.WORKER_RESERVATION_REAPER_BATCH_SIZE,
+    ),
+    worker_reservation_reaper_interval_seconds: String(
+      env.WORKER_RESERVATION_REAPER_INTERVAL_SECONDS,
     ),
   },
   1,
@@ -238,7 +242,16 @@ export const orderE2eLatencySeconds = new Histogram({
   // range, so the buckets are back to a millisecond-resolution ladder; the
   // 600s tail tuned for the sleep-bound flow would leave everything in the
   // first bucket and clip p50/p95/p99 flat.
-  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  //
+  // The 1–5 s range is deliberately denser than the default ladder (1 → 2.5
+  // → 5). Under pool back-pressure the tail lands exactly there: Baseline E's
+  // buy-only run put 6.6 % of orders into the 1–2.5 s bucket with p95 AND p99
+  // both inside it, so the report could only say "somewhere between 1 and
+  // 2.5 s". Every cloud-vs-local latency statement above 1 s depends on this
+  // resolution (Phase 4.13, ADR-023 addendum).
+  buckets: [
+    0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2, 2.5, 3, 5, 10,
+  ],
   registers: [workerRegistry],
 });
 
@@ -270,11 +283,14 @@ export const dbQueryDurationSeconds = new Histogram({
   registers: [workerRegistry],
 });
 
-// Backends currently blocked waiting on a lock (hot-row contention indicator).
-// Sampled by the db-metrics plugin, not on scrape, because it costs a query.
+// Backends currently blocked, by wait-event class (hot-row and MultiXact/SLRU
+// contention). Sampled by the db-metrics plugin, not on scrape, because it
+// costs a query. `Lock` = heavyweight locks, `LWLock` = the form the FK
+// `FOR KEY SHARE` contention on the `events` row actually takes (ADR-026).
 export const dbLocksWaiting = new Gauge({
   name: "db_locks_waiting",
-  help: "PostgreSQL backends currently waiting to acquire a lock (pg_stat_activity wait_event_type = 'Lock')",
+  help: "PostgreSQL backends currently waiting, by pg_stat_activity wait_event_type (Lock, LWLock)",
+  labelNames: ["wait_event_type"] as const,
   registers: [workerRegistry],
 });
 

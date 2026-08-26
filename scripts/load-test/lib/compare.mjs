@@ -64,6 +64,22 @@ export const compareRuns = (baseline, candidate) => {
     );
   }
 
+  // Quantiles are read off histogram buckets; two runs with different bucket
+  // ladders interpolate differently and their p95/p99 are not comparable. The
+  // ladder changed in Phase 4.13 (denser 1–5 s range), so this must be said
+  // rather than silently interpolated across.
+  const baseLadder = baseline?.e2eLatency?.bucketBoundaries;
+  const candLadder = candidate?.e2eLatency?.bucketBoundaries;
+  if (
+    Array.isArray(baseLadder) &&
+    Array.isArray(candLadder) &&
+    JSON.stringify(baseLadder) !== JSON.stringify(candLadder)
+  ) {
+    incompatibilities.push(
+      `E2E histogram bucket ladders differ (baseline ${baseLadder.length} vs candidate ${candLadder.length} finite buckets); latency quantiles are not comparable.`,
+    );
+  }
+
   const deltas = {
     droppedShare: delta(
       baseline?.offeredLoad?.droppedShare,
@@ -85,10 +101,12 @@ export const compareRuns = (baseline, candidate) => {
       baseline: {
         benchmark: baseline?.validity?.benchmark?.verdict ?? null,
         system: baseline?.validity?.system?.verdict ?? null,
+        performance: baseline?.validity?.performance?.verdict ?? null,
       },
       candidate: {
         benchmark: candidate?.validity?.benchmark?.verdict ?? null,
         system: candidate?.validity?.system?.verdict ?? null,
+        performance: candidate?.validity?.performance?.verdict ?? null,
       },
     },
   };

@@ -1,0 +1,357 @@
+# HELP service_config_info Effective runtime configuration of this service (labels carry the values, value is always 1)
+# TYPE service_config_info gauge
+service_config_info{service="worker",node_env="production",log_level="warn",disable_request_logging="true",pubsub_flow_control_max_messages="500",database_pool_max="50",worker_inventory_cycle_interval_seconds="60",worker_reservation_reaper_batch_size="10000"} 1
+
+# HELP orders_completed_total Ticket orders successfully completed by the worker
+# TYPE orders_completed_total counter
+
+# HELP orders_failed_total Ticket orders that reached a terminal failure state
+# TYPE orders_failed_total counter
+
+# HELP worker_compensations_total Reservation compensations performed after terminal worker errors
+# TYPE worker_compensations_total counter
+
+# HELP worker_redeliveries_total Messages nacked by the worker for redelivery (transient errors or lock conflicts)
+# TYPE worker_redeliveries_total counter
+
+# HELP worker_idempotency_hits_total Messages skipped because the order was already processed (idempotency short-circuit)
+# TYPE worker_idempotency_hits_total counter
+
+# HELP worker_duplicate_deliveries_total Duplicate message deliveries absorbed idempotently (order was already finalized; no additional ticket)
+# TYPE worker_duplicate_deliveries_total counter
+
+# HELP redis_db_drift_tickets Compatibility alias for inventory_capacity_delta_tickets (0 = every seat is accounted for)
+# TYPE redis_db_drift_tickets gauge
+redis_db_drift_tickets{event_id="00000000-0000-4000-8000-000000000000"} 2940
+
+# HELP inventory_capacity_delta_tickets Available plus sold plus active reservations minus total capacity per event
+# TYPE inventory_capacity_delta_tickets gauge
+inventory_capacity_delta_tickets{event_id="00000000-0000-4000-8000-000000000000"} 2940
+
+# HELP inventory_capacity_tickets Configured total ticket capacity per event observed by the inventory auditor
+# TYPE inventory_capacity_tickets gauge
+inventory_capacity_tickets{event_id="00000000-0000-4000-8000-000000000000"} 1000000
+
+# HELP inventory_available_tickets Redis-authoritative available ticket count per event observed by the inventory auditor
+# TYPE inventory_available_tickets gauge
+inventory_available_tickets{event_id="00000000-0000-4000-8000-000000000000"} 44
+
+# HELP inventory_sold_tickets Durable COUNT(tickets) per event observed by the inventory auditor
+# TYPE inventory_sold_tickets gauge
+inventory_sold_tickets{event_id="00000000-0000-4000-8000-000000000000"} 1002896
+
+# HELP reservation_ledger_active Accepted-but-not-finalized reservations per event, counted from the ZSet ledger (active inventory claims)
+# TYPE reservation_ledger_active gauge
+reservation_ledger_active{event_id="00000000-0000-4000-8000-000000000000"} 0
+
+# HELP reservation_ledger_stale Ledger reservations at or beyond their eligibility deadline per event
+# TYPE reservation_ledger_stale gauge
+reservation_ledger_stale{event_id="00000000-0000-4000-8000-000000000000"} 0
+
+# HELP inventory_audit_runs_total Read-only inventory audit runs by result
+# TYPE inventory_audit_runs_total counter
+inventory_audit_runs_total{result="success"} 1
+
+# HELP inventory_audit_duration_seconds Duration of read-only inventory audit runs
+# TYPE inventory_audit_duration_seconds histogram
+inventory_audit_duration_seconds_bucket{le="0.001"} 0
+inventory_audit_duration_seconds_bucket{le="0.005"} 1
+inventory_audit_duration_seconds_bucket{le="0.01"} 1
+inventory_audit_duration_seconds_bucket{le="0.025"} 1
+inventory_audit_duration_seconds_bucket{le="0.05"} 1
+inventory_audit_duration_seconds_bucket{le="0.1"} 1
+inventory_audit_duration_seconds_bucket{le="0.25"} 1
+inventory_audit_duration_seconds_bucket{le="0.5"} 1
+inventory_audit_duration_seconds_bucket{le="1"} 1
+inventory_audit_duration_seconds_bucket{le="2.5"} 1
+inventory_audit_duration_seconds_bucket{le="5"} 1
+inventory_audit_duration_seconds_bucket{le="10"} 1
+inventory_audit_duration_seconds_bucket{le="+Inf"} 1
+inventory_audit_duration_seconds_sum 0.001790917
+inventory_audit_duration_seconds_count 1
+
+# HELP inventory_audit_last_success_timestamp_seconds Unix timestamp of the last successful inventory audit
+# TYPE inventory_audit_last_success_timestamp_seconds gauge
+inventory_audit_last_success_timestamp_seconds 1787080151.77
+
+# HELP sold_count_projector_runs_total Sold-count projector runs by result
+# TYPE sold_count_projector_runs_total counter
+sold_count_projector_runs_total{result="success"} 1
+
+# HELP sold_count_projector_duration_seconds Duration of sold-count projection write-back runs
+# TYPE sold_count_projector_duration_seconds histogram
+sold_count_projector_duration_seconds_bucket{le="0.001"} 0
+sold_count_projector_duration_seconds_bucket{le="0.005"} 1
+sold_count_projector_duration_seconds_bucket{le="0.01"} 1
+sold_count_projector_duration_seconds_bucket{le="0.025"} 1
+sold_count_projector_duration_seconds_bucket{le="0.05"} 1
+sold_count_projector_duration_seconds_bucket{le="0.1"} 1
+sold_count_projector_duration_seconds_bucket{le="0.25"} 1
+sold_count_projector_duration_seconds_bucket{le="0.5"} 1
+sold_count_projector_duration_seconds_bucket{le="1"} 1
+sold_count_projector_duration_seconds_bucket{le="2.5"} 1
+sold_count_projector_duration_seconds_bucket{le="5"} 1
+sold_count_projector_duration_seconds_bucket{le="10"} 1
+sold_count_projector_duration_seconds_bucket{le="+Inf"} 1
+sold_count_projector_duration_seconds_sum 0.00204
+sold_count_projector_duration_seconds_count 1
+
+# HELP sold_count_projector_last_success_timestamp_seconds Unix timestamp of the last successful sold-count projection
+# TYPE sold_count_projector_last_success_timestamp_seconds gauge
+sold_count_projector_last_success_timestamp_seconds 1787080151.77
+
+# HELP reservation_reaper_candidates Reservation ledger entries at or beyond their eligibility deadline per event
+# TYPE reservation_reaper_candidates gauge
+reservation_reaper_candidates{event_id="00000000-0000-4000-8000-000000000000"} 0
+
+# HELP reservation_reaper_releases_total Due pending reservations atomically released by the reaper
+# TYPE reservation_reaper_releases_total counter
+
+# HELP reservation_reaper_skips_total Reservation reaper candidates retained or already handled, by reason
+# TYPE reservation_reaper_skips_total counter
+
+# HELP reservation_reaper_errors_total Reservation reaper errors per event
+# TYPE reservation_reaper_errors_total counter
+
+# HELP reservation_reaper_oldest_age_seconds Age beyond deadline of the oldest pending reservation released in the latest run
+# TYPE reservation_reaper_oldest_age_seconds gauge
+reservation_reaper_oldest_age_seconds{event_id="00000000-0000-4000-8000-000000000000"} 0
+
+# HELP reservation_reaper_run_duration_seconds Duration of reservation reaper runs
+# TYPE reservation_reaper_run_duration_seconds histogram
+reservation_reaper_run_duration_seconds_bucket{le="0.001"} 0
+reservation_reaper_run_duration_seconds_bucket{le="0.005"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.01"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.025"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.05"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.1"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.25"} 1
+reservation_reaper_run_duration_seconds_bucket{le="0.5"} 1
+reservation_reaper_run_duration_seconds_bucket{le="1"} 1
+reservation_reaper_run_duration_seconds_bucket{le="2.5"} 1
+reservation_reaper_run_duration_seconds_bucket{le="5"} 1
+reservation_reaper_run_duration_seconds_bucket{le="10"} 1
+reservation_reaper_run_duration_seconds_bucket{le="+Inf"} 1
+reservation_reaper_run_duration_seconds_sum 0.001259042
+reservation_reaper_run_duration_seconds_count 1
+
+# HELP order_e2e_latency_seconds End-to-end latency from payment published (POST /pay) to order completed or failed
+# TYPE order_e2e_latency_seconds histogram
+
+# HELP db_pool_connections node-postgres pool connections by state (total = open, idle = free, waiting = queued acquirers)
+# TYPE db_pool_connections gauge
+db_pool_connections{state="total"} 1
+db_pool_connections{state="idle"} 1
+db_pool_connections{state="waiting"} 0
+
+# HELP db_query_duration_seconds Latency of worker PostgreSQL operations by logical query name
+# TYPE db_query_duration_seconds histogram
+db_query_duration_seconds_bucket{le="0.001",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.005",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.01",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.025",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.05",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.1",query="project_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.25",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.5",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="1",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="2.5",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="5",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="10",query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="+Inf",query="project_sold_counts"} 1
+db_query_duration_seconds_sum{query="project_sold_counts"} 0.169371875
+db_query_duration_seconds_count{query="project_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.001",query="persist_sold_counts"} 0
+db_query_duration_seconds_bucket{le="0.005",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.01",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.025",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.05",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.1",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.25",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="0.5",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="1",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="2.5",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="5",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="10",query="persist_sold_counts"} 1
+db_query_duration_seconds_bucket{le="+Inf",query="persist_sold_counts"} 1
+db_query_duration_seconds_sum{query="persist_sold_counts"} 0.002009
+db_query_duration_seconds_count{query="persist_sold_counts"} 1
+
+# HELP db_locks_waiting PostgreSQL backends currently waiting to acquire a lock (pg_stat_activity wait_event_type = 'Lock')
+# TYPE db_locks_waiting gauge
+db_locks_waiting 0
+
+# HELP process_cpu_user_seconds_total Total user CPU time spent in seconds.
+# TYPE process_cpu_user_seconds_total counter
+process_cpu_user_seconds_total 0.218912
+
+# HELP process_cpu_system_seconds_total Total system CPU time spent in seconds.
+# TYPE process_cpu_system_seconds_total counter
+process_cpu_system_seconds_total 0.04365600000000001
+
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.262568
+
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1787080151
+
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 290291712
+
+# HELP nodejs_eventloop_lag_seconds Lag of event loop in seconds.
+# TYPE nodejs_eventloop_lag_seconds gauge
+nodejs_eventloop_lag_seconds 0.000616458
+
+# HELP nodejs_eventloop_lag_min_seconds The minimum recorded event loop delay.
+# TYPE nodejs_eventloop_lag_min_seconds gauge
+nodejs_eventloop_lag_min_seconds 0.0100352
+
+# HELP nodejs_eventloop_lag_max_seconds The maximum recorded event loop delay.
+# TYPE nodejs_eventloop_lag_max_seconds gauge
+nodejs_eventloop_lag_max_seconds 0.012664831
+
+# HELP nodejs_eventloop_lag_mean_seconds The mean of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_mean_seconds gauge
+nodejs_eventloop_lag_mean_seconds 0.01075686989861751
+
+# HELP nodejs_eventloop_lag_stddev_seconds The standard deviation of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_stddev_seconds gauge
+nodejs_eventloop_lag_stddev_seconds 0.00037143361786701233
+
+# HELP nodejs_eventloop_lag_p50_seconds The 50th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p50_seconds gauge
+nodejs_eventloop_lag_p50_seconds 0.010993663
+
+# HELP nodejs_eventloop_lag_p90_seconds The 90th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p90_seconds gauge
+nodejs_eventloop_lag_p90_seconds 0.011051007
+
+# HELP nodejs_eventloop_lag_p99_seconds The 99th percentile of the recorded event loop delays.
+# TYPE nodejs_eventloop_lag_p99_seconds gauge
+nodejs_eventloop_lag_p99_seconds 0.011108351
+
+# HELP nodejs_active_resources Number of active resources that are currently keeping the event loop alive, grouped by async resource type.
+# TYPE nodejs_active_resources gauge
+nodejs_active_resources{type="TTYWrap"} 2
+nodejs_active_resources{type="TCPSocketWrap"} 4
+nodejs_active_resources{type="TCPServerWrap"} 1
+nodejs_active_resources{type="Timeout"} 6
+nodejs_active_resources{type="Immediate"} 1
+
+# HELP nodejs_active_resources_total Total number of active resources.
+# TYPE nodejs_active_resources_total gauge
+nodejs_active_resources_total 14
+
+# HELP nodejs_active_handles Number of active libuv handles grouped by handle type. Every handle type is C++ class name.
+# TYPE nodejs_active_handles gauge
+nodejs_active_handles{type="WriteStream"} 2
+nodejs_active_handles{type="Socket"} 4
+nodejs_active_handles{type="Server"} 1
+
+# HELP nodejs_active_handles_total Total number of active handles.
+# TYPE nodejs_active_handles_total gauge
+nodejs_active_handles_total 7
+
+# HELP nodejs_active_requests Number of active libuv requests grouped by request type. Every request type is C++ class name.
+# TYPE nodejs_active_requests gauge
+
+# HELP nodejs_active_requests_total Total number of active requests.
+# TYPE nodejs_active_requests_total gauge
+nodejs_active_requests_total 0
+
+# HELP nodejs_heap_size_total_bytes Process heap size from Node.js in bytes.
+# TYPE nodejs_heap_size_total_bytes gauge
+nodejs_heap_size_total_bytes 184090624
+
+# HELP nodejs_heap_size_used_bytes Process heap size used from Node.js in bytes.
+# TYPE nodejs_heap_size_used_bytes gauge
+nodejs_heap_size_used_bytes 53976200
+
+# HELP nodejs_external_memory_bytes Node.js external memory size in bytes.
+# TYPE nodejs_external_memory_bytes gauge
+nodejs_external_memory_bytes 3286209
+
+# HELP nodejs_heap_space_size_total_bytes Process heap space size total from Node.js in bytes.
+# TYPE nodejs_heap_space_size_total_bytes gauge
+nodejs_heap_space_size_total_bytes{space="read_only"} 0
+nodejs_heap_space_size_total_bytes{space="new"} 134217728
+nodejs_heap_space_size_total_bytes{space="old"} 39337984
+nodejs_heap_space_size_total_bytes{space="code"} 2359296
+nodejs_heap_space_size_total_bytes{space="shared"} 0
+nodejs_heap_space_size_total_bytes{space="trusted"} 4292608
+nodejs_heap_space_size_total_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_total_bytes{space="new_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="large_object"} 3686400
+nodejs_heap_space_size_total_bytes{space="code_large_object"} 196608
+nodejs_heap_space_size_total_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_total_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_heap_space_size_used_bytes Process heap space size used from Node.js in bytes.
+# TYPE nodejs_heap_space_size_used_bytes gauge
+nodejs_heap_space_size_used_bytes{space="read_only"} 0
+nodejs_heap_space_size_used_bytes{space="new"} 17654704
+nodejs_heap_space_size_used_bytes{space="old"} 26571944
+nodejs_heap_space_size_used_bytes{space="code"} 2049888
+nodejs_heap_space_size_used_bytes{space="shared"} 0
+nodejs_heap_space_size_used_bytes{space="trusted"} 3891264
+nodejs_heap_space_size_used_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_used_bytes{space="new_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="large_object"} 3627840
+nodejs_heap_space_size_used_bytes{space="code_large_object"} 184416
+nodejs_heap_space_size_used_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_used_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_heap_space_size_available_bytes Process heap space size available from Node.js in bytes.
+# TYPE nodejs_heap_space_size_available_bytes gauge
+nodejs_heap_space_size_available_bytes{space="read_only"} 0
+nodejs_heap_space_size_available_bytes{space="new"} 49450064
+nodejs_heap_space_size_available_bytes{space="old"} 12744120
+nodejs_heap_space_size_available_bytes{space="code"} 309120
+nodejs_heap_space_size_available_bytes{space="shared"} 0
+nodejs_heap_space_size_available_bytes{space="trusted"} 400232
+nodejs_heap_space_size_available_bytes{space="shared_trusted"} 0
+nodejs_heap_space_size_available_bytes{space="new_large_object"} 67108864
+nodejs_heap_space_size_available_bytes{space="large_object"} 0
+nodejs_heap_space_size_available_bytes{space="code_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="shared_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="shared_trusted_large_object"} 0
+nodejs_heap_space_size_available_bytes{space="trusted_large_object"} 0
+
+# HELP nodejs_version_info Node.js version info.
+# TYPE nodejs_version_info gauge
+nodejs_version_info{version="v24.14.1",major="24",minor="14",patch="1"} 1
+
+# HELP nodejs_gc_duration_seconds Garbage collection duration by kind, one of major, minor, incremental or weakcb.
+# TYPE nodejs_gc_duration_seconds histogram
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="minor"} 0
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="1",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="2",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="5",kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="minor"} 1
+nodejs_gc_duration_seconds_sum{kind="minor"} 0.006892958000302315
+nodejs_gc_duration_seconds_count{kind="minor"} 1
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="1",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="2",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="5",kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="incremental"} 1
+nodejs_gc_duration_seconds_sum{kind="incremental"} 0.00015745799988508224
+nodejs_gc_duration_seconds_count{kind="incremental"} 1
+nodejs_gc_duration_seconds_bucket{le="0.001",kind="major"} 0
+nodejs_gc_duration_seconds_bucket{le="0.01",kind="major"} 1
+nodejs_gc_duration_seconds_bucket{le="0.1",kind="major"} 1
+nodejs_gc_duration_seconds_bucket{le="1",kind="major"} 1
+nodejs_gc_duration_seconds_bucket{le="2",kind="major"} 1
+nodejs_gc_duration_seconds_bucket{le="5",kind="major"} 1
+nodejs_gc_duration_seconds_bucket{le="+Inf",kind="major"} 1
+nodejs_gc_duration_seconds_sum{kind="major"} 0.0027613750025629997
+nodejs_gc_duration_seconds_count{kind="major"} 1

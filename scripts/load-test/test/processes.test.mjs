@@ -66,20 +66,29 @@ test("isExpectedK6Exit accepts ExternalAbort but not engine errors", () => {
 // per requireEnv* lesen, MUSS als `-e`-Flag mitfahren. Der Abgleich laeuft
 // gegen die Quelle selbst, damit ein neuer Skript-Knopf hier nicht still
 // fehlt und der Remote-Lauf erst auf dem PC stirbt.
-test("K6_SCRIPT_ENV_KEYS covers every requireEnv* call in scenario-helpers", () => {
-  const source = readFileSync(
-    new URL("../../../load-tests/lib/scenario-helpers.js", import.meta.url),
-    "utf8",
-  );
-  const required = [
-    ...source.matchAll(/requireEnv(?:Number|Boolean)?\("([A-Z0-9_]+)"\)/g),
-  ].map((m) => m[1]);
-  assert.ok(required.length > 0, "no requireEnv* calls found — parser broken?");
-  for (const key of required) {
+test("K6_SCRIPT_ENV_KEYS covers every requireEnv* call in the k6 scripts", () => {
+  // Die Phasen-Skripte lesen seit 4.13 ihre Lastform selbst (K6_TARGET_RATE,
+  // K6_MAX_VUS, ...), deshalb werden sie mitgescannt.
+  const scripts = [
+    "../../../load-tests/lib/scenario-helpers.js",
+    "../../../load-tests/spike-phase-a.js",
+    "../../../load-tests/spike-phase-b.js",
+  ];
+  for (const script of scripts) {
+    const source = readFileSync(new URL(script, import.meta.url), "utf8");
+    const required = [
+      ...source.matchAll(/requireEnv(?:Number|Boolean)?\("([A-Z0-9_]+)"\)/g),
+    ].map((m) => m[1]);
     assert.ok(
-      K6_SCRIPT_ENV_KEYS.includes(key),
-      `scenario-helpers.js requires ${key}, but K6_SCRIPT_ENV_KEYS misses it`,
+      required.length > 0,
+      `no requireEnv* calls found in ${script} — parser broken?`,
     );
+    for (const key of required) {
+      assert.ok(
+        K6_SCRIPT_ENV_KEYS.includes(key),
+        `${script} requires ${key}, but K6_SCRIPT_ENV_KEYS misses it`,
+      );
+    }
   }
 });
 
@@ -98,6 +107,10 @@ const remoteEnv = () => ({
   CHECKOUT_POLL: "false",
   CHECKOUT_POLL_MAX_ATTEMPTS: "10",
   CHECKOUT_POLL_INTERVAL: "1",
+  K6_TARGET_RATE: "10000",
+  K6_MAX_VUS: "16000",
+  K6_COOLDOWN_RATE: "1000",
+  K6_COOLDOWN_MAX_VUS: "5000",
   HTS_ENV_PROFILE: "capacity",
 });
 

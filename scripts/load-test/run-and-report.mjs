@@ -422,7 +422,7 @@ const main = async () => {
 
   console.log(`[spike:report] Artifacts: ${runDir}`);
   console.log(
-    `[spike:report] benchmark=${derived.validity.benchmark.verdict} system=${derived.validity.system.verdict} (k6 phaseA=${phaseAExit} phaseB=${phaseBExit})`,
+    `[spike:report] benchmark=${derived.validity.benchmark.verdict} system=${derived.validity.system.verdict} performance=${derived.validity.performance.verdict} (k6 phaseA=${phaseAExit} phaseB=${phaseBExit})`,
   );
 
   // 10. Policy exit code — only after every artifact has been written.

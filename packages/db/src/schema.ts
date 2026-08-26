@@ -4,6 +4,7 @@ import {
   uuid,
   varchar,
   integer,
+  index,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -33,19 +34,29 @@ export const orders = pgTable("orders", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const tickets = pgTable("tickets", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  eventId: uuid("event_id")
-    .references(() => events.id)
-    .notNull(),
-  orderId: uuid("order_id")
-    .references(() => orders.id)
-    .notNull(),
-  firstName: varchar("first_name", { length: 255 }).notNull(),
-  lastName: varchar("last_name", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const tickets = pgTable(
+  "tickets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .references(() => events.id)
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id)
+      .notNull(),
+    firstName: varchar("first_name", { length: 255 }).notNull(),
+    lastName: varchar("last_name", { length: 255 }).notNull(),
+    status: varchar("status", { length: 50 }).notNull().default("valid"), // valid, cancelled
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Der Duplikat-Zweig von `buy_ticket` (ON CONFLICT auf orders → Ticket per
+    // `WHERE order_id = p_order_id` zurueckgeben) scannte ohne Index sequenziell
+    // ueber ~1 Mio Zeilen; ein Fremdschluessel legt in PostgreSQL keinen an.
+    // In Baseline E ohne Wirkung (0 Redeliveries), unter Retry-Druck relevant.
+    index("tickets_order_id_idx").on(table.orderId),
+  ],
+);
 
 export const drizzleSqlMigrations = pgTable("drizzle_sql_migrations", {
   tag: text("tag").primaryKey(),

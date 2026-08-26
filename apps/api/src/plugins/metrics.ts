@@ -6,6 +6,14 @@ const { collectDefaultMetrics, contentType } = promClient;
 
 collectDefaultMetrics({ register: apiRegistry });
 
+// Event-Loop-Lag-Defaults entfernt — Begruendung im Worker-Gegenstueck
+// (apps/worker/src/plugins/metrics.ts) und ADR-026 Nachtrag.
+for (const metric of apiRegistry.getMetricsAsArray()) {
+  if (metric.name.startsWith("nodejs_eventloop_lag")) {
+    apiRegistry.removeSingleMetric(metric.name);
+  }
+}
+
 export default fp(async (fastify) => {
   fastify.addHook("onResponse", (request, reply, done) => {
     httpRequestDurationSeconds.observe(

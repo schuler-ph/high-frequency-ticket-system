@@ -27,6 +27,14 @@ export const env = createEnv({
     PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce.number().int().positive(),
     // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
     DATABASE_POOL_MAX: z.coerce.number().int().positive(),
+    // Obere Schranke fuer das Warten auf eine freie Pool-Connection. Ohne sie
+    // warten Acquirer unbegrenzt — am buy-only-Plateau von Baseline E bis zu
+    // 3.760 gleichzeitig — und Pool-Saettigung erscheint als unbegrenzte
+    // Latenz statt als Fehler. Mit Timeout wird sie ein transienter Fehler:
+    // der Worker NACKt, Pub/Sub liefert erneut, `worker_redeliveries_total`
+    // macht es sichtbar. Deutlich ueber der normalen Wartezeit im Rueckstau
+    // (~0,7 s) waehlen, damit nur echte Saettigung ausloest.
+    DATABASE_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive(),
     // Startup-Fail-Fast: obere Schranke, wie lange API/Worker beim Boot auf
     // eine erreichbare Infrastruktur warten, bevor sie mit einer klaren,
     // umsetzbaren Fehlermeldung abbrechen (statt eines opaquen Plugin-Timeouts).
@@ -37,6 +45,15 @@ export const env = createEnv({
     // Reaper seinen Zustand sicher pruefen kann (ADR-031).
     CHECKOUT_PENDING_TIMEOUT_SECONDS: z.coerce.number().int().positive(),
     WORKER_RESERVATION_REAPER_BATCH_SIZE: z.coerce.number().int().positive(),
+    // Eigener Takt des Pending-Reapers (ADR-037): er braucht keinen
+    // DB-Snapshot, nur die Event-Ids des letzten Inventory-Cycles, und darf
+    // deshalb dichter laufen als der COUNT(tickets)-Zyklus. Bei kurzer
+    // Checkout-Deadline (12 s im komprimierten human-pace-Profil) hielte ein
+    // 60-s-Takt abgelaufene Ansprueche bis zum Fuenffachen der Deadline.
+    WORKER_RESERVATION_REAPER_INTERVAL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive(),
     REDIS_FINAL_ORDER_TTL_SECONDS: z.coerce.number().int().positive(),
     REDIS_WORKER_PROCESSED_TTL_SECONDS: z.coerce.number().int().positive(),
     // Read-only inventory cycle (ADR-031): one grouped ticket count is shared

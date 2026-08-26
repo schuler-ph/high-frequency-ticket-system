@@ -16,10 +16,14 @@ import {
   capacityDelta as capacityDeltaIdentity,
   evaluateInvariants,
 } from "./derive.mjs";
-import { benchmarkValidity, systemResult } from "./validate.mjs";
+import {
+  benchmarkValidity,
+  performanceVerdict,
+  systemResult,
+} from "./validate.mjs";
 
-export const DERIVED_SCHEMA_VERSION = 2;
-export const RENDERER_VERSION = 2;
+export const DERIVED_SCHEMA_VERSION = 4;
+export const RENDERER_VERSION = 3;
 
 /**
  * Read a value bag from a k6 summary metric, tolerating both the
@@ -32,10 +36,70 @@ export const RENDERER_VERSION = 2;
 const metricValues = (metric) => metric?.values ?? metric ?? {};
 
 /**
+ * A numeric manifest setting, or `null` when absent or not a number. Manifest
+ * values are strings (redacted process env), and an absent key must stay
+ * distinguishable from `0`.
+ *
+ * @param {string | undefined} value
+ * @returns {number | null}
+ */
+const configNumber = (value) =>
+  value !== undefined && value !== null && Number.isFinite(Number(value))
+    ? Number(value)
+    : null;
+
+/** `p(95)<500` → `p(95)`, `rate<0.05` → `rate`: the aggregation a threshold judges. */
+const THRESHOLD_AGGREGATION = /^([a-z0-9_]+(?:\([^)]*\))?)\s*[<>=!]/i;
+
+/**
+ * Flatten the k6 thresholds declared on a summary's metrics into one list.
+ *
+ * Both summary shapes are tolerated: `--summary-export` marks a threshold with
+ * a bare boolean where `true` means BREACHED (legacy semantics — easy to read
+ * backwards), `handleSummary(data)` with `{ ok: boolean }`. `observed` is the
+ * value of the judged aggregation so the report can show the number next to
+ * the statement; `null` when the summary did not carry it.
+ *
+ * Returns `null` (not `[]`) when the summary declares no thresholds at all, so
+ * a pre-4.13 artifact stays distinguishable from "everything held".
+ *
+ * @param {Record<string, object>} metrics
+ * @returns {Array<{ metric: string, expression: string, breached: boolean, observed: number | null }> | null}
+ */
+const extractThresholds = (metrics) => {
+  const out = [];
+  for (const key of Object.keys(metrics).sort()) {
+    const declared = metrics[key]?.thresholds;
+    if (!declared || typeof declared !== "object") continue;
+    const values = metricValues(metrics[key]);
+    for (const expression of Object.keys(declared).sort()) {
+      const verdict = declared[expression];
+      const breached =
+        typeof verdict === "boolean" ? verdict : verdict?.ok === false;
+      const aggregation = THRESHOLD_AGGREGATION.exec(expression)?.[1] ?? null;
+      // `http_req_failed` exports its rate as `value` in the legacy shape.
+      const raw =
+        aggregation === null
+          ? undefined
+          : aggregation === "rate"
+            ? (values.rate ?? values.value)
+            : values[aggregation];
+      out.push({
+        metric: key,
+        expression,
+        breached,
+        observed: typeof raw === "number" ? raw : null,
+      });
+    }
+  }
+  return out.length > 0 ? out : null;
+};
+
+/**
  * Normalise one k6 phase summary + orchestrator meta into a flat record.
  *
  * @param {object | null} summary Raw k6 summary JSON.
- * @param {{ exitCode?: number, reason?: string } | null} meta
+ * @param {{ exitCode?: number, reason?: string, stopReason?: string, availableAtStop?: number | null } | null} meta
  * @param {string} name
  * @returns {object | null}
  */
@@ -76,6 +140,9 @@ export const summarisePhase = (summary, meta, name) => {
     droppedShare: share.droppedShare,
     httpReqs: metricValues(metrics.http_reqs).count ?? null,
     transportErrors: { total: transportTotal, byEndpoint: transportByEndpoint },
+    // Die im Skript deklarierten Gates, wie k6 sie beurteilt hat — Grundlage
+    // des Performance-Verdicts (ADR-036).
+    thresholds: extractThresholds(metrics),
     duration: {
       avg: duration.avg ?? null,
       med: duration.med ?? null,
@@ -88,6 +155,10 @@ export const summarisePhase = (summary, meta, name) => {
     vusMax: vus.max ?? vus.value ?? null,
     exitCode: meta?.exitCode ?? null,
     reason: meta?.reason ?? null,
+    // Abbruchgrund des reaktiven Phase-A-Stops (`sold-out` | `stalled` |
+    // `k6-exited`); nur Phase A traegt ihn, Vor-4.12-Artefakte gar nicht.
+    stopReason: meta?.stopReason ?? null,
+    availableAtStop: meta?.availableAtStop ?? null,
   };
 };
 
@@ -271,6 +342,12 @@ export const deriveReport = (input) => {
         count: e2eHist.count,
         sum: e2eHist.sum,
         mean: histogramMean({ sum: e2eHist.sum, count: e2eHist.count }),
+        // Die Bucket-Leiter, auf der die Quantile interpoliert wurden.
+        // `spike:compare` verweigert Latenzvergleiche ueber verschiedene
+        // Leitern (Phase 4.13 hat den 1–5-s-Bereich verdichtet).
+        bucketBoundaries: e2eHist.buckets
+          .map((b) => b.le)
+          .filter((le) => Number.isFinite(le)),
         saturation: histogramSaturation(e2eHist.buckets),
         quantiles: {
           p50: quantileFromBuckets(e2eHist.buckets, 0.5),
@@ -353,12 +430,17 @@ export const deriveReport = (input) => {
     activeReservations,
     // Ablauf-Checks haengen an der Semantik der Lauf-Konfiguration (Deadline,
     // Denkzeit), nicht am Profilnamen — ein Rename kann sie nicht abhaengen.
-    checkoutDeadlineSeconds: Number.isFinite(
-      Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS),
-    )
-      ? Number(manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS)
-      : null,
+    checkoutDeadlineSeconds: configNumber(
+      manifest?.configuration?.CHECKOUT_PENDING_TIMEOUT_SECONDS,
+    ),
     thinkTimeKind: manifest?.configuration?.THINK_TIME_KIND ?? null,
+    // Nur ein per Ausverkauf beendeter Lauf macht `sold == totalCapacity`
+    // beweispflichtig (Phase 4.13).
+    stopReason: phaseAMeta?.stopReason ?? null,
+    // Ob Abbruch ueberhaupt moeglich ist, entscheidet, ob der Reaper etwas
+    // zu tun hatte (PAY_RATE + CANCEL_RATE < 1).
+    payRate: configNumber(manifest?.configuration?.PAY_RATE),
+    cancelRate: configNumber(manifest?.configuration?.CANCEL_RATE),
     reaperReleases: sumSamples(
       samples.workerAfter,
       "reservation_reaper_releases_total",
@@ -386,12 +468,14 @@ export const deriveReport = (input) => {
     { invariants, drainStatus: drain?.status ?? "unknown" },
     policy.benchmark,
   );
+  const performance = performanceVerdict({ phases }, policy.performance);
 
   const recommendations = buildRecommendations({
     offeredShare,
     e2eLatency,
     invariants,
     drainStatus: drain?.status ?? "unknown",
+    performance,
     policy,
   });
 
@@ -433,7 +517,7 @@ export const deriveReport = (input) => {
     drift: { min: driftMin, final: driftFinal },
     inventory,
     invariants,
-    validity: { benchmark, system },
+    validity: { benchmark, system, performance },
     recommendations,
   };
 };
@@ -447,9 +531,19 @@ const buildRecommendations = ({
   e2eLatency,
   invariants,
   drainStatus,
+  performance,
   policy,
 }) => {
   const recs = [];
+
+  if (performance?.verdict === "fail") {
+    recs.push({
+      id: "performance-gate-breached",
+      message:
+        "A k6 performance gate was breached; the run is not a latency-clean reference even where benchmark and system pass.",
+      evidence: performance.reasons,
+    });
+  }
 
   if (
     offeredShare.scheduled > 0 &&

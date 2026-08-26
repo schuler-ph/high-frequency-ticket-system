@@ -44,3 +44,18 @@
   Baseline-C-Split-Lauf vom 2026-08-17 sind nur mit diesem Vorbehalt zulässig.
   Historische Reports und Notizen behalten die alten Namen; sie beschreiben
   vergangene Läufe.
+
+- **Nachtrag 2026-08-25 (Phase 4.13):** Punkt 3 ist präzisiert — drei Checks
+  hängen an drei unabhängigen Bedingungen statt alle an einer Deadline-Zahl.
+  `sellout: sold == totalCapacity` verlangt den Abbruchgrund des reaktiven
+  Stops (`stopReason === "sold-out"`) und dass kein Anspruch offen bleiben kann
+  (kurze Deadline **oder** `PAY_RATE + CANCEL_RATE = 1`). Baseline E hatte
+  beides gezeigt: ein `human-pace`-Lauf, der in den 15-Minuten-Deckel von k6
+  lief, bekam mit exakt aufgehender Buchführung ein `fail`; der
+  `buy-only`-Lauf mit 900-s-Deadline, der tatsächlich 1M Tickets verkaufte,
+  bekam gar keinen Sellout-Check. Der Reaper-Check verlangt zusätzlich, dass
+  Abbruch überhaupt möglich ist (`PAY_RATE + CANCEL_RATE < 1`) — bei
+  `PAY_RATE = 1` wäre „mindestens eine Freigabe" ein garantierter Fehlschlag,
+  kein Befund. Der Expiry-Check behält sein Denkzeit-Gate. Nicht
+  beweispflichtige Checks entfallen; die Erhaltungs-Invariante prüft das
+  Inventar in jedem Fall.

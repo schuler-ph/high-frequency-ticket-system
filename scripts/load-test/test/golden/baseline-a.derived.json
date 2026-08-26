@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "rendererVersion": 2,
+  "schemaVersion": 4,
+  "rendererVersion": 3,
   "runId": "2026-07-14T00-00-00Z-baseline-a-fixture",
   "git": {
     "commit": "0000000",
@@ -46,6 +46,7 @@
             "pay": 1
           }
         },
+        "thresholds": null,
         "duration": {
           "avg": 15,
           "med": 12,
@@ -57,7 +58,9 @@
         "failedRate": 0.0028,
         "vusMax": 500,
         "exitCode": 99,
-        "reason": "sold-out-sigint"
+        "reason": "sold-out-sigint",
+        "stopReason": null,
+        "availableAtStop": null
       },
       {
         "name": "phase-b",
@@ -77,6 +80,7 @@
             "pay": 0
           }
         },
+        "thresholds": null,
         "duration": {
           "avg": 5,
           "med": 4,
@@ -88,7 +92,9 @@
         "failedRate": 0,
         "vusMax": 50,
         "exitCode": 0,
-        "reason": "completed"
+        "reason": "completed",
+        "stopReason": null,
+        "availableAtStop": null
       }
     ],
     "totalIterations": 420,
@@ -180,6 +186,11 @@
     "count": 1000,
     "sum": 406000,
     "mean": 406,
+    "bucketBoundaries": [
+      1,
+      10,
+      30
+    ],
     "saturation": {
       "largestFiniteLe": 30,
       "countAtLargestFinite": 141,
@@ -277,6 +288,12 @@
       "verdict": "pass",
       "reasons": [
         "All evaluated invariants hold."
+      ]
+    },
+    "performance": {
+      "verdict": "inconclusive",
+      "reasons": [
+        "No k6 thresholds were exported; the artifact predates the performance verdict."
       ]
     }
   },

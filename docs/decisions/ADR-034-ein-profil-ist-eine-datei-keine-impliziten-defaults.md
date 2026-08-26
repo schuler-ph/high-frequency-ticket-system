@@ -101,3 +101,16 @@ konnte von den Service-Werten abweichen. Und `THINK_TIME_KIND` (`none` /
 `uniform` / `normal`) ist neu: ohne Tabelle braucht die Denkzeitverteilung einen
 eigenen expliziten Wert, statt aus der An- oder Abwesenheit eines
 Objekt-Eintrags zu folgen.
+
+## Nachtrag 2026-08-25: die Lastform ist Teil des Profils
+
+Die k6-Phasen-Skripte trugen die letzten hartkodierten Werte, die eine Messung
+prägen: `maxVUs: 10000`, die Stage-Targets und die Cool-down-Rate. Baseline E
+hat gezeigt, warum das nicht reicht — alle drei Profile brauchten eine andere
+Generator-Größe, und die Dropped-Rate eines Laufs ist ohne den VU-Deckel im
+Manifest nicht interpretierbar. Seit Phase 4.13 sind `K6_TARGET_RATE`,
+`K6_MAX_VUS`, `K6_COOLDOWN_RATE` und `K6_COOLDOWN_MAX_VUS` Pflichtwerte jedes
+Lasttest-Profils (`requireEnvNumber`, kein Skript-Default), fahren beim
+Split-Lauf als `-e`-Flags mit und stehen im Report-Manifest. Ein verteilter
+Generator (Phase 5.7) teilt die Zielrate über Shards auf — genau das war mit
+Skript-Konstanten unmöglich.

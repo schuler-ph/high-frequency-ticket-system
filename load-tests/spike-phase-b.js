@@ -1,4 +1,13 @@
-import { SYSTEM_TAGS, ticketSaleIteration } from "./lib/scenario-helpers.js";
+import {
+  SYSTEM_TAGS,
+  requireEnvNumber,
+  ticketSaleIteration,
+} from "./lib/scenario-helpers.js";
+
+// Lastform als Profil-Knoepfe (ADR-034: kein Skript-Default), siehe
+// spike-phase-a.js.
+const COOLDOWN_RATE = requireEnvNumber("K6_COOLDOWN_RATE");
+const COOLDOWN_MAX_VUS = requireEnvNumber("K6_COOLDOWN_MAX_VUS");
 
 export const options = {
   // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
@@ -6,15 +15,15 @@ export const options = {
   systemTags: SYSTEM_TAGS,
   scenarios: {
     cool_down: {
-      // Phase 4 – Cool-Down: 1.000 RPS flat, 1 Minute. Wird von der
-      // Orchestrierung (scripts/local/run-spike.mjs) direkt im Anschluss an
-      // den per SIGINT gestoppten Sold-Out von Phase A gestartet.
+      // Phase 4 – Cool-Down: K6_COOLDOWN_RATE RPS flat, 1 Minute. Wird von
+      // der Orchestrierung direkt im Anschluss an den reaktiv gestoppten
+      // Sold-Out von Phase A gestartet.
       executor: "constant-arrival-rate",
-      rate: 1000,
+      rate: COOLDOWN_RATE,
       timeUnit: "1s",
       duration: "1m",
       preAllocatedVUs: 200,
-      maxVUs: 5000,
+      maxVUs: COOLDOWN_MAX_VUS,
     },
   },
   thresholds: {

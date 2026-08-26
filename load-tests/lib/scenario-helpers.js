@@ -80,7 +80,7 @@ function requireEnv(name) {
   return value;
 }
 
-function requireEnvNumber(name) {
+export function requireEnvNumber(name) {
   const value = Number(requireEnv(name));
   if (!isFinite(value)) {
     throw new Error(`${name} ist keine Zahl: "${__ENV[name]}"`);
@@ -196,10 +196,16 @@ function pick(arr) {
  * App-Response bekam (Transportfehler: Status 0, `error_code` gesetzt) — nach
  * { endpoint, error_code }. So sind sowohl die Status-Verteilung als auch die
  * Requests ohne App-Response pro Stufe diagnostizierbar.
+ *
+ * Die Statusbedingung ist Pflicht: k6 setzt `error_code` auch fuer jeden
+ * Nicht-2xx (1409 fuer 409, 1425 fuer 425). Ohne sie landeten die erwarteten
+ * Fachantworten „ausverkauft" und „Sale noch zu" in der Fehlermetrik — in
+ * Baseline E exakt `funnel_sold_out + funnel_too_early`, in Phase B des
+ * buy-only-Laufs 60 000 „Transportfehler" bei 60 000 gruenen Checks.
  */
 function recordResponse(res, endpoint) {
   requestsByStatus.add(1, { endpoint, status: String(res.status) });
-  if (res.error_code) {
+  if (res.status === 0 && res.error_code) {
     transportErrors.add(1, { endpoint, error_code: String(res.error_code) });
   }
 }

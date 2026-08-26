@@ -155,11 +155,13 @@ test("evaluateInvariants adds the expiry checks only when the deadline can elaps
     false,
   );
 
-  // Kurze Deadline + Denkzeit (human-pace): alle drei Checks.
+  // Kurze Deadline + Denkzeit (human-pace), per Ausverkauf beendet: alle
+  // drei Checks.
   const humanPace = evaluateInvariants({
     ...base,
     checkoutDeadlineSeconds: 120,
     thinkTimeKind: "normal",
+    stopReason: "sold-out",
     reaperReleases: 412,
     expiredRejections: 87,
   });
@@ -177,6 +179,7 @@ test("evaluateInvariants adds the expiry checks only when the deadline can elaps
     ...base,
     checkoutDeadlineSeconds: 60,
     thinkTimeKind: "none",
+    stopReason: "sold-out",
     reaperReleases: 412,
     expiredRejections: 0,
   });
@@ -184,6 +187,178 @@ test("evaluateInvariants adds the expiry checks only when the deadline can elaps
   assert.equal(
     fullSpeed.some((i) => i.id.startsWith("expiry:")),
     false,
+  );
+});
+
+// Baseline E, human-pace (Phase 4.13): der Lauf lief in den 15-Minuten-Deckel
+// von k6 und blieb bei 99 788 von 100 000 stehen — mit exakt aufgehender
+// Buchfuehrung (100 frei + 99 788 verkauft + 112 offen). Der alte Deadline-
+// Schalter setzte ihn trotzdem auf `fail`. Ohne Ausverkauf ist exakter
+// Sellout nicht beweispflichtig; Reaper und Expiry wurden dennoch ausgeuebt.
+test("the sellout check requires a run that actually ended by sell-out", () => {
+  const timedOut = evaluateInvariants({
+    published: 99_900,
+    completed: 99_788,
+    failed: 112,
+    dbOrders: 99_900,
+    dbTickets: 99_788,
+    pendingOrders: 0,
+    capacity: 100_000,
+    redisAvailable: 100,
+    activeReservations: 112,
+    checkoutDeadlineSeconds: 120,
+    thinkTimeKind: "normal",
+    stopReason: "k6-exited",
+    reaperReleases: 3_140,
+    expiredRejections: 205,
+  });
+  assert.equal(
+    timedOut.some((i) => i.id === "sellout: sold == totalCapacity"),
+    false,
+  );
+  assert.equal(timedOut.find((i) => i.id.includes("reaper released")).ok, true);
+  assert.equal(
+    timedOut.find((i) => i.id.includes("rejected as expired")).ok,
+    true,
+  );
+  assert.ok(timedOut.every((i) => i.ok === true));
+
+  // Ein Plateau mit Restbestand ist ebenfalls kein Ausverkauf.
+  const stalled = evaluateInvariants({
+    published: 10,
+    completed: 10,
+    failed: 0,
+    dbOrders: 10,
+    dbTickets: 10,
+    pendingOrders: 0,
+    capacity: 100,
+    redisAvailable: 90,
+    activeReservations: 0,
+    checkoutDeadlineSeconds: 60,
+    thinkTimeKind: "none",
+    stopReason: "stalled",
+    reaperReleases: 0,
+  });
+  assert.equal(
+    stalled.some((i) => i.id === "sellout: sold == totalCapacity"),
+    false,
+  );
+
+  // Vor-4.12-Artefakte kennen keinen stopReason: kein Check, kein Fehlschlag.
+  const legacy = evaluateInvariants({
+    published: 10,
+    completed: 10,
+    failed: 0,
+    dbOrders: 10,
+    dbTickets: 10,
+    pendingOrders: 0,
+    capacity: 10,
+    redisAvailable: 0,
+    activeReservations: 0,
+    checkoutDeadlineSeconds: 60,
+    thinkTimeKind: "none",
+  });
+  assert.equal(
+    legacy.some((i) => i.id === "sellout: sold == totalCapacity"),
+    false,
+  );
+});
+
+// Drei Checks, drei unabhaengige Bedingungen (Phase 4.13): Sellout am
+// Abbruchgrund, Reaper an der Moeglichkeit eines Abbruchs, Expiry an der
+// Denkzeit. `buy-only-full-speed` (PAY_RATE 1, CANCEL_RATE 0) ist der Fall,
+// den ein Deadline-Schalter nie richtig behandelt: bei 900 s bekam der Lauf,
+// der 1M Tickets verkauft hat, gar keinen Sellout-Check; unter 600 s haette er
+// einen garantierten Reaper-Fehlschlag bekommen — niemand bricht ab, nichts
+// laeuft ab, „mindestens eine Freigabe" ist zwangslaeufig 0.
+test("the reaper check applies only when abandonment is possible", () => {
+  const soldOut = {
+    published: 1_000_000,
+    completed: 1_000_000,
+    failed: 0,
+    dbOrders: 1_000_000,
+    dbTickets: 1_000_000,
+    pendingOrders: 0,
+    capacity: 1_000_000,
+    redisAvailable: 0,
+    activeReservations: 0,
+    stopReason: "sold-out",
+    thinkTimeKind: "none",
+    reaperReleases: 0,
+    expiredRejections: 0,
+  };
+
+  // buy-only mit langer Deadline: Sellout ja (kein Anspruch kann offen
+  // bleiben), Reaper und Expiry nein.
+  const buyOnly = evaluateInvariants({
+    ...soldOut,
+    checkoutDeadlineSeconds: 900,
+    payRate: 1,
+    cancelRate: 0,
+  });
+  assert.equal(
+    buyOnly.find((i) => i.id === "sellout: sold == totalCapacity").ok,
+    true,
+  );
+  assert.equal(
+    buyOnly.some((i) => i.id.includes("reaper released")),
+    false,
+  );
+  assert.equal(
+    buyOnly.some((i) => i.id.startsWith("expiry:")),
+    false,
+  );
+  assert.ok(buyOnly.every((i) => i.ok === true));
+
+  // Die naive Reparatur — Deadline unter 600 s — darf den Reaper-Check bei
+  // PAY_RATE 1 trotzdem nicht aktivieren.
+  const buyOnlyShortDeadline = evaluateInvariants({
+    ...soldOut,
+    checkoutDeadlineSeconds: 60,
+    payRate: 1,
+    cancelRate: 0,
+  });
+  assert.equal(
+    buyOnlyShortDeadline.some((i) => i.id.includes("reaper released")),
+    false,
+  );
+  assert.ok(buyOnlyShortDeadline.every((i) => i.ok === true));
+
+  // browse-and-buy-full-speed: Abbruch moeglich (0.88 + 0.08 < 1), also ist
+  // der Reaper beweispflichtig — und 0 Freigaben sind hier ein Befund.
+  const fullSpeed = evaluateInvariants({
+    ...soldOut,
+    checkoutDeadlineSeconds: 60,
+    payRate: 0.88,
+    cancelRate: 0.08,
+  });
+  assert.equal(
+    fullSpeed.find((i) => i.id.includes("reaper released")).ok,
+    false,
+  );
+
+  // Lange Deadline und Abbruch moeglich: der Stop wartet nicht auf den Ledger,
+  // offene Ansprueche koennen bleiben — Sellout ist nicht entscheidbar.
+  const longDeadlineAbandon = evaluateInvariants({
+    ...soldOut,
+    checkoutDeadlineSeconds: 900,
+    payRate: 0.88,
+    cancelRate: 0.08,
+  });
+  assert.equal(
+    longDeadlineAbandon.some((i) => i.id === "sellout: sold == totalCapacity"),
+    false,
+  );
+
+  // Ohne Raten im Manifest bleibt das bisherige Verhalten: kurze Deadline
+  // reicht fuer den Reaper-Check.
+  const unknownRates = evaluateInvariants({
+    ...soldOut,
+    checkoutDeadlineSeconds: 60,
+  });
+  assert.equal(
+    unknownRates.some((i) => i.id.includes("reaper released")),
+    true,
   );
 });
 
@@ -200,6 +375,7 @@ test("the expiry run fails when inventory was lost or the reaper never ran", () 
     activeReservations: 0,
     checkoutDeadlineSeconds: 120,
     thinkTimeKind: "normal",
+    stopReason: "sold-out",
   };
 
   // 90 verkauft bei Kapazitaet 100 — genau der Verlust, den der Check

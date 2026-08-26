@@ -216,6 +216,9 @@ export const capacityDelta = ({
  *   activeReservations?: number | null,
  *   checkoutDeadlineSeconds?: number | null,
  *   thinkTimeKind?: string | null,
+ *   stopReason?: "sold-out" | "stalled" | "k6-exited" | null,
+ *   payRate?: number | null,
+ *   cancelRate?: number | null,
  *   reaperReleases?: number | null,
  *   expiredRejections?: number | null,
  * }} facts
@@ -234,6 +237,9 @@ export const evaluateInvariants = (facts) => {
     activeReservations = null,
     checkoutDeadlineSeconds = null,
     thinkTimeKind = null,
+    stopReason = null,
+    payRate = null,
+    cancelRate = null,
     reaperReleases = null,
     expiredRejections = null,
   } = facts;
@@ -295,24 +301,60 @@ export const evaluateInvariants = (facts) => {
 
   // Ablauf-Checks nach Semantik statt Profilname (Phase 4.12): sobald die
   // Checkout-Deadline kurz genug ist, um innerhalb des Phase-A-Fensters
-  // (max ~990 s) abzulaufen, uebt der Lauf Reaper + Wiederverkauf aus — dann
-  // ist exakter Sellout beweispflichtig. Bei langer Deadline (900 s) waeren
-  // dieselben Checks garantiert verletzt, also gehoeren sie nicht dorthin.
-  const expiryExercised =
+  // (max ~990 s) abzulaufen, uebt der Lauf Reaper + Wiederverkauf aus. Bei
+  // langer Deadline (900 s) waeren dieselben Checks garantiert verletzt, also
+  // gehoeren sie nicht dorthin.
+  const deadlineCanElapse =
     checkoutDeadlineSeconds !== null &&
     checkoutDeadlineSeconds !== undefined &&
     checkoutDeadlineSeconds <= 600;
-  if (expiryExercised) {
+
+  // Kann ueberhaupt ein Anspruch liegen bleiben? Nur die Kohorte, die weder
+  // zahlt noch storniert (`1 - PAY_RATE - CANCEL_RATE`), laeuft in die
+  // Deadline. `null`, wenn das Manifest die Raten nicht traegt (Vor-4.12).
+  const abandonmentPossible =
+    payRate !== null &&
+    payRate !== undefined &&
+    cancelRate !== null &&
+    cancelRate !== undefined
+      ? payRate + cancelRate < 1
+      : null;
+
+  // Exakter Sellout ist nur beweispflichtig, wenn der Lauf tatsaechlich per
+  // Ausverkauf endete (Phase 4.13): `stopReason` ist der Abbruchgrund des
+  // reaktiven Orchestrator-Stops. Entscheidbar ist `sold == totalCapacity`
+  // dann, wenn kein Anspruch offen bleiben kann — weil die Deadline kurz ist
+  // (der Stop verlangt dann zusaetzlich einen leeren Ledger) oder weil
+  // niemand abbricht (`buy-only`: PAY_RATE 1, Deadline 900 s). Ein Lauf, der
+  // stattdessen in den k6-Zeitdeckel lief (Baseline E human-pace: 99 788 von
+  // 100 000 bei exakt aufgehender Buchfuehrung), hat die Frage nicht
+  // beantwortet: der Check entfaellt, statt zu scheitern. Die Erhaltung
+  // prueft die Kapazitaets-Invariante oben in jedem Fall.
+  const claimsResolveWithinRun =
+    deadlineCanElapse || abandonmentPossible === false;
+  if (stopReason === "sold-out" && claimsResolveWithinRun) {
     invariants.push(
       // Der Kernbeweis: Abbrueche und Ablaeufe haben kein Inventar verloren.
       check("sellout: sold == totalCapacity", capacity ?? null, dbTickets),
-      // Ohne ausgeuebten Reaper ist der Lauf fuer diese Frage inconclusive,
-      // nicht bestanden.
-      observed(
-        "sellout: reaper released at least one expired claim",
-        reaperReleases,
-      ),
     );
+  }
+
+  if (deadlineCanElapse) {
+    // Der Reaper ist nur beweispflichtig, wenn Abbruch moeglich ist. Bei
+    // PAY_RATE 1 laeuft nie eine Reservierung ab, und „mindestens eine
+    // Freigabe" waere zwangslaeufig 0 — ein garantierter Fehlschlag, kein
+    // Befund. Unbekannte Raten (kein Manifest-Eintrag) lassen den Check wie
+    // bisher stehen.
+    if (abandonmentPossible !== false) {
+      invariants.push(
+        // Ohne ausgeuebten Reaper ist der Lauf fuer diese Frage inconclusive,
+        // nicht bestanden.
+        observed(
+          "sellout: reaper released at least one expired claim",
+          reaperReleases,
+        ),
+      );
+    }
     // Zu-spaet-Zahler gibt es nur mit Denkzeit: ohne sie liegt der Pay
     // Millisekunden nach dem Reserve und laeuft nie in die Deadline.
     if (thinkTimeKind !== null && thinkTimeKind !== "none") {
