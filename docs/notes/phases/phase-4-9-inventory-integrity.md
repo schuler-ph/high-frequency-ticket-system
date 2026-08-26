@@ -209,3 +209,17 @@ für genau diesen Lauf und ist in `docs/TODO.md` Phase 4.9 als Todo geführt.
 - Cloud-Deployment.
 
 Der lokale Spike-Test initialisiert PostgreSQL, Redis und Pub/Sub weiterhin ueber den bestehenden Reset-/Seed-Pfad vor dem Verkauf.
+
+## Abgeschlossene Todos (aus `docs/TODO.md` verschoben, 2026-08-26)
+
+Der Todo-Index behaelt fuer diese Phase eine Zeile; die Einzelpunkte stehen hier, weil `docs/TODO.md` am 40-KiB-Backstop liegt (ADR-029).
+
+- [x] **Capacity-Invariante:** die alten Flow-Invarianten waren fuer Ueberzeichnung blind; `available + dbTickets + activeReservations == totalCapacity` ist jetzt eigener Check und macht den reproduzierten `+124`-Zustand zu `system=fail`. → ADR-031
+- [x] **Inventory Auditor:** misst Capacity-Delta und Ledger per `GET`/`ZCARD`/`ZCOUNT`; fehlende Keys sind Fehler, niemals Initialisierung oder Korrektur.
+- [x] **Sold-count Projector:** Auditor und Projektion teilen genau einen `COUNT(tickets)`-Snapshot je 60-s-Zyklus; Laufzeit/Fehler/letzter Erfolg sind instrumentiert, Redis ist keine Dependency.
+- [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
+- [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
+- [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten.
+- [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
+- [x] **DB-Dashboard:** `db-runtime` zeigt Projector-Query-Dauer, Write-back-Dauer, Health (Fehler, letzter Erfolg) und „Pool Wait during Projector Activity".
+- [x] **Abschluss-Lasttest:** erbracht durch den Lauf 2026-08-03 — alle 5 Invarianten, Capacity-Delta 0 nach Drain, keine Projector-Interferenz auf Pool-Wait (ADR-031 beantwortet). → [Beleg](../../reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md)

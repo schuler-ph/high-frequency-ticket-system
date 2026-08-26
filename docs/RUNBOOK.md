@@ -229,21 +229,26 @@ sein:
 docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
 ```
 
-**Listen-Backlog anheben:** macOS deckelt die Accept-Queue jedes Listeners auf
-`kern.ipc.somaxconn` (Default 128); Nodes eigener Backlog-Wunsch (511) wird
-darauf gekappt, und fastify-cli kennt keinen Backlog-Parameter. Öffnen in der
-Öffnungsspitze Tausende k6-VUs gleichzeitig Verbindungen, läuft die Queue über:
-SYNs werden verworfen, der Client wiederholt nach 1+2+4+8 s — genau die
-15-s-Spitzen in `http_req_connecting` und die Buy-Transportfehler aus
-Baseline F (Runde 1). Vor dem Lauf setzen (nicht persistent, nach einem Reboot
+**Listen-Backlog anheben (Hygiene, keine Ursache):** macOS deckelt die
+Accept-Queue jedes Listeners auf `kern.ipc.somaxconn` (Default 128); Nodes
+eigener Backlog-Wunsch (511) wird darauf gekappt, fastify-cli kennt keinen
+Backlog-Parameter. Vor dem Lauf setzen (nicht persistent, nach einem Reboot
 erneut); der Task `loadtest:split-check` prüft den Wert mit:
 
 ```bash
 sudo sysctl -w kern.ipc.somaxconn=1024
 ```
 
-Damit greift Nodes 511. Mehr als 1024 bringt ohne eigenes `listen({ backlog })`
-nichts.
+Was das **nicht** löst: die 15-s-Spitzen in `http_req_connecting` und die
+Connect-Timeouts auf dem Buy-Bein. Baseline F hat sie mit 128 **und** mit 1024
+gesehen (Runde 2: 80 116 `connectex … did not properly respond`, alle in der
+Verkaufsphase). Ursache ist der **eine Core des API-Prozesses**: bei 1,02–1,05
+Cores kommt die Event-Loop mit `accept()` nicht mehr hinterher, dann ist die
+Queue-Länge egal. Die lokale Decke liegt bei ~9k Kauf-Iterationen/s (≈13k RPS
+mit Reads); mehr gibt es nur mit mehreren API-Prozessen — Phase 5.2. Ein
+Generator, der oberhalb der Decke anbietet, liefert immer `degraded`: entweder
+als Drops (kleiner VU-Deckel) oder als Latenz (großer VU-Deckel), siehe
+[Baseline F](reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md).
 
 **Readiness vom PC prüfen** (Einzelrequests, kein Lasttest):
 

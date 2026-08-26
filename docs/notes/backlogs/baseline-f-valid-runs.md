@@ -30,9 +30,20 @@ ein gueltiger und korrekter Lauf steht". Quelle der Befunde:
 > Zwei Ursachen, beide ausserhalb des Systems:
 >
 > - **VU-Anlauf.** Full-speed belegte maximal 5 777 VUs von 16 000, human-pace 3 679 von 10 000 — der Deckel war nie das Problem. k6 startet aber mit `preAllocatedVUs: 200` (`vus_max` min = 200 in allen Summaries) und verwirft Iterationen, waehrend es nachallokiert. Das erklaert die ~0,4 % dieser beiden Laeufe. → `K6_PREALLOCATED_VUS` je Profil (8 000 / 10 000 / 4 000).
-> - **Connect-Stalls auf dem Buy-Bein.** `http_req_connecting` max 15,0 s (full-speed) und 15,1 s (buy-only), 21 ms in human-pace. 15 s ist die TCP-SYN-Retransmit-Leiter 1+2+4+8 s — Signatur eines ueberlaufenden Listen-Backlogs (macOS `kern.ipc.somaxconn` = 128, Node-Default 511 wird darauf gekappt). Buy-only hatte dadurch 15 640 echte Transportfehler (1,4 %), Iterationen bis 27 s und lief so — bei rechnerisch ~2 500 benoetigten VUs — in den 10 000er-Deckel (`vus` aktiv max = 10 000). → `somaxconn` auf dem SUT-Mac anheben (RUNBOOK §3); fastify-cli kennt keinen Backlog-Parameter, der Node-Default 511 greift, sobald das OS ihn zulaesst.
+> - **Connect-Stalls auf dem Buy-Bein.** `http_req_connecting` max 15,0 s (full-speed) und 15,1 s (buy-only), 21 ms in human-pace. Buy-only hatte dadurch 15 640 echte Transportfehler (1,4 %), Iterationen bis 27 s und lief so — bei rechnerisch ~2 500 benoetigten VUs — in den 10 000er-Deckel (`vus` aktiv max = 10 000). Erste Lesart war ein ueberlaufender Listen-Backlog (`somaxconn` 128); Runde 2 hat das widerlegt, siehe unten. Die eigentliche Ursache steht im CPU-Panel: **die API haengt in beiden Full-Speed-Laeufen bei 1,02–1,04 Cores** — ein Node-Prozess, ein Core, `accept()` kommt nicht mehr hinterher.
 >
 > Belegluecke: die k6-Konsolenausgabe (`Insufficient VUs`, `dial tcp … i/o timeout`) stand nur im VS-Code-Terminal — der Orchestrator spiegelt sie seit Runde 1 nach `k6/phase-*.log`.
+
+### Baseline F, Runde 2 (2026-08-26, `a9c42f3`) — und das Ende der Generator-Optimierungen
+
+> Ein Lauf `browse-and-buy-full-speed` mit `K6_PREALLOCATED_VUS=8000` und `somaxconn=1024` (Artefakt `2026-08-26T11-30-03`). Ergebnis **schlechter**: 4,28 % dropped, alle 16 000 VUs aktiv, p95 1 667 ms (`performance: fail`), 80 116 Transportfehler. Das k6-Log liegt diesmal vor: 1× `Insufficient VUs, reached 16000`, 80 116× `connectex: A connection attempt failed because the connected party did not properly respond` — Windows-Connect-Timeouts, 10–20k je Minute von 13:32 bis 13:36, null nach dem Ausverkauf. API-CPU flach bei 1,05 Cores. **Durchsatz identisch zu Runde 1** (8 680 gegen 9 009 it/s): der Server liefert dasselbe, nur die Warteschlange davor ist tiefer — Little's Law.
+>
+> Zwei Fehlannahmen sind damit korrigiert:
+>
+> - **Backlog war Mechanismus, nicht Ursache.** `somaxconn=1024` hat die 15-s-Stalls nicht beseitigt. Wenn die Event-Loop den `accept()` nicht mehr schafft, ist die Queue-Laenge egal.
+> - **Vorallokation waermt nichts vor.** k6 oeffnet Verbindungen erst bei der ersten Anfrage eines VUs; im 1 000-RPS-Warm-up waren nur 2–76 der 8 000 VUs aktiv. Die Vorallokation hat nur den Deckel entfernt, der in Runde 1 die Concurrency zufaellig auf 5,8k begrenzt und die Latenz bei 228 ms gehalten hat.
+>
+> **Schluss:** Die lokale Decke ist ~9k Kauf-Iterationen/s (≈13k RPS mit Reads) auf einem API-Core. Ein Open-Loop-Generator oberhalb der Decke liefert immer `degraded` — als Drops (kleiner VU-Deckel) oder als Latenz (grosser VU-Deckel). `valid` gibt es lokal nur unterhalb der Decke (`K6_TARGET_RATE` ~8 000) oder mit mehreren API-Prozessen (Phase 5.2). Die Profile stehen wieder auf den Werten der Referenzlaeufe (200 vorallokierte VUs); weitere Laeufe in Phase 4 gibt es nicht. Referenz: [Baseline F](../../reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md).
 
 ### A — Verdict und Gates reparieren (Vorbedingung fuer jeden neuen Lauf)
 

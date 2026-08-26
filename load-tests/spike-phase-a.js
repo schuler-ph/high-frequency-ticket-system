@@ -11,11 +11,13 @@ import {
 // das nicht.
 const TARGET_RATE = requireEnvNumber("K6_TARGET_RATE");
 const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
-// k6 verwirft Iterationen, waehrend es neue VUs hochfaehrt — auch weit unter
-// `maxVUs`. Baseline F (2026-08-26): 200 vorallokiert, 5.777 gebraucht,
-// 0,36 % dropped ohne jede Deckelberuehrung. Deshalb den erwarteten Bedarf
-// vorab allokieren; die Verbindungen entstehen dann im 1.000-RPS-Warm-up
-// statt in der Oeffnungsspitze.
+// Vorallokierte VUs. Achtung, zwei Fehlannahmen aus Baseline F: (1) k6 oeffnet
+// Verbindungen erst bei der ersten Anfrage eines VUs — im 1.000-RPS-Warm-up
+// sind nur ~50 VUs aktiv, die uebrigen bleiben unverbunden, es "waermt" also
+// nichts vor. (2) Gegen einen gesaettigten Server (API auf einem Core) ist
+// mehr verfuegbare Concurrency schaedlich: Runde 2 mit 8.000 statt 200 trieb
+// alle 16.000 VUs in den Einsatz und p95 von 228 auf 1.667 ms, Drops von 0,36
+// auf 4,28 %. Der Knopf bleibt fuer Profile unterhalb der Decke sinnvoll.
 const PREALLOCATED_VUS = requireEnvNumber("K6_PREALLOCATED_VUS");
 
 export const options = {

@@ -325,15 +325,7 @@ Kleinteilige Verbesserungen am Lasttest-Werkzeug, die beim Fahren der Baseline-D
 
 Ziel: Redis-Inventar wird nur durch atomare Reserve-/Release-/Finalize-Skripte verändert. Reconcile wird durch Audit, Projektion und sichere Freigabe ersetzt. → ADR-031, [Plan](notes/phases/phase-4-9-inventory-integrity.md)
 
-- [x] **Capacity-Invariante:** die alten Flow-Invarianten waren fuer Ueberzeichnung blind; `available + dbTickets + activeReservations == totalCapacity` ist jetzt eigener Check und macht den reproduzierten `+124`-Zustand zu `system=fail`. → ADR-031
-- [x] **Inventory Auditor:** misst Capacity-Delta und Ledger per `GET`/`ZCARD`/`ZCOUNT`; fehlende Keys sind Fehler, niemals Initialisierung oder Korrektur.
-- [x] **Sold-count Projector:** Auditor und Projektion teilen genau einen `COUNT(tickets)`-Snapshot je 60-s-Zyklus; Laufzeit/Fehler/letzter Erfolg sind instrumentiert, Redis ist keine Dependency.
-- [x] **Reconcile entfernen:** schreibender Kern, Startup-Blocker, Scheduler und `WORKER_RECONCILE_*` sind entfernt; der Subscriber startet unabhaengig vom read-only Inventory-Zyklus.
-- [x] **Checkout-State:** Pay claimt per Lua genau einmal `pending → publishing` und markiert nach Publish `paid`; Cancel/Rollback sind auf ihren erwarteten Zustand begrenzt, der oeffentliche Status bleibt bis zur Worker-Finalisierung `pending`.
-- [x] **Pending-Reaper:** ZSet-Score ist die exakte Eligibility Deadline; nur faelliges `pending` wird per Lua atomar freigegeben, `publishing|paid` bleiben Recovery-Kandidaten.
-- [x] **Inventory-Integrity-Dashboard:** das bestehende Dashboard ist in `Inventory Integrity` umbenannt und zeigt signiertes Capacity-Delta, Final-Invariante, Rohkomponenten, Auditor-Health, Reaper-Aktivitaet und aeltesten Pending-Anspruch.
-- [x] **DB-Dashboard:** `db-runtime` zeigt Projector-Query-Dauer, Write-back-Dauer, Health (Fehler, letzter Erfolg) und „Pool Wait during Projector Activity".
-- [x] **Abschluss-Lasttest:** erbracht durch den Lauf 2026-08-03 — alle 5 Invarianten, Capacity-Delta 0 nach Drain, keine Projector-Interferenz auf Pool-Wait (ADR-031 beantwortet). → [Beleg](reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md)
+- [x] **Alle neun Punkte umgesetzt (2026-07-30):** Capacity-Invariante, Auditor, Projector, Reconcile entfernt, Reaper, Dashboards. → [Einzelpunkte](notes/phases/phase-4-9-inventory-integrity.md), [Beleg](reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md)
 
 ## Phase 4.10: Checkout-Expiry-Funnel (entdeckt 2026-08-14)
 
@@ -374,8 +366,8 @@ Ersetzt das verworfene Phase-4.4-Todo auf lokalem Massstab: k6 auf dem Ryzen-PC,
 ## Phase 4.13: Baseline F — gueltiger Lauf je Profil
 
 - [x] **Harness und System vorbereitet (A–D, 2026-08-25):** ADR-036, ADR-037, Lastform als Profilwerte, komprimierte Zeit, Buckets, Lock-Waits, Pool-Timeout, Index. → [Details](notes/backlogs/baseline-f-valid-runs.md#baseline-f-vorspann)
-- [ ] **Baseline F fahren:** drei Profile, ein Commit; Ziel `valid`/`pass`/`pass`. Nur mit Freigabe.
-- [ ] **`POST /pay` unter Contention verstehen,** dann Referenz-Baseline in 5.6 verankern.
+- [x] **Baseline F gefahren (2026-08-26):** drei Profile `system: pass`, `performance: pass`, exakter Sellout; `benchmark: degraded` — die API haengt bei 10k it/s an einem Core (~9k it/s Decke). Referenz fuer 5.6. → [Report](reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md)
+- [x] **`POST /pay` unter Contention:** p50/p95/p99 91 / 323 / 568 ms (E: 670 / 2 173 / 2 451) — Concurrency vor dem gesaettigten Core, keine Routen-Eigenschaft; Referenz in 5.6 verankert.
 
 ## Phase 5: Cloud Deployment (GCP)
 
@@ -409,7 +401,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 ### Phase 5.6 — Cloud-Baseline auf Paritaetsniveau
 
-- [ ] **`spike:report` in der Cloud mit dem Referenzprofil** (REQ-P01), Vergleich gegen die lokale Referenz-Baseline (REQ-D03, REQ-D05 Stufe 1). Lauf nur mit Freigabe.
+- [ ] **`spike:report` in der Cloud mit dem Referenzprofil** (REQ-P01), Vergleich gegen [Baseline F](reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md) — Runde 1, 9 009 it/s, p95 228 ms, ein API-Core (REQ-D03, REQ-D05 Stufe 1). Lauf nur mit Freigabe.
 
 ### Phase 5.7 — Cloud-Zielprofil
 
