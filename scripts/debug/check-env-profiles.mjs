@@ -78,6 +78,14 @@ const BENCH_VARIABLES = [
 /** Seed-Variablen — jedes Profil, das seeden kann, braucht sie. */
 const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
+/**
+ * Frontend-Variablen. Next.js inlined `NEXT_PUBLIC_*` zur Build-/Dev-Zeit aus
+ * dem Prozess-Env; die Web-Skripte laden dafuer das Profil per `--env-file`
+ * (ADR-034 Nachtrag). Das Zod-Schema kennt sie nicht (`client: {}`), deshalb
+ * hier explizit — sonst faellt ein Profil ohne sie erst im Browser auf.
+ */
+const WEB_VARIABLES = ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_EVENT_ID"];
+
 const LOADTEST_PROFILES = new Set([
   "browse-and-buy-full-speed",
   "browse-and-buy-human-pace",
@@ -128,6 +136,14 @@ for (const entry of profiles) {
   for (const variable of SEED_VARIABLES) {
     if (!keys.has(variable)) {
       problems.push(`config/env/${entry}: ${variable} fehlt (Seed-Variable).`);
+    }
+  }
+
+  for (const variable of WEB_VARIABLES) {
+    if (!keys.has(variable)) {
+      problems.push(
+        `config/env/${entry}: ${variable} fehlt (Frontend-Variable).`,
+      );
     }
   }
 
