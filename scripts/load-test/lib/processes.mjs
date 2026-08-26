@@ -54,6 +54,7 @@ export const K6_SCRIPT_ENV_KEYS = [
   // keine Skript-Konstanten — sonst liesse sich die Rate nie sharden (5.7).
   "K6_TARGET_RATE",
   "K6_MAX_VUS",
+  "K6_PREALLOCATED_VUS",
   "K6_COOLDOWN_RATE",
   "K6_COOLDOWN_MAX_VUS",
   "HTS_ENV_PROFILE",

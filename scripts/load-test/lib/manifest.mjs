@@ -41,6 +41,7 @@ export const CONFIG_ALLOWLIST = [
   // rekonstruierbar — die Dropped-Rate ist nur gegen den VU-Deckel lesbar.
   "K6_TARGET_RATE",
   "K6_MAX_VUS",
+  "K6_PREALLOCATED_VUS",
   "K6_COOLDOWN_RATE",
   "K6_COOLDOWN_MAX_VUS",
   "PAY_RATE",

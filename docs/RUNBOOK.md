@@ -302,7 +302,8 @@ k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
   -e CHECKOUT_POLL_INTERVAL=1 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
-  -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 load-tests/spike-phase-a.js
+  -e K6_PREALLOCATED_VUS=8000 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
+  load-tests/spike-phase-a.js
 ```
 
 Stop beim Ausverkauf (vom Mac; auf k6 v2.0.0 endet der Lauf mit Exit 103,
