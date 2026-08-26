@@ -69,3 +69,32 @@ Abgeschlossene Phasenspezifikation zum Reserve/Pay-Split und Checkout. Die verbi
 ### Live-Order-Status
 
 > - [x] **Live-Order-Status:** In der `tracking`-Phase `GET /api/orders/:orderId` pollen (Backoff/Jitter aus Phase 6 optional beruecksichtigen) und `pending → completed|failed` inkl. Ticket-Referenz live darstellen; Fehl-/Failed-Status verstaendlich anzeigen. — `hooks/useOrderStatus.ts` pollt (2 s + Jitter) und stoppt bei Final-Status; `fetchOrderStatus` in `lib/api.ts`; `TrackingView` rendert `pending` (Spinner), `completed` (Ticket-Referenz) und `failed` (`failureReason`) live.
+
+## Abgeschlossene Todos (aus `docs/TODO.md` verschoben, 2026-08-26)
+
+Der Todo-Index behaelt fuer diese Phase eine Zusammenfassung; die Einzelpunkte stehen hier, weil `docs/TODO.md` am 40-KiB-Backstop liegt (ADR-029).
+
+Ziel: Reservierung, simuliertes 3DS und Live-Status. `/buy` reserviert; erst `/pay` publiziert (ADR-028). → [Details](#phase-43-ziel-und-leitentscheidung)
+
+**Wo lebt die Payment-Latenz?** Nirgends im Backend — Worker-Sleep entfernt, `/pay` ohne Server-Sleep; die 3DS-Verzoegerung ist reines Frontend-UX. k6 faehrt `/buy`→`/pay` back-to-back (ADR-028). → [Details](#wo-lebt-die-payment-latenz)
+
+### Backend: Reserve/Pay-Split (`apps/api` + `packages/types`)
+
+- [x] **Buy entkoppeln:** `POST /api/tickets/:eventId/buy` reserviert nur noch (Lua: `DECR available` + Ledger-`ZADD` + `pending`-Order) und liefert `orderId` + `202`, **ohne** Publish.
+- [x] **Payment-DTO in `packages/types`:** Zod-Schema fuer den simulierten Payment-Request/Response, klar als Fake gekennzeichnet, keine Persistenz der Zahlungsdaten.
+- [x] **Worker-Sleep entfernen:** 1-s-Payment-Mock samt `sleep`-Dependency aus `handle-buy-ticket-message.ts` geloescht; der Worker ist jetzt reiner Persist-Consumer.
+- [x] **Synchrone Pay-Route:** `POST /api/orders/:orderId/pay` validiert das DTO und published `BuyTicketEvent`, antwortet synchron mit `200` — kein Server-Sleep, keine DB-Writes.
+- [x] **Publish-Rollback im Pay-Pfad:** Bei Publish-Fehler den Reservierungsanspruch atomar und idempotent freigeben. → [ADR-028](../../decisions/ADR-028-reserve-pay-publish-split-payment-latenz-lebt-im-frontend.md)
+- [x] **Checkout-Abbruch/Timeout behandeln:** `POST /api/orders/:orderId/cancel` gibt die Ledger-Reservierung idempotent frei, sonst bliebe sie als Phantom-Anspruch stehen.
+- [x] **Observability nachziehen:** E2E misst Publish→Persist; Checkout-Funnel und Abandon-Rate ergänzt.
+- [x] **Tests:** Pay-Route (Happy/`404`/`409`/Rollback), Cancel-Route, Worker ohne Sleep und die E2E-Flows auf reserve→pay→Worker→Status umgestellt.
+- [x] **ADR-028 + Doku-Lockstep:** ADR-028 angelegt, ADR-013/ADR-023 annotiert, `ARCHITECTURE.md` (Happy Path, Flow, Key-Lifecycle) und `REQUIREMENTS.md` (API-Surface) nachgezogen.
+
+### Frontend: Checkout-Flow (`apps/web`)
+
+- [x] **Auto-Fill Namen:** `apps/web/lib/names.ts` befuellt Vor-/Nachname beim Betreten der `open`-Phase mit Zufallsnamen, weiterhin editierbar.
+- [x] **Payment-Modal:** Nach dem Reserve oeffnet `components/PaymentModal.tsx` (Tailwind-only) mit vorbefuellten Fake-Zahlungsdaten.
+- [x] **Fake-3DS-Challenge:** Modal-Statemachine `form → challenge → processing`; erst „Bestätigen“ ruft `POST /pay`, Fehler landen als Banner im Kartenformular.
+- [x] **Modal-Abbruch:** Schliessen des Modals (X/Abbrechen/Backdrop/Escape) gibt die Reservierung idempotent frei; `onPaid` loest **keinen** Cancel aus.
+- [x] **Neue `tracking`-Phase:** `Phase`-Modell um `tracking` erweitert; nach bestaetigter Zahlung zeigt die neue `TrackingView` den Order-Status inline.
+- [x] **Live-Order-Status:** `hooks/useOrderStatus.ts` pollt (2 s + Jitter) bis zum Final-Status; `TrackingView` rendert `pending`/`completed`/`failed` live.

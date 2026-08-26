@@ -269,3 +269,24 @@ Cross-System-Snapshot nicht atomar ist; der Reaper aendert daran nichts. Neu
 sichtbar wird ein `reservation_ledger_stale`-Aufbau vor jedem Reaper-Zyklus und
 dessen Abbau danach. Das ist das beste Live-Signal dafuer, dass der Reaper
 ueberhaupt arbeitet.
+
+## Abgeschlossene Todos (aus `docs/TODO.md` verschoben, 2026-08-26)
+
+Der Todo-Index behaelt fuer diese Phase eine Zusammenfassung; die Einzelpunkte stehen hier, weil `docs/TODO.md` am 40-KiB-Backstop liegt (ADR-029).
+
+Reservierungs-Timer im Frontend, 2-min-Deadline und ein Funnel-Lastprofil, das
+den Reaper erstmals unter Last ausübt und exakten Sellout beweist.
+
+Herkunft: [Gedanken-Notiz](../backlogs/checkout-expiry-funnel.md)
+
+- [x] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge.
+- [x] **Vertrag `expiresAt` exponieren:** Deadline zusaetzlich in Pending-Record, Buy-Response und Status-Response, plus Serverzeit gegen Clock-Skew; rein additiv.
+- [x] **ADR und Ablauf-Semantik:** `expired`-Grabstein statt `DEL`, Deadline-Enforcement im `claimPayment`-Lua, typed Error 410, `payments_rejected_total{reason}`. → ADR-033
+- [x] **Frontend `/checkout/[orderId]`:** eigene Route mit Countdown und terminalem `expired`-Zustand; loest den 404-Rateschluss in `apps/web/lib/api.ts` ab.
+- [x] **k6-Profil `funnel`:** vierter `LOAD_PROFILE` mit Profiltabelle statt verstreuter `if`-Zweige, truncated Normal per Box-Muller, neue Counter, `CONFIG_ALLOWLIST`.
+- [x] **Reaper-Dimensionierung fuer das Profil:** Batch-Groesse und Zyklus gegen die erwartete Ablaufrate rechnen; hier faellt auch σ.
+- [x] **Lasttest-Stack-Env:** `CHECKOUT_PENDING_TIMEOUT_SECONDS=120` und `SEED_CAPACITY=100000` dort setzen, wo API und Worker starten; Defaults bleiben.
+- [x] **Abbruchbedingung und Verdict:** Abbruch erst bei `available == 0` **und** leerem Ledger; neue Checks `sold == totalCapacity`, Reaper-Releases > 0, Expired-Rejects > 0.
+- [x] **Panels ergaenzen:** Expired-Serie im Checkout-Funnel, Abandon-Rate ohne Ablaeufe, plus das bisher nirgends geplottete `reservation_reaper_run_duration_seconds`.
+- [x] **Funnel-Lauf fahren:** `HTS_ENV_PROFILE=browse-and-buy-human-pace` (frueher `funnel`, ADR-035), 100k Kapazitaet. Lauf nur mit Freigabe.
+- [x] **Golden-Report-Test reparieren (vorgefunden):** Golden aus dem Renderer regeneriert — ungepolsterte Tabellen sind die gewollte Form.

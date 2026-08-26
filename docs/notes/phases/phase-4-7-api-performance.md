@@ -23,3 +23,16 @@ Baseline-C-Nachlaufs erledigt. → [Details](../backlogs/baseline-c-dashboard-au
 - Die Serien sind gegen die Baseline-C-Daten verifiziert; die `route`-Labels
   entsprechen den Fastify-Templates aus `apps/api/src/plugins/metrics.ts`, es
   gibt keinen Fallback auf Roh-URLs.
+
+## Abgeschlossene Todos (aus `docs/TODO.md` verschoben, 2026-08-26)
+
+Der Todo-Index behaelt fuer diese Phase eine Zusammenfassung; die Einzelpunkte stehen hier, weil `docs/TODO.md` am 40-KiB-Backstop liegt (ADR-029).
+
+> `/pay` und `/cancel` fehlen im API-Performance-Dashboard als eigene Graphen. → [Details](#phase-47-nachtrag-zum-api-performance-dashboard)
+
+Umgesetzt im Dashboard-Audit des Baseline-C-Nachlaufs. → [Umsetzungsstand](#umsetzungsstand-2026-07-26)
+
+- [x] Request-Rate-Serien `POST /pay RPS` und `POST /cancel RPS` im Panel „Request Rate (RPS)".
+- [x] Panel „POST /pay Latency (p50 / p95 / p99)" ergaenzt; Pay-p95 im Crunch 4,55 s gegen Buy 874 ms.
+- [x] Kein eigenes `/cancel`-Latenzpanel — „Latency by Route (p50 / p95)" deckt es generisch ab, analog zum ebenfalls weggelassenen `GET /orders/:orderId`.
+- [x] Serien gegen Baseline-C-Daten verifiziert; die `route`-Labels entsprechen den Fastify-Templates.
