@@ -418,7 +418,7 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
 HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
 HTS_ENV_PROFILE=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
-HTS_ENV_PROFILE=browse-and-buy-smoke pnpm spike:report        # 1k Tickets, 50 it/s, ~4 min — nur die Messkette pruefen
+HTS_ENV_PROFILE=browse-and-buy-smoke pnpm spike:report        # 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig?
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 

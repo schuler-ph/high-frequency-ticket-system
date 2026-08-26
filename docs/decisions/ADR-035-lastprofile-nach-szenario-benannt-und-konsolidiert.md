@@ -64,9 +64,12 @@
   hat die lokale Kapazitätsfrage beantwortet (ein API-Core, ~9k it/s); Phase 5
   braucht kein Kapazitätsprofil mehr, sondern einen kleinen, schnellen Lauf,
   der in jeder Umgebung prüft, ob Metriken, Panels, Report und alle drei
-  Verdicts stimmen. `browse-and-buy-smoke` fährt denselben Funnel wie
-  `human-pace` (komprimierte Zeit, Reaper, 410, Polling) mit 1 000 Tickets bei
-  50 it/s und ist in ~4 Minuten durch. Der Name bricht das Schema
+  Verdicts stimmen — genauer: ob sie **richtig zählen**. `browse-and-buy-smoke`
+  verkauft 1 000 Tickets ohne jede Störgröße: Verkauf sofort offen, keine
+  Denkzeit, kein Cancel, kein Ablauf, jeder Checkout zahlt. Am Ende muss jeder
+  Zähler exakt 1 000 zeigen, jede Abweichung ist eine Doppel- oder Fehlzählung
+  der Messkette. Bei 50 it/s ist der Lauf in ~3 Minuten durch. Der Name bricht
+  das Schema
   `<Mix>-<Tempo>` bewusst: „smoke" ist der Zweck, kein Tempo — genau das soll
   man ihm ansehen, damit niemand seine Zahlen als Kapazität liest. Damit der
   Warm-up nicht bei 1 000 RPS festhängt, ist die Warm-up-Rate jetzt der

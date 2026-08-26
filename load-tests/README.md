@@ -177,12 +177,15 @@ menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
   keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
   vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
   (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle im Mix.
-- **`browse-and-buy-smoke`** (Phase 5): derselbe Funnel wie `human-pace`
-  (komprimierte Denkzeit, Ablauf, Reaper, 410, Polling), aber 1.000 Tickets bei
-  50 it/s — in ~4 Minuten durch. Prueft, ob Metriken, Panels, Report und alle
-  drei Verdicts in einer Umgebung stimmen; **kein** Kapazitaetsnachweis, der
-  Name sagt es absichtlich (ADR-035 Nachtrag). Erster Kandidat fuer jeden neuen
-  Stack, lokal wie Cloud.
+- **`browse-and-buy-smoke`** (Phase 5): 1.000 Tickets, Verkauf sofort offen,
+  50 % Checkout, jeder Checkout zahlt — kein Unlock-Gate, kein Cancel, keine
+  Denkzeit, kein Ablauf. In ~3 Minuten durch. Prueft, ob die Messkette
+  **richtig zaehlt**: am Ende muessen `reservations_created`, `orders_accepted`,
+  `payments_confirmed`, `orders_completed`, `dbOrders`, `dbTickets` und
+  `funnel_paid` exakt 1.000 sein, `available`/`activeReservations`/Drift 0,
+  Reaper-Freigaben 0. Jede Abweichung ist eine Doppel- oder Fehlzaehlung, kein
+  Lastphaenomen. **Kein** Kapazitaetsnachweis, der Name sagt es absichtlich
+  (ADR-035 Nachtrag). Erster Kandidat fuer jeden neuen Stack, lokal wie Cloud.
 
 Das Lastprofil steht als `LOAD_PROFILE` in `manifest.json` und damit im Report;
 `spike:compare` verweigert den Vergleich zweier Laeufe mit verschiedenen
