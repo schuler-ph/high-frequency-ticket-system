@@ -38,6 +38,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-035 Lastprofile nach Szenario benannt und konsolidiert](decisions/ADR-035-lastprofile-nach-szenario-benannt-und-konsolidiert.md)
 - [ADR-036 Performance ist ein drittes Verdict](decisions/ADR-036-performance-ist-ein-drittes-verdict.md)
 - [ADR-037 Pending-Reaper in eigenem Takt](decisions/ADR-037-pending-reaper-in-eigenem-takt.md)
+- [ADR-038 kubectl als Client, kind als lokaler Kubernetes-Cluster](decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)
 
 ## Teilweise umgesetzt
 
