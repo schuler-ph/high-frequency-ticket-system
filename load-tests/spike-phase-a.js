@@ -9,6 +9,9 @@ import {
 // Lauf im Nachhinein rekonstruierbar bleibt. Ein verteilter Generator (Phase
 // 5.7) teilt die Zielrate ueber Shards auf — mit hartkodierten Groessen ginge
 // das nicht.
+// Warm-up-Rate ist ein Profilwert, seit das Smoke-Profil (1k Tickets, 50 it/s)
+// nicht mit 1.000 RPS vorglühen soll; die Kapazitätsprofile setzen 1000.
+const WARMUP_RATE = requireEnvNumber("K6_WARMUP_RATE");
 const TARGET_RATE = requireEnvNumber("K6_TARGET_RATE");
 const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
 // Vorallokierte VUs. Achtung, zwei Fehlannahmen aus Baseline F: (1) k6 oeffnet
@@ -27,8 +30,8 @@ export const options = {
   scenarios: {
     warmup_ramp_sustain: {
       executor: "ramping-arrival-rate",
-      // Flat 1.000 RPS for the first stage (startRate == first target).
-      startRate: 1000,
+      // Flat K6_WARMUP_RATE for the first stage (startRate == first target).
+      startRate: WARMUP_RATE,
       timeUnit: "1s",
       preAllocatedVUs: PREALLOCATED_VUS,
       // VU-Budget muss die Zielrate auch bei steigender Latenz decken:
@@ -39,10 +42,10 @@ export const options = {
       // Herleitung je Profil steht in docs/notes/backlogs/baseline-f-valid-runs.md.
       maxVUs: MAX_VUS,
       stages: [
-        // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
-        // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
-        { target: 1000, duration: "45s" },
-        // Phase 2 – Ramp-Up:  1.000 → K6_TARGET_RATE RPS, 45s (Sale-Opening
+        // Phase 1 – Warm-Up:  K6_WARMUP_RATE flat, 45s (Pre-Sale-Hype, Sale
+        // ist noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
+        { target: WARMUP_RATE, duration: "45s" },
+        // Phase 2 – Ramp-Up:  K6_WARMUP_RATE → K6_TARGET_RATE RPS, 45s (Sale-Opening
         // naehert sich; `opensAt` liegt typischerweise in diesem Fenster)
         { target: TARGET_RATE, duration: "45s" },
         // Phase 3 – Sustain:  K6_TARGET_RATE RPS, 15 Minuten Sicherheitsnetz.

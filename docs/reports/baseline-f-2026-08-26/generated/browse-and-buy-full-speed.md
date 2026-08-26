@@ -66,11 +66,11 @@
 
 ## 4. Offered vs. Executed Load
 
-| Phase | Iterations | Dropped | Scheduled | Executed % | VUs max |
-| ----- | ---------- | ------- | --------- | ---------- | ------- |
-| phase-a | 5 843 678 | 21 389 | 5 865 067 | 99.64% | 5 777 |
-| phase-b | 60 000 | 0 | 60 000 | 100.00% | 200 |
-| **total** | 5 903 678 | 21 389 | 5 925 067 | 99.64% | |
+| Phase     | Iterations | Dropped | Scheduled | Executed % | VUs max |
+| --------- | ---------- | ------- | --------- | ---------- | ------- |
+| phase-a   | 5 843 678  | 21 389  | 5 865 067 | 99.64%     | 5 777   |
+| phase-b   | 60 000     | 0       | 60 000    | 100.00%    | 200     |
+| **total** | 5 903 678  | 21 389  | 5 925 067 | 99.64%     |         |
 
 - **Phase A stop reason:** `sold-out` (available at stop: 0)
 
@@ -79,19 +79,19 @@
 
 ## 5. Order Counters (run-scoped deltas)
 
-| Counter | Before | After | Δ Run |
-| ------- | ------ | ----- | ----- |
-| checkoutsCancelled | 0 | 91 580 | 91 580 |
-| ordersAccepted | 0 | 1 136 945 | 1 136 945 |
-| ordersCompleted | 0 | 1 000 000 | 1 000 000 |
-| ordersFailed | 0 | 0 | 0 |
-| paymentsConfirmed | 0 | 1 000 000 | 1 000 000 |
-| publishRollbacks | 0 | 0 | 0 |
-| reservationsCreated | 0 | 1 136 945 | 1 136 945 |
-| workerCompensations | 0 | 0 | 0 |
-| workerDuplicateDeliveries | 0 | 0 | 0 |
-| workerIdempotencyHits | 0 | 0 | 0 |
-| workerRedeliveries | 0 | 0 | 0 |
+| Counter                   | Before | After     | Δ Run     |
+| ------------------------- | ------ | --------- | --------- |
+| checkoutsCancelled        | 0      | 91 580    | 91 580    |
+| ordersAccepted            | 0      | 1 136 945 | 1 136 945 |
+| ordersCompleted           | 0      | 1 000 000 | 1 000 000 |
+| ordersFailed              | 0      | 0         | 0         |
+| paymentsConfirmed         | 0      | 1 000 000 | 1 000 000 |
+| publishRollbacks          | 0      | 0         | 0         |
+| reservationsCreated       | 0      | 1 136 945 | 1 136 945 |
+| workerCompensations       | 0      | 0         | 0         |
+| workerDuplicateDeliveries | 0      | 0         | 0         |
+| workerIdempotencyHits     | 0      | 0         | 0         |
+| workerRedeliveries        | 0      | 0         | 0         |
 
 ## 6. Worker Drain
 
@@ -108,15 +108,15 @@
 
 ## 8. Correctness Invariants
 
-| Invariant | Expected | Actual | Result |
-| --------- | -------- | ------ | ------ |
-| published == completed + failed | 1 000 000 | 1 000 000 | ✅ |
-| dbOrders == completed + failed | 1 000 000 | 1 000 000 | ✅ |
-| dbTickets == completed | 1 000 000 | 1 000 000 | ✅ |
-| pendingOrders == 0 | 0 | 0 | ✅ |
-| available + dbTickets + activeReservations == totalCapacity | 1 000 000 | 1 000 000 | ✅ |
-| sellout: sold == totalCapacity | 1 000 000 | 1 000 000 | ✅ |
-| sellout: reaper released at least one expired claim | 1 | 1 | ✅ |
+| Invariant                                                   | Expected  | Actual    | Result |
+| ----------------------------------------------------------- | --------- | --------- | ------ |
+| published == completed + failed                             | 1 000 000 | 1 000 000 | ✅     |
+| dbOrders == completed + failed                              | 1 000 000 | 1 000 000 | ✅     |
+| dbTickets == completed                                      | 1 000 000 | 1 000 000 | ✅     |
+| pendingOrders == 0                                          | 0         | 0         | ✅     |
+| available + dbTickets + activeReservations == totalCapacity | 1 000 000 | 1 000 000 | ✅     |
+| sellout: sold == totalCapacity                              | 1 000 000 | 1 000 000 | ✅     |
+| sellout: reaper released at least one expired claim         | 1         | 1         | ✅     |
 
 ## 9. Redis / PostgreSQL Consistency
 

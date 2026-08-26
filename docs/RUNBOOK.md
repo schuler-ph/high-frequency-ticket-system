@@ -322,8 +322,8 @@ k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e LOAD_PROFILE=browse-and-buy-full-speed -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
-  -e CHECKOUT_POLL_INTERVAL=1 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
-  -e K6_PREALLOCATED_VUS=8000 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
+  -e CHECKOUT_POLL_INTERVAL=1 -e K6_WARMUP_RATE=1000 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
+  -e K6_PREALLOCATED_VUS=200 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
   load-tests/spike-phase-a.js
 ```
 
@@ -418,6 +418,7 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
 HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
 HTS_ENV_PROFILE=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
+HTS_ENV_PROFILE=browse-and-buy-smoke pnpm spike:report        # 1k Tickets, 50 it/s, ~4 min — nur die Messkette pruefen
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 

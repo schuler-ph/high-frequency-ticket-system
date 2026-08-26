@@ -358,6 +358,10 @@
         {
           "label": "buy-only-full-speed — nur buy→pay, keine Availability-Reads (Write-Pfad-Isolat)",
           "value": "buy-only-full-speed"
+        },
+        {
+          "label": "browse-and-buy-smoke — 1k Tickets, 50 it/s, ~4 min: Messkette pruefen, kein Kapazitaetsnachweis",
+          "value": "browse-and-buy-smoke"
         }
       ]
     },

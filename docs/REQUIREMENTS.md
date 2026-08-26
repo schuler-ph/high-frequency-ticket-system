@@ -144,12 +144,12 @@ expliziten Reset-/Seed-Ablauf statt.
 
 Der lokale k6-Lauf umfasst:
 
-| Phase          | Dauer                |                 Zielrate | Erwartetes Verhalten                |
-| -------------- | -------------------- | -----------------------: | ----------------------------------- |
-| Warm-up        | 45 s                 |                1.000 RPS | Kaufversuche vor Unlock liefern 425 |
-| Ramp-up        | 45 s                 | 1.000 → `K6_TARGET_RATE` | Übergang in offenen Sale            |
-| Sustained Sale | reaktiv bis Sold-out |         `K6_TARGET_RATE` | Reservieren, bezahlen, persistieren |
-| Cool-down      | 60 s                 |       `K6_COOLDOWN_RATE` | Sold-out und Queue-Drain beobachten |
+| Phase          | Dauer                |                            Zielrate | Erwartetes Verhalten                |
+| -------------- | -------------------- | ----------------------------------: | ----------------------------------- |
+| Warm-up        | 45 s                 |                    `K6_WARMUP_RATE` | Kaufversuche vor Unlock liefern 425 |
+| Ramp-up        | 45 s                 | `K6_WARMUP_RATE` → `K6_TARGET_RATE` | Übergang in offenen Sale            |
+| Sustained Sale | reaktiv bis Sold-out |                    `K6_TARGET_RATE` | Reservieren, bezahlen, persistieren |
+| Cool-down      | 60 s                 |                  `K6_COOLDOWN_RATE` | Sold-out und Queue-Drain beobachten |
 
 Die Zielrate ist ein Profilwert (`config/env/<profil>.env`, ADR-034): das
 Referenzprofil `browse-and-buy-full-speed` fährt 10.000 RPS, `buy-only-full-speed`

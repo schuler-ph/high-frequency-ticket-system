@@ -53,6 +53,7 @@ export const K6_SCRIPT_ENV_KEYS = [
   "CHECKOUT_POLL_INTERVAL",
   // Lastform (Phase 4.13): Zielrate und VU-Deckel je Phase sind Profilwerte,
   // keine Skript-Konstanten — sonst liesse sich die Rate nie sharden (5.7).
+  "K6_WARMUP_RATE",
   "K6_TARGET_RATE",
   "K6_MAX_VUS",
   "K6_PREALLOCATED_VUS",

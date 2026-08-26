@@ -59,3 +59,15 @@
   kein Befund. Der Expiry-Check behält sein Denkzeit-Gate. Nicht
   beweispflichtige Checks entfallen; die Erhaltungs-Invariante prüft das
   Inventar in jedem Fall.
+
+- **Nachtrag 2026-08-26 (viertes Profil `browse-and-buy-smoke`):** Baseline F
+  hat die lokale Kapazitätsfrage beantwortet (ein API-Core, ~9k it/s); Phase 5
+  braucht kein Kapazitätsprofil mehr, sondern einen kleinen, schnellen Lauf,
+  der in jeder Umgebung prüft, ob Metriken, Panels, Report und alle drei
+  Verdicts stimmen. `browse-and-buy-smoke` fährt denselben Funnel wie
+  `human-pace` (komprimierte Zeit, Reaper, 410, Polling) mit 1 000 Tickets bei
+  50 it/s und ist in ~4 Minuten durch. Der Name bricht das Schema
+  `<Mix>-<Tempo>` bewusst: „smoke" ist der Zweck, kein Tempo — genau das soll
+  man ihm ansehen, damit niemand seine Zahlen als Kapazität liest. Damit der
+  Warm-up nicht bei 1 000 RPS festhängt, ist die Warm-up-Rate jetzt der
+  Profilwert `K6_WARMUP_RATE` (ADR-034), in den drei Kapazitätsprofilen 1 000.
