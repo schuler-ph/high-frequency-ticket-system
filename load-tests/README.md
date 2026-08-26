@@ -21,6 +21,8 @@ Rohartefakte landen unter `artifacts/load-tests/<run-id>/` (gitignored); ein gep
 - **[Baseline B vom 2026-07-26](../docs/reports/baseline-b-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach dem Reserve/Pay-Split (ADR-028) und der Hot-Row-Entfernung, und erster End-to-End-Lauf von `pnpm spike:report`. Belegt ebenfalls **keine** 50k RPS (67,66 % dropped iterations, `maxVUs`-Deckel erreicht, Generator co-lokalisiert), zeigt aber fachliche Korrektheit unter ~14 min Dauerlast: 867.575 persistierte Orders, 0 Nachrichtenverlust, exakte Inventar-Erhaltung, 0 Oversell, 0 Drift. E2E-Mittel 406 s → 7,52 s gegenueber Baseline A. Die `system=fail`- und Drain-Timeout-Signale des Laufs sind Defekte der Messkette (siehe Report §4) und als Todos erfasst.
 - **[Baseline C vom 2026-07-26 (Abend)](../docs/reports/baseline-c-2026-07-26/LOAD-TEST-REPORT-2026-07-26.md)** — erster Lauf nach den Messketten-Fixes und der erste, der **tatsaechlich ausverkauft** ist (`available = 0`). Belegt weiterhin keine 50k RPS (21,85 % dropped — das k6-VU-Budget reichte nicht, als die Latenz stieg), dafuer 957.053 persistierte Orders in 6,4 min bei 0 Fehlern, E2E-Mittel 0,24 s und sauberem Drain (15 s). Lokalisiert den naechsten Engpass praezise: der **DB-Connection-Pool** (1.070 wartende Acquirer bei Pool 20, 0 Lock-Waits). Zwei neue Defekte: Reconcile erfindet Phantom-Inventar (389 Ansprueche ueber Kapazitaet) und der Drift-Gauge ist dafuer blind.
 
+- **[Baseline F vom 2026-08-26](../docs/reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md)** — die lokale Referenz fuer Phase 5.6: drei Profile, Zwei-Maschinen-Setup, alle `system: pass` und `performance: pass` (p95 228 / 392 / 16 ms), exakter Sellout, 0 Fehler. Alle `benchmark: degraded` — die API haengt bei 10k it/s an einem Core (~9k it/s lokale Decke); ein Kontrolllauf mit groesserem Generator-Budget belegt, dass mehr Concurrency nur die Latenz vertieft (p95 1 667 ms).
+
 > Vor dem naechsten Kapazitaetslauf (Baseline D) zuerst den Abschnitt
 > „Backlog: Baseline-C-Nachlauf" in [`docs/TODO.md`](../docs/TODO.md) abarbeiten.
 > Die P0-Defekte aus dem B-Nachlauf sind erledigt (Baseline C belegt das).
@@ -175,6 +177,12 @@ menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
   keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
   vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
   (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle im Mix.
+- **`browse-and-buy-smoke`** (Phase 5): derselbe Funnel wie `human-pace`
+  (komprimierte Denkzeit, Ablauf, Reaper, 410, Polling), aber 1.000 Tickets bei
+  50 it/s — in ~4 Minuten durch. Prueft, ob Metriken, Panels, Report und alle
+  drei Verdicts in einer Umgebung stimmen; **kein** Kapazitaetsnachweis, der
+  Name sagt es absichtlich (ADR-035 Nachtrag). Erster Kandidat fuer jeden neuen
+  Stack, lokal wie Cloud.
 
 Das Lastprofil steht als `LOAD_PROFILE` in `manifest.json` und damit im Report;
 `spike:compare` verweigert den Vergleich zweier Laeufe mit verschiedenen
@@ -193,33 +201,34 @@ Die Spalte „Default" unten nennt deshalb keinen Fallback, sondern den Wert, de
 das `browse-and-buy-full-speed`-Profil setzt; die anderen Profile weichen
 bewusst davon ab.
 
-| Variable                         | Wert im Default-Profil                       | Beschreibung                                                                    |
-| -------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
-| `BASE_URL`                       | `http://localhost:10002`                     | API-Basis-URL                                                                   |
-| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000`       | Event-ID für Ticket-Requests                                                    |
-| `CHECKOUT_POLL`                  | `false`                                      | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`       |
-| `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                         | Max. Poll-Versuche pro Order, bevor aufgegeben wird                             |
-| `CHECKOUT_POLL_INTERVAL`         | `1`                                          | Sekunden zwischen zwei Poll-Versuchen                                           |
-| `LOAD_PROFILE`                   | `browse-and-buy-full-speed`                  | Profilname fürs Manifest (siehe oben)                                           |
-| `CHECKOUT_SHARE`                 | profilabhängig                               | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read)     |
-| `THINK_TIME_MIN`                 | `0` (human-pace: `1`)                        | minimale Denkzeit (Sekunden) nach dem Reserve                                   |
-| `THINK_TIME_MAX`                 | `0` (human-pace: `18`)                       | maximale Denkzeit (Sekunden) nach dem Reserve                                   |
-| `THINK_TIME_MEAN`                | human-pace: `6`                              | Erwartungswert der truncated-Normal-Denkzeit (komprimierte Zeit, s. o.)         |
-| `THINK_TIME_SIGMA`               | human-pace: `3.5`                            | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                     |
-| `K6_TARGET_RATE`                 | `10000` (buy-only: `5000`)                   | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                      |
-| `K6_MAX_VUS`                     | `16000` (human-pace/buy-only: `10000`)       | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped      |
-| `K6_PREALLOCATED_VUS`            | `8000` (human-pace `4000`, buy-only `10000`) | vor dem Ramp allokierte VUs — k6 verwirft Iterationen, während es nachallokiert |
-| `K6_COOLDOWN_RATE`               | `1000`                                       | feste Rate (it/s) der Cool-down-Phase B                                         |
-| `K6_COOLDOWN_MAX_VUS`            | `5000`                                       | VU-Deckel der Cool-down-Phase B                                                 |
-| `PAY_RATE`                       | `0.88` (buy-only: `1`)                       | Anteil der Reservierungen, die bezahlt werden                                   |
-| `CANCEL_RATE`                    | `0.08` (buy-only: `0`)                       | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)                  |
-| `SALE_OPENS_IN_SECONDS`          | `60`                                         | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                    |
-| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                       | Intervall der Completion-Counter-Polls in der Orchestrierung                    |
-| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                          | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt            |
-| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`             | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll                |
-| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                      | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird                 |
-| `K6_PROMETHEUS_RW`               | `false`                                      | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)           |
-| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`        | Prometheus Remote-Write-Endpoint fuer k6-Metriken                               |
+| Variable                         | Wert im Default-Profil                  | Beschreibung                                                                    |
+| -------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| `BASE_URL`                       | `http://localhost:10002`                | API-Basis-URL                                                                   |
+| `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000`  | Event-ID für Ticket-Requests                                                    |
+| `CHECKOUT_POLL`                  | `false`                                 | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`       |
+| `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                    | Max. Poll-Versuche pro Order, bevor aufgegeben wird                             |
+| `CHECKOUT_POLL_INTERVAL`         | `1`                                     | Sekunden zwischen zwei Poll-Versuchen                                           |
+| `LOAD_PROFILE`                   | `browse-and-buy-full-speed`             | Profilname fürs Manifest (siehe oben)                                           |
+| `CHECKOUT_SHARE`                 | profilabhängig                          | Anteil der Iterationen, die einen Checkout fahren (Rest: Availability-Read)     |
+| `THINK_TIME_MIN`                 | `0` (human-pace: `1`)                   | minimale Denkzeit (Sekunden) nach dem Reserve                                   |
+| `THINK_TIME_MAX`                 | `0` (human-pace: `18`)                  | maximale Denkzeit (Sekunden) nach dem Reserve                                   |
+| `THINK_TIME_MEAN`                | human-pace: `6`                         | Erwartungswert der truncated-Normal-Denkzeit (komprimierte Zeit, s. o.)         |
+| `THINK_TIME_SIGMA`               | human-pace: `3.5`                       | Streuung — der Stellhebel für den Anteil der Zu-spät-Zahler                     |
+| `K6_WARMUP_RATE`                 | `1000` (smoke: `20`)                    | Rate (it/s) der 45-s-Warm-up-Stage vor dem Ramp (Sale noch gesperrt, 425)       |
+| `K6_TARGET_RATE`                 | `10000` (buy-only: `5000`, smoke: `50`) | Zielrate (it/s) von Ramp-Ziel und Sustain-Stage in Phase A                      |
+| `K6_MAX_VUS`                     | `16000` (human-pace/buy-only: `10000`)  | VU-Deckel in Phase A — muss `Rate × Iterationsdauer` decken, sonst dropped      |
+| `K6_PREALLOCATED_VUS`            | `200` (smoke: `20`)                     | vor dem Ramp allokierte VUs; mehr Concurrency hilft nur unterhalb der API-Decke |
+| `K6_COOLDOWN_RATE`               | `1000`                                  | feste Rate (it/s) der Cool-down-Phase B                                         |
+| `K6_COOLDOWN_MAX_VUS`            | `5000`                                  | VU-Deckel der Cool-down-Phase B                                                 |
+| `PAY_RATE`                       | `0.88` (buy-only: `1`)                  | Anteil der Reservierungen, die bezahlt werden                                   |
+| `CANCEL_RATE`                    | `0.08` (buy-only: `0`)                  | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)                  |
+| `SALE_OPENS_IN_SECONDS`          | `60`                                    | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                    |
+| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                  | Intervall der Completion-Counter-Polls in der Orchestrierung                    |
+| `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                     | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt            |
+| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`        | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll                |
+| `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                 | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird                 |
+| `K6_PROMETHEUS_RW`               | `false`                                 | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)           |
+| `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`   | Prometheus Remote-Write-Endpoint fuer k6-Metriken                               |
 
 ## k6-Remote-Write ist standardmaessig aus
 

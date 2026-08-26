@@ -9,13 +9,18 @@ import {
 // Lauf im Nachhinein rekonstruierbar bleibt. Ein verteilter Generator (Phase
 // 5.7) teilt die Zielrate ueber Shards auf — mit hartkodierten Groessen ginge
 // das nicht.
+// Warm-up-Rate ist ein Profilwert, seit das Smoke-Profil (1k Tickets, 50 it/s)
+// nicht mit 1.000 RPS vorglühen soll; die Kapazitätsprofile setzen 1000.
+const WARMUP_RATE = requireEnvNumber("K6_WARMUP_RATE");
 const TARGET_RATE = requireEnvNumber("K6_TARGET_RATE");
 const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
-// k6 verwirft Iterationen, waehrend es neue VUs hochfaehrt — auch weit unter
-// `maxVUs`. Baseline F (2026-08-26): 200 vorallokiert, 5.777 gebraucht,
-// 0,36 % dropped ohne jede Deckelberuehrung. Deshalb den erwarteten Bedarf
-// vorab allokieren; die Verbindungen entstehen dann im 1.000-RPS-Warm-up
-// statt in der Oeffnungsspitze.
+// Vorallokierte VUs. Achtung, zwei Fehlannahmen aus Baseline F: (1) k6 oeffnet
+// Verbindungen erst bei der ersten Anfrage eines VUs — im 1.000-RPS-Warm-up
+// sind nur ~50 VUs aktiv, die uebrigen bleiben unverbunden, es "waermt" also
+// nichts vor. (2) Gegen einen gesaettigten Server (API auf einem Core) ist
+// mehr verfuegbare Concurrency schaedlich: Runde 2 mit 8.000 statt 200 trieb
+// alle 16.000 VUs in den Einsatz und p95 von 228 auf 1.667 ms, Drops von 0,36
+// auf 4,28 %. Der Knopf bleibt fuer Profile unterhalb der Decke sinnvoll.
 const PREALLOCATED_VUS = requireEnvNumber("K6_PREALLOCATED_VUS");
 
 export const options = {
@@ -25,8 +30,8 @@ export const options = {
   scenarios: {
     warmup_ramp_sustain: {
       executor: "ramping-arrival-rate",
-      // Flat 1.000 RPS for the first stage (startRate == first target).
-      startRate: 1000,
+      // Flat K6_WARMUP_RATE for the first stage (startRate == first target).
+      startRate: WARMUP_RATE,
       timeUnit: "1s",
       preAllocatedVUs: PREALLOCATED_VUS,
       // VU-Budget muss die Zielrate auch bei steigender Latenz decken:
@@ -37,10 +42,10 @@ export const options = {
       // Herleitung je Profil steht in docs/notes/backlogs/baseline-f-valid-runs.md.
       maxVUs: MAX_VUS,
       stages: [
-        // Phase 1 – Warm-Up:  1.000 RPS flat, 45s (Pre-Sale-Hype, Sale ist
-        // noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
-        { target: 1000, duration: "45s" },
-        // Phase 2 – Ramp-Up:  1.000 → K6_TARGET_RATE RPS, 45s (Sale-Opening
+        // Phase 1 – Warm-Up:  K6_WARMUP_RATE flat, 45s (Pre-Sale-Hype, Sale
+        // ist noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
+        { target: WARMUP_RATE, duration: "45s" },
+        // Phase 2 – Ramp-Up:  K6_WARMUP_RATE → K6_TARGET_RATE RPS, 45s (Sale-Opening
         // naehert sich; `opensAt` liegt typischerweise in diesem Fenster)
         { target: TARGET_RATE, duration: "45s" },
         // Phase 3 – Sustain:  K6_TARGET_RATE RPS, 15 Minuten Sicherheitsnetz.

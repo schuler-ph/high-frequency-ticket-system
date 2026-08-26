@@ -46,6 +46,7 @@ const LOADTEST_VARIABLES = [
   "CHECKOUT_POLL",
   "CHECKOUT_POLL_MAX_ATTEMPTS",
   "CHECKOUT_POLL_INTERVAL",
+  "K6_WARMUP_RATE",
   "K6_TARGET_RATE",
   "K6_MAX_VUS",
   "K6_PREALLOCATED_VUS",
@@ -90,6 +91,7 @@ const WEB_VARIABLES = ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_EVENT_ID"];
 const LOADTEST_PROFILES = new Set([
   "browse-and-buy-full-speed",
   "browse-and-buy-human-pace",
+  "browse-and-buy-smoke",
   "buy-only-full-speed",
 ]);
 

@@ -229,21 +229,26 @@ sein:
 docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
 ```
 
-**Listen-Backlog anheben:** macOS deckelt die Accept-Queue jedes Listeners auf
-`kern.ipc.somaxconn` (Default 128); Nodes eigener Backlog-Wunsch (511) wird
-darauf gekappt, und fastify-cli kennt keinen Backlog-Parameter. Öffnen in der
-Öffnungsspitze Tausende k6-VUs gleichzeitig Verbindungen, läuft die Queue über:
-SYNs werden verworfen, der Client wiederholt nach 1+2+4+8 s — genau die
-15-s-Spitzen in `http_req_connecting` und die Buy-Transportfehler aus
-Baseline F (Runde 1). Vor dem Lauf setzen (nicht persistent, nach einem Reboot
+**Listen-Backlog anheben (Hygiene, keine Ursache):** macOS deckelt die
+Accept-Queue jedes Listeners auf `kern.ipc.somaxconn` (Default 128); Nodes
+eigener Backlog-Wunsch (511) wird darauf gekappt, fastify-cli kennt keinen
+Backlog-Parameter. Vor dem Lauf setzen (nicht persistent, nach einem Reboot
 erneut); der Task `loadtest:split-check` prüft den Wert mit:
 
 ```bash
 sudo sysctl -w kern.ipc.somaxconn=1024
 ```
 
-Damit greift Nodes 511. Mehr als 1024 bringt ohne eigenes `listen({ backlog })`
-nichts.
+Was das **nicht** löst: die 15-s-Spitzen in `http_req_connecting` und die
+Connect-Timeouts auf dem Buy-Bein. Baseline F hat sie mit 128 **und** mit 1024
+gesehen (Runde 2: 80 116 `connectex … did not properly respond`, alle in der
+Verkaufsphase). Ursache ist der **eine Core des API-Prozesses**: bei 1,02–1,05
+Cores kommt die Event-Loop mit `accept()` nicht mehr hinterher, dann ist die
+Queue-Länge egal. Die lokale Decke liegt bei ~9k Kauf-Iterationen/s (≈13k RPS
+mit Reads); mehr gibt es nur mit mehreren API-Prozessen — Phase 5.2. Ein
+Generator, der oberhalb der Decke anbietet, liefert immer `degraded`: entweder
+als Drops (kleiner VU-Deckel) oder als Latenz (großer VU-Deckel), siehe
+[Baseline F](reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md).
 
 **Readiness vom PC prüfen** (Einzelrequests, kein Lasttest):
 
@@ -317,8 +322,8 @@ k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e LOAD_PROFILE=browse-and-buy-full-speed -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
   -e THINK_TIME_KIND=none -e THINK_TIME_MIN=0 -e THINK_TIME_MAX=0 -e THINK_TIME_MEAN=0 ^
   -e THINK_TIME_SIGMA=0 -e CHECKOUT_POLL=false -e CHECKOUT_POLL_MAX_ATTEMPTS=10 ^
-  -e CHECKOUT_POLL_INTERVAL=1 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
-  -e K6_PREALLOCATED_VUS=8000 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
+  -e CHECKOUT_POLL_INTERVAL=1 -e K6_WARMUP_RATE=1000 -e K6_TARGET_RATE=10000 -e K6_MAX_VUS=16000 ^
+  -e K6_PREALLOCATED_VUS=200 -e K6_COOLDOWN_RATE=1000 -e K6_COOLDOWN_MAX_VUS=5000 ^
   load-tests/spike-phase-a.js
 ```
 
@@ -413,6 +418,7 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
 HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
 HTS_ENV_PROFILE=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
+HTS_ENV_PROFILE=browse-and-buy-smoke pnpm spike:report        # 1k Tickets, 50 it/s, ~4 min — nur die Messkette pruefen
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 
