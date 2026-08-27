@@ -10,7 +10,7 @@ Begründungen im ADR-Index `docs/DECISIONS.md`.
 ```mermaid
 flowchart LR
     Browser["Browser"]
-    Web["Next.js Web"]
+    Web["Vite/React SPA Web"]
     API["Fastify API"]
     Redis[("Redis\nLive-Inventar + Read-Models")]
     PubSub[("Google Cloud Pub/Sub")]

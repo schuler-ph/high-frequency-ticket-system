@@ -124,6 +124,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 ### Phase 5.1 — Containerisierung und lokales Kubernetes
 
+- [x] **Web von Next.js auf Vite-SPA umgestellt (2026-08-27):** statisches `dist/`, kein Node zur Laufzeit; Vorarbeit fuer das Web-Dockerfile (nginx + `index.html`-Fallback). → ADR-039
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
 - [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
 
@@ -173,5 +174,5 @@ Details: [baseline-b-storage-review](notes/backlogs/baseline-b-storage-review.md
 - [ ] Erstelle Replay-Tooling fuer DLQ-Nachrichten (selektiver Replay nach Fehlerklasse, Dry-Run-Modus).
 - [ ] Definiere SLOs + Alerting fuer Resilience-Signale (NACK-Rate, Redelivery-Rate, DLQ-Groesse, stuck pending orders).
 - [ ] Dokumentiere Incident-Runbook fuer Queue-Backlog, Redis-Ausfall und DB-Partial-Outage (Detection, Mitigation, Recovery).
-- [ ] Schließe die letzte Ausnahme in `apps/web` (`check-types`) auf `tsgo`, sobald Side-Effect-CSS-Imports (`./globals.css`) im Native-Preview kompatibel sind.
+- [x] Schließe die letzte Ausnahme in `apps/web` (`check-types`) auf `tsgo` — erledigt 2026-08-27 mit dem Vite-Wechsel (ADR-039): kein `next typegen` mehr, `tsgo --noEmit` kompiliert `apps/web` inklusive CSS-Import.
 - [ ] Migriere Dev-Watch-Restart-Flow von `tsc-watch` auf einen `tsgo`-basierten Restart-Workflow (API + Worker).

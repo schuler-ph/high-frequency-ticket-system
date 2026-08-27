@@ -1,22 +1,20 @@
-"use client";
-
-import { useParams, useRouter } from "next/navigation";
+import { Navigate, useNavigate, useParams } from "react-router";
 import { useState } from "react";
 import {
   PageChrome,
   SectionPanel,
   secondaryBtn,
-} from "../../../components/PageChrome";
-import { PaymentModal } from "../../../components/PaymentModal";
-import { Spinner } from "../../../components/Spinner";
-import { StatusChip, type ChipTone } from "../../../components/StatusChip";
+} from "../components/PageChrome";
+import { PaymentModal } from "../components/PaymentModal";
+import { Spinner } from "../components/Spinner";
+import { StatusChip, type ChipTone } from "../components/StatusChip";
 import {
   formatRemaining,
   useCheckoutDeadline,
-} from "../../../hooks/useCheckoutDeadline";
-import { useOrderStatus } from "../../../hooks/useOrderStatus";
-import { cancelOrder } from "../../../lib/api";
-import { env } from "../../../lib/env";
+} from "../hooks/useCheckoutDeadline";
+import { useOrderStatus } from "../hooks/useOrderStatus";
+import { cancelOrder } from "../lib/api";
+import { env } from "../lib/env";
 
 /**
  * Checkout einer konkreten Reservierung.
@@ -26,10 +24,18 @@ import { env } from "../../../lib/env";
  * frisch aus `GET /api/orders/:orderId` (Redis-Read-Model). Ein `orderId` ist
  * eine nicht ratbare UUID, die URL enthaelt nichts Schuetzenswertes.
  */
-export default function CheckoutPage() {
-  const params = useParams<{ orderId: string }>();
-  const orderId = params.orderId;
-  const router = useRouter();
+export function CheckoutPage() {
+  // React Router typisiert Parameter als optional; die Route
+  // `/checkout/:orderId` garantiert den Wert, der Fallback ist nur Typ-Hygiene.
+  const { orderId } = useParams<"orderId">();
+  if (orderId === undefined) {
+    return <Navigate to="/" replace />;
+  }
+  return <Checkout orderId={orderId} />;
+}
+
+function Checkout({ orderId }: { orderId: string }) {
+  const navigate = useNavigate();
   const { status, error, loaded } = useOrderStatus(orderId);
   // Lokal gesetzt, sobald `POST /pay` bestaetigt hat. Oeffentlich bleibt die
   // Order bis zur Worker-Finalisierung `pending`, deshalb kann der Status
@@ -48,7 +54,7 @@ export default function CheckoutPage() {
   const expired = status?.status === "expired" || rejectedAsExpired;
 
   function leaveCheckout() {
-    router.push("/");
+    void navigate("/");
   }
 
   // Modal-Abbruch: Reservierung freigeben (idempotent, fire-and-forget —

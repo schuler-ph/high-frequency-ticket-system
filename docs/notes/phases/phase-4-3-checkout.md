@@ -48,7 +48,7 @@ Abgeschlossene Phasenspezifikation zum Reserve/Pay-Split und Checkout. Die verbi
 
 ### Auto-Fill Namen
 
-> - [x] **Auto-Fill Namen:** Vor-/Nachname-Inputs beim Betreten der `open`-Phase mit zufaelligen Namen vorbefuellen (kleiner clientseitiger Name-Generator, keine externe Dependency); weiterhin editierbar. — `apps/web/lib/names.ts` (Generator ohne Dependency), `ActiveSaleView` befuellt Vor-/Nachname lazy beim Mount und re-randomisiert nach erfolgreichem Kauf.
+> - [x] **Auto-Fill Namen:** Vor-/Nachname-Inputs beim Betreten der `open`-Phase mit zufaelligen Namen vorbefuellen (kleiner clientseitiger Name-Generator, keine externe Dependency); weiterhin editierbar. — `apps/web/src/lib/names.ts` (Generator ohne Dependency), `ActiveSaleView` befuellt Vor-/Nachname lazy beim Mount und re-randomisiert nach erfolgreichem Kauf.
 
 ### Payment-Modal
 
@@ -92,7 +92,7 @@ Ziel: Reservierung, simuliertes 3DS und Live-Status. `/buy` reserviert; erst `/p
 
 ### Frontend: Checkout-Flow (`apps/web`)
 
-- [x] **Auto-Fill Namen:** `apps/web/lib/names.ts` befuellt Vor-/Nachname beim Betreten der `open`-Phase mit Zufallsnamen, weiterhin editierbar.
+- [x] **Auto-Fill Namen:** `apps/web/src/lib/names.ts` befuellt Vor-/Nachname beim Betreten der `open`-Phase mit Zufallsnamen, weiterhin editierbar.
 - [x] **Payment-Modal:** Nach dem Reserve oeffnet `components/PaymentModal.tsx` (Tailwind-only) mit vorbefuellten Fake-Zahlungsdaten.
 - [x] **Fake-3DS-Challenge:** Modal-Statemachine `form → challenge → processing`; erst „Bestätigen“ ruft `POST /pay`, Fehler landen als Banner im Kartenformular.
 - [x] **Modal-Abbruch:** Schliessen des Modals (X/Abbrechen/Backdrop/Escape) gibt die Reservierung idempotent frei; `onPaid` loest **keinen** Cancel aus.

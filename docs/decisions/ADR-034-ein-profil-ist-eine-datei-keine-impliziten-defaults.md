@@ -137,3 +137,13 @@ Frontend-Werte sind in allen Profilen identisch und `pnpm build` (CI, `verify:al
 soll ohne Zeremonie laufen. `pnpm run debug:env` verlangt beide
 Frontend-Variablen in jedem Profil. Eine vorhandene `.env.local` bleibt
 wirkungslos, weil Next.js bereits gesetztes Prozess-Env nicht überschreibt.
+
+## Nachtrag 2026-08-27: Präfix `VITE_` statt `NEXT_PUBLIC_`
+
+Mit dem Wechsel des Frontends auf Vite (ADR-039) heißen die Frontend-Variablen
+`VITE_API_URL` und `VITE_EVENT_ID`; `run-with-profile.mjs` läuft mit
+`--prefix=VITE_`. Der Mechanismus bleibt: Vite liest `.env`-Dateien ebenfalls
+nur aus dem eigenen Verzeichnis, das Profil in `config/env/` erreicht den
+Build also weiterhin nur über das Prozess-Env, und ein fremdes `NODE_ENV` aus
+dem Profil würde Vites Modus-Erkennung überschreiben — der Präfix-Filter ist
+deshalb weiterhin nötig. `build` fällt unverändert auf `dev` zurück.

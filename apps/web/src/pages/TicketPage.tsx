@@ -1,6 +1,4 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import {
   PageChrome,
@@ -64,7 +62,7 @@ function DateColumn() {
   );
 }
 
-export default function TicketPage() {
+export function TicketPage() {
   const { available, total, opensAt, loading, error } = useTicketAvailability();
   const now = useNow();
 
@@ -183,7 +181,7 @@ function ActiveSaleView({
   total: number | null;
   loading: boolean;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   // Autofill mit einem zufaelligen (fiktiven) Namen — die Felder bleiben
   // editierbar.
   const initialName = useState(randomName)[0];
@@ -209,7 +207,7 @@ function ActiveSaleView({
       // teilbar, und Restzeit wie Status kommen dort frisch aus Redis.
       // `reserving` bleibt absichtlich gesetzt, damit der Button waehrend der
       // Navigation nicht kurz wieder klickbar wird.
-      router.push(`/checkout/${result.data.orderId}`);
+      void navigate(`/checkout/${result.data.orderId}`);
       return;
     }
     setReserving(false);

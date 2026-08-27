@@ -81,12 +81,13 @@ const BENCH_VARIABLES = [
 const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
 /**
- * Frontend-Variablen. Next.js inlined `NEXT_PUBLIC_*` zur Build-/Dev-Zeit aus
- * dem Prozess-Env; die Web-Skripte laden dafuer das Profil per `--env-file`
- * (ADR-034 Nachtrag). Das Zod-Schema kennt sie nicht (`client: {}`), deshalb
- * hier explizit — sonst faellt ein Profil ohne sie erst im Browser auf.
+ * Frontend-Variablen. Vite inlined `VITE_*` zur Build-/Dev-Zeit aus dem
+ * Prozess-Env; die Web-Skripte laden dafuer das Profil ueber
+ * `run-with-profile.mjs --prefix=VITE_` (ADR-034 Nachtrag, ADR-039). Das
+ * Zod-Schema kennt sie nicht (`client: {}`), deshalb hier explizit — sonst
+ * faellt ein Profil ohne sie erst im Browser auf.
  */
-const WEB_VARIABLES = ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_EVENT_ID"];
+const WEB_VARIABLES = ["VITE_API_URL", "VITE_EVENT_ID"];
 
 const LOADTEST_PROFILES = new Set([
   "browse-and-buy-full-speed",

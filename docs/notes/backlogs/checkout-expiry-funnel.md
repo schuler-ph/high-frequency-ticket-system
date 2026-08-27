@@ -61,7 +61,7 @@ liefert `/pay` ein generisches `404 Reservation not found` und der Status-Poll
 ebenfalls 404 — für Client und Metriken ununterscheidbar von einer nie
 existierenden Order. Das Frontend kann kein „Reservierung abgelaufen" rendern,
 und die Web-Fehlermeldung „Reservierung abgelaufen" bei 404
-(`apps/web/lib/api.ts`) ist heute eine Vermutung, keine Information.
+(`apps/web/src/lib/api.ts`) ist heute eine Vermutung, keine Information.
 
 **Empfehlung:** Statt `DEL` einen terminalen `expired`-Record mit TTL setzen
 (wie `completed|failed`, `REDIS_FINAL_ORDER_TTL_SECONDS`). Dann: Status-Route

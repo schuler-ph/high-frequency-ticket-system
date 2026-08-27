@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import type { PaymentRequest } from "@repo/types/tickets";
 import { payOrder } from "../lib/api";

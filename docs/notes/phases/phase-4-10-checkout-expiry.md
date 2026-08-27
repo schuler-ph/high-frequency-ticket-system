@@ -196,9 +196,9 @@ k6-Profil und Panels sind danach unabhaengig voneinander.
    haelt den Order-State ausschliesslich im React-State
    (`apps/web/app/page.tsx:155,297`), daher ist die Route der groesste
    Einzelbaustein der Phase. Damit entfaellt der 404-Rateschluss in
-   `apps/web/lib/api.ts:68-70`, und das `PaymentModal` darf bei `expired` nicht
+   `apps/web/src/lib/api.ts:68-70`, und das `PaymentModal` darf bei `expired` nicht
    mehr ins Kartenformular zurueckfallen
-   (`apps/web/components/PaymentModal.tsx:88-89`).
+   (`apps/web/src/components/PaymentModal.tsx:88-89`).
 4. **k6-Profil `funnel`.** Vierter `LOAD_PROFILE`. Dafuer muss
    `load-tests/lib/scenario-helpers.js` von drei verstreuten `if`-Zweigen auf
    eine Profiltabelle umgestellt werden: das Mix-Literal `0.4` (`:275`) und der
@@ -282,7 +282,7 @@ Herkunft: [Gedanken-Notiz](../backlogs/checkout-expiry-funnel.md)
 - [x] **Checkout-Expiry-Funnel planen und schneiden:** Bewertung, Semantik-Entscheidungen (`expired` statt `DEL`, Deadline in `/pay`), Profil-Design und Reihenfolge.
 - [x] **Vertrag `expiresAt` exponieren:** Deadline zusaetzlich in Pending-Record, Buy-Response und Status-Response, plus Serverzeit gegen Clock-Skew; rein additiv.
 - [x] **ADR und Ablauf-Semantik:** `expired`-Grabstein statt `DEL`, Deadline-Enforcement im `claimPayment`-Lua, typed Error 410, `payments_rejected_total{reason}`. → ADR-033
-- [x] **Frontend `/checkout/[orderId]`:** eigene Route mit Countdown und terminalem `expired`-Zustand; loest den 404-Rateschluss in `apps/web/lib/api.ts` ab.
+- [x] **Frontend `/checkout/[orderId]`:** eigene Route mit Countdown und terminalem `expired`-Zustand; loest den 404-Rateschluss in `apps/web/src/lib/api.ts` ab.
 - [x] **k6-Profil `funnel`:** vierter `LOAD_PROFILE` mit Profiltabelle statt verstreuter `if`-Zweige, truncated Normal per Box-Muller, neue Counter, `CONFIG_ALLOWLIST`.
 - [x] **Reaper-Dimensionierung fuer das Profil:** Batch-Groesse und Zyklus gegen die erwartete Ablaufrate rechnen; hier faellt auch σ.
 - [x] **Lasttest-Stack-Env:** `CHECKOUT_PENDING_TIMEOUT_SECONDS=120` und `SEED_CAPACITY=100000` dort setzen, wo API und Worker starten; Defaults bleiben.

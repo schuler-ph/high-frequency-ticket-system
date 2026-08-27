@@ -3,17 +3,18 @@
  * Startet ein Kommando mit dem Env-Profil aus `config/env/$HTS_ENV_PROFILE.env`
  * im Prozess-Env — fuer Programme, die `node --env-file` nicht vertragen.
  *
- * Anlass ist Next.js: `next dev`/`next build` spawnen Worker-Threads und
- * reichen dabei die `execArgv` des Elternprozesses weiter; `--env-file` ist
- * dort nicht erlaubt (`ERR_WORKER_INVALID_EXEC_ARGV`). Deshalb liest dieses
- * Skript die Profil-Datei selbst (`util.parseEnv`, Node >= 20.12) und startet
- * das Kommando als Kindprozess mit zusammengefuehrtem Env. Rangfolge wie bei
+ * Anlass war Next.js, das `--env-file` in seine Worker-Threads weiterreichte
+ * und daran scheiterte (`ERR_WORKER_INVALID_EXEC_ARGV`); heute nutzt das
+ * Vite-Frontend das Skript, weil Vite `.env`-Dateien nur aus dem eigenen
+ * Verzeichnis liest und das Profil in `config/env/` liegt. Das Skript liest die
+ * Profil-Datei selbst (`util.parseEnv`, Node >= 20.12) und startet das
+ * Kommando als Kindprozess mit zusammengefuehrtem Env. Rangfolge wie bei
  * `--env-file` und `@repo/env`: was schon im Prozess-Env steht (Shell-inline,
  * CI, VS-Code-Task), schlaegt die Datei (ADR-034).
  *
  * Aufruf: node scripts/lib/run-with-profile.mjs [--prefix=X_] <kommando> [args...]
  * Das Kommando wird ueber PATH aufgeloest — `pnpm run` legt `node_modules/.bin`
- * dorthin, `next` funktioniert also unveraendert. Mit `--prefix=` gelangen nur
+ * dorthin, `vite` funktioniert also unveraendert. Mit `--prefix=` gelangen nur
  * Variablen mit diesem Praefix aus dem Profil in den Kindprozess.
  */
 import { spawnSync } from "node:child_process";
@@ -36,11 +37,11 @@ if (!existsSync(profilePath)) {
   process.exit(1);
 }
 
-// `--prefix=NEXT_PUBLIC_` reicht nur Variablen mit diesem Praefix durch. Das
-// Frontend braucht genau die; alles andere (NODE_ENV=development aus `dev`,
+// `--prefix=VITE_` reicht nur Variablen mit diesem Praefix durch. Das Frontend
+// braucht genau die; alles andere (NODE_ENV=development aus `dev`,
 // NODE_ENV=production aus den Lasttest-Profilen, DATABASE_URL, ...) hat in
-// einem Next-Prozess nichts verloren — `next build` bricht mit fremdem NODE_ENV
-// sogar ab.
+// einem Vite-Prozess nichts verloren — ein fremdes NODE_ENV wuerde Vites
+// Modus-Erkennung (`development`/`production`) ueberschreiben.
 const argv = process.argv.slice(2);
 let prefix = null;
 while (argv[0]?.startsWith("--prefix=")) {

@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import type { OrderStatusResponse } from "@repo/types/tickets";
 import { fetchOrderStatus } from "../lib/api";

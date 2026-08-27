@@ -39,6 +39,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-036 Performance ist ein drittes Verdict](decisions/ADR-036-performance-ist-ein-drittes-verdict.md)
 - [ADR-037 Pending-Reaper in eigenem Takt](decisions/ADR-037-pending-reaper-in-eigenem-takt.md)
 - [ADR-038 kubectl als Client, kind als lokaler Kubernetes-Cluster](decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)
+- [ADR-039 Web ist eine Vite-SPA, kein Next.js](decisions/ADR-039-web-ist-eine-vite-spa-kein-nextjs.md)
 
 ## Teilweise umgesetzt
 

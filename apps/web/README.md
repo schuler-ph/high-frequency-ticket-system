@@ -1,29 +1,46 @@
 # Web
 
-Next.js-Frontend für Sale-Status, Reservierung, simuliertes 3DS und
-Order-Tracking. Styling erfolgt ausschließlich mit Tailwind CSS.
+Vite + React Single-Page-App für Sale-Status, Reservierung, simuliertes 3DS
+und Order-Tracking (ADR-039). Routing mit React Router (`/` und
+`/checkout/:orderId`), Styling ausschließlich mit Tailwind CSS. `vite build`
+erzeugt statische Dateien in `dist/`; zur Laufzeit läuft kein Node.
+
+## Struktur
+
+```
+index.html          Einstieg, lädt src/main.tsx
+src/main.tsx        React-Root + BrowserRouter
+src/App.tsx         Routen
+src/pages/          TicketPage (/), CheckoutPage (/checkout/:orderId)
+src/components/     Chrome, PaymentModal, Toast, …
+src/hooks/          Polling und Deadline
+src/lib/            API-Client, Env, Namen, Payment
+src/index.css       Tailwind-Import, Fonts, Theme
+```
 
 ## Lokale Befehle
 
 Vom Repository-Root:
 
 ```bash
-HTS_ENV_PROFILE=dev pnpm --filter web run dev
-pnpm --filter web run build            # inlined NEXT_PUBLIC_* aus dem Profil (Default: dev)
-pnpm --filter web run check-types
+HTS_ENV_PROFILE=dev pnpm --filter web run dev      # Dev-Server auf :10001
+pnpm --filter web run build                        # inlined VITE_* aus dem Profil (Default: dev)
+HTS_ENV_PROFILE=dev pnpm --filter web run preview  # dist/ auf :10001 ausliefern
+pnpm --filter web run check-types                  # tsgo
 pnpm --filter web run lint
 ```
 
-`NEXT_PUBLIC_API_URL` und `NEXT_PUBLIC_EVENT_ID` kommen aus dem Profil
-`config/env/<profil>.env`, aus dem `dev`/`start`/`build` über
-`scripts/lib/run-with-profile.mjs --prefix=NEXT_PUBLIC_` genau die
-Frontend-Variablen ins Prozess-Env laden (ADR-034; `node --env-file` scheidet
-aus, weil Next.js es an seine Worker-Threads weiterreicht und Node das ablehnt;
-der Rest des Profils — etwa `NODE_ENV` — bleibt draußen, weil `next build`
-damit bricht) — eine `apps/web/.env.local` ist nicht nötig; liegt noch eine, hat
-das Profil Vorrang. `dev` und `start` verlangen `HTS_ENV_PROFILE`, `build` fällt
-auf `dev` zurück, weil die Frontend-Werte in allen Profilen identisch sind und
-`pnpm build` sonst überall ein Profil bräuchte.
+`VITE_API_URL` und `VITE_EVENT_ID` kommen aus dem Profil
+`config/env/<profil>.env`, aus dem `dev`/`preview`/`build` über
+`scripts/lib/run-with-profile.mjs --prefix=VITE_` genau die
+Frontend-Variablen ins Prozess-Env laden (ADR-034 Nachträge 2026-08-25 und
+2026-08-27). Vite liest `.env`-Dateien nur aus dem eigenen Verzeichnis, das
+Profil erreicht den Build also nur über diesen Weg; der Rest des Profils —
+etwa `NODE_ENV` — bleibt draußen. `dev` und `preview` verlangen
+`HTS_ENV_PROFILE`, `build` fällt auf `dev` zurück, weil die Frontend-Werte in
+allen Profilen identisch sind und `pnpm build` sonst überall ein Profil
+bräuchte. Fehlt ein Wert, bricht `src/lib/env.ts` beim Laden der App sichtbar
+ab.
 
 Die Anwendung läuft standardmäßig auf
 [http://localhost:10001](http://localhost:10001) und erwartet die API auf Port
@@ -34,6 +51,9 @@ docker compose up -d
 pnpm seed
 pnpm dev
 ```
+
+Beim Ausliefern von `dist/` über einen Webserver braucht das Client-Routing
+einen Fallback auf `index.html` (nginx: `try_files $uri /index.html`).
 
 Fachliches Verhalten:
 [`docs/REQUIREMENTS.md`](../../docs/REQUIREMENTS.md). Datenfluss:

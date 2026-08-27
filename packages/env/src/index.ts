@@ -74,13 +74,13 @@ export const env = createEnv({
   },
 
   /**
-   * Prefix, den clientseitige Variablen tragen muessen. Bewusst `NEXT_PUBLIC_`
-   * und nicht `PUBLIC_`: das Frontend liest `NEXT_PUBLIC_API_URL` und
-   * `NEXT_PUBLIC_EVENT_ID` (`apps/web/lib/env.ts`), weil Next.js nur diesen
-   * Prefix zur Build-Zeit ins Client-Bundle inlined. Solange `client` leer ist,
-   * war der frueher hier stehende `PUBLIC_`-Wert folgenlos — aber irrefuehrend.
+   * Prefix, den clientseitige Variablen tragen muessen. Bewusst `VITE_` und
+   * nicht `PUBLIC_`: das Frontend liest `VITE_API_URL` und `VITE_EVENT_ID`
+   * (`apps/web/src/lib/env.ts`), weil Vite nur diesen Prefix zur Build-Zeit
+   * ins Client-Bundle inlined (ADR-039). Solange `client` leer ist, ist der
+   * Wert folgenlos — aber er soll nicht irrefuehren.
    */
-  clientPrefix: "NEXT_PUBLIC_",
+  clientPrefix: "VITE_",
 
   client: {},
 
