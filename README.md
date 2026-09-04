@@ -2,16 +2,15 @@
 
 <img alt="Frequency Festival Ticket Shop" src="https://github.com/user-attachments/assets/69bb2946-6907-4539-ad7f-a5230c6aea76" />
 
-Ein produktionsnahes Lern- und Referenzsystem für stark konzentrierte
-Ticketverkäufe. Es verbindet einen Next.js-Shop mit Fastify, Redis, Google
-Cloud Pub/Sub, PostgreSQL, Lasttests und Observability in einem
-pnpm-Turborepo.
+A production-grade learning and reference system for highly concentrated
+ticket sales. It combines a Next.js shop with Fastify, Redis, Google Cloud
+Pub/Sub, PostgreSQL, load tests, and observability in a single pnpm Turborepo.
 
-## Was das Projekt zeigt
+## What the project demonstrates
 
-Der Checkout trennt Reservierung, simulierte Zahlung und dauerhafte
-Finalisierung. Pub/Sub sitzt dabei als Puffer zwischen dem synchronen
-Verkaufspfad und der Datenbank:
+The checkout separates reservation, simulated payment, and durable
+finalization. Pub/Sub acts as a buffer between the synchronous sales path and
+the database:
 
 ```mermaid
 flowchart LR
@@ -19,59 +18,58 @@ flowchart LR
 
     subgraph hot["Hot Path"]
         API["Fastify API"]
-        Redis[("Redis<br/>Inventar & Order-Status")]
+        Redis[("Redis<br/>inventory & order status")]
     end
 
-    PubSub[["Pub/Sub<br/>puffert bezahlte Kauf-Events"]]
+    PubSub[["Pub/Sub<br/>buffers paid purchase events"]]
 
-    subgraph persist["Persistenz"]
+    subgraph persist["Persistence"]
         Worker["Worker"]
-        PG[("PostgreSQL<br/>dauerhafte Wahrheit")]
+        PG[("PostgreSQL<br/>durable source of truth")]
     end
 
-    Browser -->|"buy · pay · Status-Polling"| API
-    API <-->|"atomare Lua-Skripte"| Redis
-    API -.->|"publish nach Zahlung"| PubSub
+    Browser -->|"buy · pay · status polling"| API
+    API <-->|"atomic Lua scripts"| Redis
+    API -.->|"publish after payment"| PubSub
     PubSub -.->|"at-least-once"| Worker
     Worker -->|"buy_ticket()"| PG
     Worker -.->|"completed / failed"| Redis
 ```
 
-Der Browser bekommt seine Antworten vollständig aus Redis; PostgreSQL steht
-nie im Request-Pfad. Bezahlte Kauf-Events landen stattdessen im
-Pub/Sub-Puffer, der Worker persistiert sie asynchron in seinem eigenen Tempo
-und schreibt den finalen Status zurück nach Redis. Ein Lastspike trifft damit
-nur Redis und die Queue, nicht die Datenbank. Das System enthält außerdem
-reproduzierbare k6-Läufe, Prometheus/Grafana-Dashboards und eine
-automatisierte Report-Pipeline.
+The browser gets all of its responses from Redis; PostgreSQL is never on the
+request path. Paid purchase events land in the Pub/Sub buffer instead, the
+worker persists them asynchronously at its own pace and writes the final
+status back to Redis. A load spike therefore only hits Redis and the queue,
+not the database. The system also ships reproducible k6 runs,
+Prometheus/Grafana dashboards, and an automated report pipeline.
 
-Drei Grafana-Panels aus einem k6-Spike-Lauf belegen das — alle Panels samt
-Erklärung liegen unter
+Three Grafana panels from a k6 spike run demonstrate this — all panels with
+explanations are available under
 [`docs/reports/grafana-panels-2026-08-03`](docs/reports/grafana-panels-2026-08-03/PANEL-GUIDE-2026-08-03.md):
 
-![Request Rate mit Peak von 8.1K Requests pro Sekunde](docs/reports/grafana-panels-2026-08-03/images/api-performance/01-request-rate-rps.png)
+![Request rate with a peak of 8.1K requests per second](docs/reports/grafana-panels-2026-08-03/images/api-performance/01-request-rate-rps.png)
 
-_Peak von **8.1K req/s** auf der API — Verfügbarkeit und Order-Status kommen
-ausschließlich aus Redis, PostgreSQL steht nie im Request-Pfad._
+_Peak of **8.1K req/s** on the API — availability and order status come
+exclusively from Redis, PostgreSQL is never on the request path._
 
-![Publish- und Consumer-Rate liegen deckungsgleich übereinander](docs/reports/grafana-panels-2026-08-03/images/pub-sub-queue-worker-processing/03-publish-vs-consumer-rate.png)
+![Publish and consumer rate overlap exactly](docs/reports/grafana-panels-2026-08-03/images/pub-sub-queue-worker-processing/03-publish-vs-consumer-rate.png)
 
-_Der Puffer in Aktion: Der Worker verarbeitet bis zu **4K Orders/s** aus
-Pub/Sub und hält mit der Publish-Rate exakt mit — bei **0 Redeliveries und
-0 Duplikaten**._
+_The buffer in action: the worker processes up to **4K orders/s** from
+Pub/Sub and keeps up exactly with the publish rate — with **0 redeliveries
+and 0 duplicates**._
 
-![Error Rate: 0 Prozent 5xx über den gesamten Lauf](docs/reports/grafana-panels-2026-08-03/images/api-performance/04-error-rate-5xx-409-425.png)
+![Error rate: 0 percent 5xx over the entire run](docs/reports/grafana-panels-2026-08-03/images/api-performance/04-error-rate-5xx-409-425.png)
 
-_**0 % Server-Fehler** über den gesamten Lauf. Die gelbe Linie markiert den
-Ausverkauf: ab da antwortet die API kontrolliert mit `409 Sold Out` statt zu
-versagen._
+_**0 % server errors** over the entire run. The yellow line marks the
+sell-out: from that point on, the API responds in a controlled way with
+`409 Sold Out` instead of failing._
 
-Der verbindliche Ist-Datenfluss steht in
+The authoritative current data flow is documented in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quickstart
 
-Voraussetzungen: Node.js ≥ 22 (CI prüft 22 und 24), pnpm 10 sowie Docker mit
+Prerequisites: Node.js ≥ 22 (CI tests 22 and 24), pnpm 10, and Docker with
 Compose.
 
 ```bash
@@ -82,66 +80,65 @@ pnpm seed
 pnpm dev
 ```
 
-Die Konfiguration kommt vollständig aus `config/env/<profil>.env`; es gibt keine
-`.env` und keine Defaults. `HTS_ENV_PROFILE` wählt die Datei — fehlt sie,
-startet nichts und die Fehlermeldung zählt die verfügbaren Profile auf
+Configuration comes entirely from `config/env/<profile>.env`; there is no
+`.env` and there are no defaults. `HTS_ENV_PROFILE` selects the file — if it
+is missing, nothing starts and the error message lists the available profiles
 (`dev`, `test`, `ci`, `browse-and-buy-full-speed`, `browse-and-buy-human-pace`,
 `buy-only-full-speed`).
-Begründung: [ADR-034](docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md).
-Lastläufe brauchen ein Lasttest-Profil, z. B.
+Rationale: [ADR-034](docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md).
+Load runs require a load-test profile, e.g.
 `HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike`.
 
-Danach sind die wichtigsten Oberflächen erreichbar:
+After that, the main interfaces are reachable at:
 
 - Web: [http://localhost:10001](http://localhost:10001)
 - API: [http://localhost:10002](http://localhost:10002)
 - Grafana: [http://localhost:10008](http://localhost:10008)
 
-Die vollständige Startreihenfolge, Standardports und bekannte Fallen stehen im
+The full startup order, default ports, and known pitfalls are documented in
 [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
-## Häufige Befehle
+## Common commands
 
-| Ziel                          | Befehl                |
+| Goal                          | Command               |
 | ----------------------------- | --------------------- |
-| lokalen Zustand neu aufsetzen | `pnpm seed`           |
-| Entwicklungsstack starten     | `pnpm dev`            |
-| schnelle Verifikation         | `pnpm verify:quick`   |
-| vollständige Verifikation     | `pnpm verify:all`     |
-| Lasttest mit Report           | `pnpm spike:report`   |
-| Doku-Struktur prüfen          | `pnpm run debug:docs` |
+| reset local state             | `pnpm seed`           |
+| start the development stack   | `pnpm dev`            |
+| quick verification            | `pnpm verify:quick`   |
+| full verification             | `pnpm verify:all`     |
+| load test with report         | `pnpm spike:report`   |
+| check documentation structure | `pnpm run debug:docs` |
 
-`pnpm test`, `pnpm dev` und Live-Checks benötigen die laufenden Container
-`hts-postgres`, `hts-redis` und `hts-pubsub`.
+`pnpm test`, `pnpm dev`, and live checks require the running containers
+`hts-postgres`, `hts-redis`, and `hts-pubsub`.
 
 ## Repository
 
 ```text
-apps/          Web, API und Worker
-packages/      Datenbank, Umgebungsvariablen, Verträge und UI
-load-tests/    k6-Szenarien und Hilfslogik
-scripts/       lokale Abläufe, Diagnose und Report-Automation
-docs/          Anforderungen, Architektur, Entscheidungen, Pläne und Runbook
-monitoring/    Prometheus- und Grafana-Konfiguration
-tests/         serviceübergreifende End-to-End-Tests
+apps/          web, API, and worker
+packages/      database, environment variables, contracts, and UI
+load-tests/    k6 scenarios and helper logic
+scripts/       local workflows, diagnostics, and report automation
+docs/          requirements, architecture, decisions, plans, and runbook
+monitoring/    Prometheus and Grafana configuration
+tests/         cross-service end-to-end tests
 ```
 
-Lokale Bedienhinweise liegen jeweils in der `README.md` des betroffenen
-Verzeichnisses.
+Local usage notes live in the `README.md` of each respective directory.
 
-## Dokumentation
+## Documentation
 
-[`docs/DOCS.md`](docs/DOCS.md) definiert die Dokumentationsarchitektur und
-welche Quelle wann gelesen wird.
+[`docs/DOCS.md`](docs/DOCS.md) defines the documentation architecture and
+which source to read when.
 
-| Frage                                         | Quelle                                         |
-| --------------------------------------------- | ---------------------------------------------- |
-| Was soll das System leisten?                  | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) |
-| Wie funktioniert es aktuell?                  | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| Warum wurde etwas so entschieden?             | [`docs/DECISIONS.md`](docs/DECISIONS.md)       |
-| Was ist erledigt oder als Nächstes dran?      | [`docs/TODO.md`](docs/TODO.md)                 |
-| Wie starte, teste oder diagnostiziere ich es? | [`docs/RUNBOOK.md`](docs/RUNBOOK.md)           |
+| Question                              | Source                                         |
+| ------------------------------------- | ---------------------------------------------- |
+| What should the system do?            | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) |
+| How does it currently work?           | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Why was something decided this way?   | [`docs/DECISIONS.md`](docs/DECISIONS.md)       |
+| What is done or up next?              | [`docs/TODO.md`](docs/TODO.md)                 |
+| How do I start, test, or diagnose it? | [`docs/RUNBOOK.md`](docs/RUNBOOK.md)           |
 
-## Lizenz
+## License
 
 Private repository / showcase project.
