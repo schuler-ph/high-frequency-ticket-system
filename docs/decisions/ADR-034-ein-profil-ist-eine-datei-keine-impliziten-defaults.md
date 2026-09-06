@@ -147,3 +147,14 @@ nur aus dem eigenen Verzeichnis, das Profil in `config/env/` erreicht den
 Build also weiterhin nur über das Prozess-Env, und ein fremdes `NODE_ENV` aus
 dem Profil würde Vites Modus-Erkennung überschreiben — der Präfix-Filter ist
 deshalb weiterhin nötig. `build` fällt unverändert auf `dev` zurück.
+
+## Nachtrag 2026-09-06: Cloud-Profile und Zugangsdaten (ADR-040)
+
+Punkt 4 galt für lokale Werte. Für Kubernetes und GKE präzisiert
+[ADR-040](ADR-040-cloud-profile-geheimnisse-aus-dem-prozess-env.md): jedes
+Profil bleibt eingecheckt und vollständig, Zugangsdaten stehen aber als leere
+Zuweisung (`REDIS_URL=`) und kommen aus dem Kubernetes-Secret — `override:
+false` und `emptyStringAsUndefined` machen das ohne Code-Änderung möglich, und
+ein fehlendes Secret bleibt ein Zod-Fehler beim Boot. Das ganze `config/env/`
+liegt im Image, damit `HTS_ENV_PROFILE` ein Laufzeit-Schalter bleibt. Neu sind
+die Profile `cloud-dev` und `cloud-capacity`.

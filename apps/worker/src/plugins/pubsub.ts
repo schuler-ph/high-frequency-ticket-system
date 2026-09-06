@@ -100,6 +100,7 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
     {
       projectId: env.GOOGLE_CLOUD_PROJECT,
       subscription: subscriptionName,
+      pubsubTarget: env.PUBSUB_EMULATOR_HOST ? "emulator" : "google-cloud",
       emulatorHost: env.PUBSUB_EMULATOR_HOST,
       flowControlMaxMessages: env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES,
     },

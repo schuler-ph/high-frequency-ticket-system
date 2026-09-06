@@ -49,6 +49,7 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
     {
       projectId: env.GOOGLE_CLOUD_PROJECT,
       topic: topicName,
+      pubsubTarget: env.PUBSUB_EMULATOR_HOST ? "emulator" : "google-cloud",
       emulatorHost: env.PUBSUB_EMULATOR_HOST,
     },
     "Registered Pub/Sub publisher plugin",

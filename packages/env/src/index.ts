@@ -16,7 +16,7 @@ export const env = createEnv({
     REDIS_URL: z.url(),
     DATABASE_URL: z.url(),
     GOOGLE_CLOUD_PROJECT: z.string().min(1),
-    PUBSUB_EMULATOR_HOST: z.string().min(1),
+    PUBSUB_EMULATOR_HOST: z.string().min(1).optional(),
     PUBSUB_TOPIC_BUY_TICKET: z.string().min(1),
     PUBSUB_SUBSCRIPTION_BUY_TICKET: z.string().min(1),
     // Max. gleichzeitig zugestellte Pub/Sub-Nachrichten pro Worker-Instanz.

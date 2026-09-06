@@ -40,6 +40,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-037 Pending-Reaper in eigenem Takt](decisions/ADR-037-pending-reaper-in-eigenem-takt.md)
 - [ADR-038 kubectl als Client, kind als lokaler Kubernetes-Cluster](decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)
 - [ADR-039 Web ist eine Vite-SPA, kein Next.js](decisions/ADR-039-web-ist-eine-vite-spa-kein-nextjs.md)
+- [ADR-040 Cloud-Profile — Zugangsdaten aus dem Prozess-Env, Profil bleibt Datei](decisions/ADR-040-cloud-profile-geheimnisse-aus-dem-prozess-env.md)
 
 ## Teilweise umgesetzt
 
