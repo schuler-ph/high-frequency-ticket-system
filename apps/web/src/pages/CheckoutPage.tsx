@@ -1,11 +1,9 @@
 import { Navigate, useNavigate, useParams } from "react-router";
 import { useState } from "react";
-import {
-  PageChrome,
-  SectionPanel,
-  secondaryBtn,
-} from "../components/PageChrome";
-import { PaymentModal } from "../components/PaymentModal";
+import type { OrderStatusResponse } from "@repo/types/tickets";
+import { OfferHeadline } from "../components/OfferHeadline";
+import { PageChrome, panel, secondaryBtn } from "../components/PageChrome";
+import { PaymentForm } from "../components/PaymentForm";
 import { Spinner } from "../components/Spinner";
 import { StatusChip, type ChipTone } from "../components/StatusChip";
 import {
@@ -15,14 +13,17 @@ import {
 import { useOrderStatus } from "../hooks/useOrderStatus";
 import { cancelOrder } from "../lib/api";
 import { env } from "../lib/env";
+import { OFFER } from "../lib/offer";
 
 /**
  * Checkout einer konkreten Reservierung.
  *
  * Die `orderId` steht in der URL und nicht im React-State: die Seite ist damit
- * reload-fest und teilbar, und Restzeit wie Status kommen bei jedem Aufruf
- * frisch aus `GET /api/orders/:orderId` (Redis-Read-Model). Ein `orderId` ist
- * eine nicht ratbare UUID, die URL enthaelt nichts Schuetzenswertes.
+ * reload-fest und teilbar, und Restzeit, Status wie Name kommen bei jedem
+ * Aufruf frisch aus `GET /api/orders/:orderId` (Redis-Read-Model). Ein
+ * `orderId` ist eine nicht ratbare UUID; wer die URL kennt, sieht den
+ * Checkout — Zahlungsformular, Countdown und die unveraenderlichen Daten der
+ * Reservierung in der Zusammenfassung rechts.
  */
 export function CheckoutPage() {
   // React Router typisiert Parameter als optional; die Route
@@ -57,8 +58,8 @@ function Checkout({ orderId }: { orderId: string }) {
     void navigate("/");
   }
 
-  // Modal-Abbruch: Reservierung freigeben (idempotent, fire-and-forget —
-  // ADR-028) und zurueck zur Angebotsseite.
+  // Abbruch: Reservierung freigeben (idempotent, fire-and-forget — ADR-028)
+  // und zurueck zur Angebotsseite.
   function handleCancel() {
     void cancelOrder(env.apiUrl, orderId);
     leaveCheckout();
@@ -66,67 +67,16 @@ function Checkout({ orderId }: { orderId: string }) {
 
   if (!loaded) {
     return (
-      <CheckoutFrame chip={{ tone: "blue", label: "Wird geladen" }}>
+      <CheckoutLayout
+        orderId={orderId}
+        status={null}
+        chip={{ tone: "blue", label: "Wird geladen" }}
+      >
         <div className="flex items-center gap-3 py-6 text-slate-500">
           <Spinner className="h-5 w-5 text-[#14395e]" />
           <span className="text-sm">Reservierung wird geladen…</span>
         </div>
-      </CheckoutFrame>
-    );
-  }
-
-  if (expired) {
-    return (
-      <CheckoutFrame
-        orderId={orderId}
-        chip={{ tone: "red", label: "Abgelaufen" }}
-      >
-        <Outcome
-          tone="red"
-          title="Reservierung abgelaufen"
-          body="Das Checkout-Fenster ist verstrichen und der Platz wurde wieder freigegeben. Du kannst es erneut versuchen, solange noch Tickets verfügbar sind."
-        />
-        <button onClick={leaveCheckout} className={`${secondaryBtn} mt-5`}>
-          ← Zurück zum Angebot
-        </button>
-      </CheckoutFrame>
-    );
-  }
-
-  if (status?.status === "completed") {
-    return (
-      <CheckoutFrame
-        orderId={orderId}
-        chip={{ tone: "green", label: "Bestätigt" }}
-        ticketId={status.ticketId}
-      >
-        <Outcome
-          tone="green"
-          title="Ticket gesichert"
-          body="Dein General-Admission-Pass ist bestätigt. Wir sehen uns in St. Pölten."
-        />
-        <button onClick={leaveCheckout} className={`${secondaryBtn} mt-5`}>
-          ← Neues Ticket
-        </button>
-      </CheckoutFrame>
-    );
-  }
-
-  if (status?.status === "failed") {
-    return (
-      <CheckoutFrame
-        orderId={orderId}
-        chip={{ tone: "red", label: "Fehlgeschlagen" }}
-      >
-        <Outcome
-          tone="red"
-          title="Kauf fehlgeschlagen"
-          body={status.failureReason}
-        />
-        <button onClick={leaveCheckout} className={`${secondaryBtn} mt-5`}>
-          ← Zurück zum Angebot
-        </button>
-      </CheckoutFrame>
+      </CheckoutLayout>
     );
   }
 
@@ -134,23 +84,77 @@ function Checkout({ orderId }: { orderId: string }) {
   // Seit ADR-033 ist das kein Rateschluss mehr — ein Ablauf liefert `expired`.
   if (status === null) {
     return (
-      <CheckoutFrame chip={{ tone: "slate", label: "Unbekannt" }}>
+      <CheckoutLayout
+        orderId={orderId}
+        status={null}
+        chip={{ tone: "slate", label: "Unbekannt" }}
+      >
         <Outcome
           tone="red"
           title="Reservierung nicht gefunden"
           body="Zu dieser Bestellnummer gibt es keine Reservierung."
         />
-        <button onClick={leaveCheckout} className={`${secondaryBtn} mt-5`}>
-          ← Zurück zum Angebot
-        </button>
-      </CheckoutFrame>
+        <BackButton onClick={leaveCheckout} label="Zurück zum Angebot" />
+      </CheckoutLayout>
+    );
+  }
+
+  if (expired) {
+    return (
+      <CheckoutLayout
+        orderId={orderId}
+        status={status}
+        chip={{ tone: "red", label: "Abgelaufen" }}
+      >
+        <Outcome
+          tone="red"
+          title="Reservierung abgelaufen"
+          body="Das Checkout-Fenster ist verstrichen und der Platz wurde wieder freigegeben. Du kannst es erneut versuchen, solange noch Tickets verfügbar sind."
+        />
+        <BackButton onClick={leaveCheckout} label="Zurück zum Angebot" />
+      </CheckoutLayout>
+    );
+  }
+
+  if (status.status === "completed") {
+    return (
+      <CheckoutLayout
+        orderId={orderId}
+        status={status}
+        chip={{ tone: "green", label: "Bestätigt" }}
+      >
+        <Outcome
+          tone="green"
+          title="Ticket gesichert"
+          body="Dein General-Admission-Pass ist bestätigt. Wir sehen uns in St. Pölten."
+        />
+        <BackButton onClick={leaveCheckout} label="Neues Ticket" />
+      </CheckoutLayout>
+    );
+  }
+
+  if (status.status === "failed") {
+    return (
+      <CheckoutLayout
+        orderId={orderId}
+        status={status}
+        chip={{ tone: "red", label: "Fehlgeschlagen" }}
+      >
+        <Outcome
+          tone="red"
+          title="Kauf fehlgeschlagen"
+          body={status.failureReason}
+        />
+        <BackButton onClick={leaveCheckout} label="Zurück zum Angebot" />
+      </CheckoutLayout>
     );
   }
 
   if (paid) {
     return (
-      <CheckoutFrame
+      <CheckoutLayout
         orderId={orderId}
+        status={status}
         chip={{ tone: "amber", label: "Wird verarbeitet" }}
       >
         <div className="flex items-start gap-4">
@@ -170,13 +174,15 @@ function Checkout({ orderId }: { orderId: string }) {
             Verbindung instabil — erneuter Versuch…
           </p>
         )}
-      </CheckoutFrame>
+      </CheckoutLayout>
     );
   }
 
+  // Ab hier ist `status` ein `pending`; `paid` ist noch nicht gesetzt.
   return (
-    <CheckoutFrame
+    <CheckoutLayout
       orderId={orderId}
+      status={status}
       chip={{ tone: elapsed ? "red" : "amber", label: "Reserviert" }}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -192,15 +198,18 @@ function Checkout({ orderId }: { orderId: string }) {
         <CountdownBadge remainingMs={remainingMs} elapsed={elapsed} />
       </div>
 
-      <PaymentModal
-        apiUrl={env.apiUrl}
-        orderId={orderId}
-        cardHolder=""
-        onPaid={() => setPaid(true)}
-        onClose={handleCancel}
-        onExpired={() => setRejectedAsExpired(true)}
-      />
-    </CheckoutFrame>
+      <div className="mt-5 border-t border-slate-100 pt-5">
+        <h4 className="mb-4 text-base font-bold text-slate-900">Bezahlung</h4>
+        <PaymentForm
+          apiUrl={env.apiUrl}
+          orderId={orderId}
+          cardHolder={`${status.firstName} ${status.lastName}`}
+          onPaid={() => setPaid(true)}
+          onCancel={handleCancel}
+          onExpired={() => setRejectedAsExpired(true)}
+        />
+      </div>
+    </CheckoutLayout>
   );
 }
 
@@ -226,6 +235,20 @@ function CountdownBadge({
         {formatRemaining(remainingMs)}
       </div>
     </div>
+  );
+}
+
+function BackButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button onClick={onClick} className={`${secondaryBtn} mt-5`}>
+      ← {label}
+    </button>
   );
 }
 
@@ -275,46 +298,148 @@ function Outcome({
   );
 }
 
-function CheckoutFrame({
+/**
+ * Zweispaltiges Checkout-Layout: links der Ablauf (Countdown, Formular oder
+ * Endzustand), rechts die Zusammenfassung mit den unveraenderlichen Daten der
+ * Bestellung. Auf schmalen Viewports stapelt es sich, die Zusammenfassung
+ * kommt unter den Ablauf.
+ */
+function CheckoutLayout({
   orderId,
+  status,
   chip,
-  ticketId,
   children,
 }: {
-  orderId?: string;
+  orderId: string;
+  status: OrderStatusResponse | null;
   chip: { tone: ChipTone; label: string };
-  ticketId?: string | null;
   children: React.ReactNode;
 }) {
   return (
     <PageChrome>
-      <SectionPanel
-        title="Deine Bestellung"
-        action={<StatusChip tone={chip.tone}>{chip.label}</StatusChip>}
-      >
-        {children}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <section className={panel}>
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+            <h2 className="text-xl font-bold text-[#1a4e80]">Checkout</h2>
+            <StatusChip tone={chip.tone}>{chip.label}</StatusChip>
+          </div>
+          <div className="px-5 py-5 sm:px-6">{children}</div>
+        </section>
 
-        {orderId !== undefined && (
-          <dl className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
-            <div className="flex items-center justify-between py-3">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Bestellnummer
-              </dt>
-              <dd className="font-mono text-sm text-slate-700">
-                {orderId.slice(0, 8)}…
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-3">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Ticket-Referenz
-              </dt>
-              <dd className="truncate font-mono text-sm text-slate-700">
-                {ticketId ?? "—"}
-              </dd>
-            </div>
-          </dl>
-        )}
-      </SectionPanel>
+        <OrderSummary orderId={orderId} status={status} />
+      </div>
     </PageChrome>
   );
+}
+
+function OrderSummary({
+  orderId,
+  status,
+}: {
+  orderId: string;
+  status: OrderStatusResponse | null;
+}) {
+  const pending = status?.status === "pending" ? status : null;
+  const ticketId = status?.status === "completed" ? status.ticketId : null;
+  const expiresAt =
+    status?.status === "pending" || status?.status === "expired"
+      ? status.expiresAt
+      : null;
+
+  return (
+    <aside className={`${panel} lg:sticky lg:top-4`}>
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-base font-bold text-[#1a4e80]">Deine Bestellung</h2>
+      </div>
+
+      <div className="px-5 py-5">
+        <OfferHeadline compact />
+
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-sm">
+          <div>
+            <div className="font-medium text-slate-900">
+              1 × {OFFER.ticketType}
+            </div>
+            <div className="text-xs text-slate-500">
+              Personalisiert · nicht übertragbar
+            </div>
+          </div>
+          <div className="font-semibold tabular-nums text-slate-900">
+            {OFFER.price}
+          </div>
+        </div>
+
+        <dl className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4">
+          {pending !== null && (
+            <SummaryRow label="Ticketinhaber">
+              <span className="font-medium text-slate-900">
+                {pending.firstName} {pending.lastName}
+              </span>
+            </SummaryRow>
+          )}
+          <SummaryRow label="Bestellnummer">
+            <span className="font-mono text-xs break-all text-slate-700 select-all">
+              {orderId}
+            </span>
+          </SummaryRow>
+          {expiresAt !== null && (
+            <SummaryRow
+              label={
+                status?.status === "expired"
+                  ? "Abgelaufen um"
+                  : "Reserviert bis"
+              }
+            >
+              <span className="tabular-nums text-slate-700">
+                {formatClock(expiresAt)}
+              </span>
+            </SummaryRow>
+          )}
+          {ticketId !== null && (
+            <SummaryRow label="Ticket-Referenz">
+              <span className="font-mono text-xs break-all text-slate-700 select-all">
+                {ticketId ?? "—"}
+              </span>
+            </SummaryRow>
+          )}
+        </dl>
+
+        <div className="mt-4 flex items-baseline justify-between border-t border-slate-200 pt-4">
+          <span className="text-sm font-semibold text-slate-900">Gesamt</span>
+          <span className="text-xl font-bold tabular-nums text-[#14395e]">
+            {OFFER.price}
+          </span>
+        </div>
+        <p className="mt-1 text-right text-xs text-slate-400">
+          inkl. USt., keine Gebühren
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  );
+}
+
+/** Uhrzeit (hh:mm:ss) einer Epoch-ms-Deadline in lokaler Zeit. */
+function formatClock(epochMs: number): string {
+  return new Date(epochMs).toLocaleTimeString("de-AT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }

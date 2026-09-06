@@ -217,16 +217,19 @@ fehlgeschlagene Kompensation führen zu NACK und Redelivery.
   Zustandskonflikt und lässt den Anspruch stehen.
 - `GET /api/orders/:orderId` liest `pending`, `completed`, `failed` oder
   `expired` aus `orders:{orderId}` in Redis. Ein `pending` liefert zusätzlich
-  `expiresAt` aus dem Record und `serverTime` als Uhr des Reads; die internen
-  Zustände `publishing` und `paid` behalten dabei ihre Deadline, bleiben nach
-  außen aber `pending`. `expired` ist der Grabstein des Reapers und macht einen
+  `expiresAt` aus dem Record, `serverTime` als Uhr des Reads sowie `firstName`
+  und `lastName` der Reservierung; die internen Zustände `publishing` und `paid`
+  behalten dabei Deadline und Namen, bleiben nach außen aber `pending`.
+  Terminale Zustände tragen keine Namen. `expired` ist der Grabstein des Reapers und macht einen
   abgelaufenen Checkout von einer unbekannten `orderId` unterscheidbar.
 - Das Frontend pollt bis zu einem terminalen Zustand; es gibt keinen
   WebSocket- oder SSE-Kanal.
-- Der Checkout hat mit `/checkout/[orderId]` eine eigene Route. Die `orderId`
+- Der Checkout hat mit `/checkout/:orderId` eine eigene Route. Die `orderId`
   steht in der URL und nicht im React-State: die Seite ist damit reload-fest und
-  teilbar, und Restzeit wie Status kommen bei jedem Aufruf frisch aus dem
-  Redis-Read-Model. Der Countdown rechnet gegen `serverTime`, nicht gegen die
+  teilbar, und Restzeit, Status wie Name kommen bei jedem Aufruf frisch aus dem
+  Redis-Read-Model. Das Zahlungsformular liegt inline auf der Seite (kein
+  Modal), daneben eine Zusammenfassung mit den unveränderlichen Daten der
+  Reservierung. Der Countdown rechnet gegen `serverTime`, nicht gegen die
   lokale Uhr; er ist reine Anzeige — verbindlich ist allein die
   Deadline-Prüfung in `POST /pay`.
 

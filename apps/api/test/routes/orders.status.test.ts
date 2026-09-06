@@ -68,6 +68,8 @@ void test("GET /:orderId returns a pending order from Redis", async () => {
         eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
         status: "pending",
         expiresAt: EXPIRES_AT,
+        firstName: "Ada",
+        lastName: "Lovelace",
         serverTime: undefined,
       },
     );
@@ -118,6 +120,8 @@ void test("GET /:orderId keeps an internal publishing order publicly pending", a
         eventId: "7d4996fe-3f4b-46f6-be95-f7fd38f83f42",
         status: "pending",
         expiresAt: EXPIRES_AT,
+        firstName: "Ada",
+        lastName: "Lovelace",
         serverTime: undefined,
       },
     );

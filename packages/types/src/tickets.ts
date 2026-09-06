@@ -198,9 +198,17 @@ export type TerminalOrderCacheEntry = z.infer<
  * Der oeffentliche `pending`-Status traegt zusaetzlich zur Deadline die
  * Serverzeit des Reads. Damit kann das Frontend den Countdown bei jedem Poll
  * neu verankern, ohne der lokalen Uhr zu vertrauen.
+ *
+ * Er traegt ausserdem die Personalisierung (`firstName`, `lastName`) aus dem
+ * Reservierungs-Record: die Checkout-Seite zeigt den Namen, auf den die
+ * Reservierung laeuft, unveraenderbar in der Bestellzusammenfassung. Die
+ * `orderId` ist eine nicht ratbare UUID, der Name ist nur mit ihr lesbar.
+ * Terminale Zustaende (`completed|failed|expired`) tragen keine Namen — der
+ * Worker persistiert sie in PostgreSQL, das Redis-Read-Model nicht.
  */
 export const pendingOrderStatusResponseSchema =
   pendingOrderCacheEntrySchema.extend({
+    ...buyTicketBodySchema.shape,
     serverTime: z.number().int().positive(),
   });
 

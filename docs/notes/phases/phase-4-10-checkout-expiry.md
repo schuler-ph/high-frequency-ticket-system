@@ -196,9 +196,9 @@ k6-Profil und Panels sind danach unabhaengig voneinander.
    haelt den Order-State ausschliesslich im React-State
    (`apps/web/app/page.tsx:155,297`), daher ist die Route der groesste
    Einzelbaustein der Phase. Damit entfaellt der 404-Rateschluss in
-   `apps/web/src/lib/api.ts:68-70`, und das `PaymentModal` darf bei `expired` nicht
-   mehr ins Kartenformular zurueckfallen
-   (`apps/web/src/components/PaymentModal.tsx:88-89`).
+   `apps/web/src/lib/api.ts:68-70`, und das Zahlungsformular darf bei `expired`
+   nicht mehr ins Kartenformular zurueckfallen (damals `PaymentModal`, heute
+   `apps/web/src/components/PaymentForm.tsx`).
 4. **k6-Profil `funnel`.** Vierter `LOAD_PROFILE`. Dafuer muss
    `load-tests/lib/scenario-helpers.js` von drei verstreuten `if`-Zweigen auf
    eine Profiltabelle umgestellt werden: das Mix-Literal `0.4` (`:275`) und der

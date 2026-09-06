@@ -6,6 +6,7 @@ import {
   inputClass,
   primaryBtn,
 } from "../components/PageChrome";
+import { OfferHeadline } from "../components/OfferHeadline";
 import { Spinner } from "../components/Spinner";
 import { StatusChip } from "../components/StatusChip";
 import { Toast } from "../components/Toast";
@@ -13,12 +14,9 @@ import { useTicketAvailability } from "../hooks/useTicketAvailability";
 import { buyTicket } from "../lib/api";
 import { env } from "../lib/env";
 import { randomName } from "../lib/names";
+import { OFFER } from "../lib/offer";
 
 type Phase = "loading" | "upcoming" | "open" | "soldout";
-
-const PRICE = "€ 199,00";
-const VENUE = "Green Park St. Pölten";
-const DATES = { from: "20.08.2026", to: "22.08.2026" };
 
 interface CountdownParts {
   days: number;
@@ -49,17 +47,6 @@ function useNow(): number {
 
 function formatCount(value: number | null): string {
   return value === null ? "—" : value.toLocaleString("de-AT");
-}
-
-/** Datum-Spalte im Angebots-Row-Stil (von–bis). */
-function DateColumn() {
-  return (
-    <div className="shrink-0 text-center text-sm sm:w-24">
-      <div className="font-semibold text-[#14395e]">{DATES.from}</div>
-      <div className="text-xs text-slate-400">bis</div>
-      <div className="font-semibold text-[#14395e]">{DATES.to}</div>
-    </div>
-  );
 }
 
 export function TicketPage() {
@@ -98,24 +85,6 @@ export function TicketPage() {
 
   return (
     <ActiveSaleView available={available} total={total} loading={loading} />
-  );
-}
-
-/** Kopfzeile eines Angebots-Rows: Datum + Titel/Ort + Venue. */
-function OfferHeadline() {
-  return (
-    <div className="flex items-start gap-4">
-      <DateColumn />
-      <div className="min-w-0">
-        <div className="text-xs text-slate-500">
-          Frequency 20XX · 3-Tages-Festivalpass
-        </div>
-        <div className="text-2xl font-bold tracking-tight text-[#14395e]">
-          ST. PÖLTEN
-        </div>
-        <div className="text-sm text-slate-500">{VENUE} · 12:00 Uhr</div>
-      </div>
-    </div>
   );
 }
 
@@ -240,7 +209,9 @@ function ActiveSaleView({
           <OfferHeadline />
           <div className="shrink-0 text-left sm:text-right">
             <div className="text-xs text-slate-500">Preis pro Pass</div>
-            <div className="text-2xl font-bold text-[#14395e]">{PRICE}</div>
+            <div className="text-2xl font-bold text-[#14395e]">
+              {OFFER.price}
+            </div>
           </div>
         </div>
 

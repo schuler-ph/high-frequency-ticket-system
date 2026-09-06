@@ -12,9 +12,9 @@ index.html          Einstieg, lädt src/main.tsx
 src/main.tsx        React-Root + BrowserRouter
 src/App.tsx         Routen
 src/pages/          TicketPage (/), CheckoutPage (/checkout/:orderId)
-src/components/     Chrome, PaymentModal, Toast, …
+src/components/     Chrome, PaymentForm, OfferHeadline, Toast, …
 src/hooks/          Polling und Deadline
-src/lib/            API-Client, Env, Namen, Payment
+src/lib/            API-Client, Env, Namen, Angebot, Payment
 src/index.css       Tailwind-Import, Fonts, Theme
 ```
 

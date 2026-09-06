@@ -24,12 +24,16 @@ const parseOrderCacheEntry = (value: string, serverTime: number) => {
   // `expiresAt` kommt aus dem Record und bleibt auch in `publishing|paid`
   // sichtbar: der Client soll den Countdown nicht verlieren, nur weil der
   // Publish gerade laeuft. `serverTime` verankert ihn gegen Client-Clock-Skew.
+  // `firstName|lastName` gehen mit, damit der Checkout den Namen der
+  // Reservierung anzeigen kann; `queuedAt` bleibt intern.
   if (checkout.success) {
     return {
       orderId: checkout.data.orderId,
       eventId: checkout.data.eventId,
       status: "pending" as const,
       expiresAt: checkout.data.expiresAt,
+      firstName: checkout.data.firstName,
+      lastName: checkout.data.lastName,
       serverTime,
     };
   }

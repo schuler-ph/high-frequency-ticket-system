@@ -58,6 +58,8 @@ Abgeschlossen: Reserve/Pay-Split — `/buy` reserviert nur, `/pay` publiziert sy
 
 ADRs: ADR-028 (Reserve→Pay→Publish-Split), Annotationen an ADR-013/ADR-023. → [Todos](notes/phases/phase-4-3-checkout.md)
 
+- [x] **Checkout ohne Modal (2026-09-06):** Zahlungsformular inline, rechts Zusammenfassung mit Name (aus `GET /orders/:orderId`), voller Bestellnummer und Deadline; „Testdaten“-Hinweis entfernt.
+
 ## Phase 4.4: Weg zur Baseline B (Folgearbeit aus Phase 4–4.2)
 
 Abgeschlossen: `sold_count`-Hot-Row entfernt (Migration 0009, ~112× im Micro-Bench), Pre-Baseline-Cleanups (k6-Checkout-Funnel, Abandonment/Think-Time, Fehler-Schemas), `start:loadtest`, Report-Automation-MVP und Baseline B (benchmark-invalid, fachlich korrekt).
