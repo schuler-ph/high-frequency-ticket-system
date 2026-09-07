@@ -151,7 +151,7 @@ Der lokale k6-Lauf umfasst:
 | Sustained Sale | reaktiv bis Sold-out |                    `K6_TARGET_RATE` | Reservieren, bezahlen, persistieren |
 | Cool-down      | 60 s                 |                  `K6_COOLDOWN_RATE` | Sold-out und Queue-Drain beobachten |
 
-Die Zielrate ist ein Profilwert (`config/env/<profil>.env`, ADR-034): das
+Die Zielrate ist ein Profilwert (`packages/env/profiles/<profil>.env`, ADR-034): das
 Referenzprofil `browse-and-buy-full-speed` fährt 10.000 RPS, `buy-only-full-speed`
 5.000 Orders/s, weil der Write-Pfad dort die Kapazitätsgrenze ist und ein
 höheres Angebot nur Rückstau statt Durchsatz misst. Der Übergang zu Sold-out

@@ -72,7 +72,7 @@ function requireEnv(name) {
   const value = __ENV[name];
   if (value === undefined || value === "") {
     throw new Error(
-      `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (config/env/<profil>.env). Aktuelles Profil: ${
+      `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (packages/env/profiles/<profil>.env). Aktuelles Profil: ${
         __ENV.HTS_ENV_PROFILE || "(keins)"
       }`,
     );

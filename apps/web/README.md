@@ -31,7 +31,7 @@ pnpm --filter web run lint
 ```
 
 `VITE_API_URL` und `VITE_EVENT_ID` kommen aus dem Profil
-`config/env/<profil>.env`, aus dem `dev`/`preview`/`build` über
+`packages/env/profiles/<profil>.env`, aus dem `dev`/`preview`/`build` über
 `scripts/lib/run-with-profile.mjs --prefix=VITE_` genau die
 Frontend-Variablen ins Prozess-Env laden (ADR-034 Nachträge 2026-08-25 und
 2026-08-27). Vite liest `.env`-Dateien nur aus dem eigenen Verzeichnis, das

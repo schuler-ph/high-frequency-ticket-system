@@ -129,6 +129,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Web von Next.js auf Vite-SPA umgestellt (2026-08-27):** statisches `dist/`, kein Node zur Laufzeit; Vorarbeit fuer das Web-Dockerfile (nginx + `index.html`-Fallback). → ADR-039
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
 - [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
+- [x] **Env-Profile nach `packages/env/profiles/` verschoben (2026-09-07):** Loader loest `../profiles/` auf; `pnpm deploy` bringt sie ins Image, die `COPY`-Zeile im API-Dockerfile entfaellt. → ADR-041
 
 ### Phase 5.2 — Multi-Replica-Korrektheit lokal
 

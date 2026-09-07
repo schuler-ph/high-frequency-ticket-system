@@ -194,7 +194,7 @@ Profilen.
 ## Umgebungsvariablen
 
 Alle Werte kommen aus der Profil-Datei, die `HTS_ENV_PROFILE` auswählt —
-`config/env/<profil>.env`. Es gibt keine `.env` und keine Defaults mehr
+`packages/env/profiles/<profil>.env`. Es gibt keine `.env` und keine Defaults mehr
 ([ADR-034](../docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)).
 Precedence: **Shell-inline > Profil-Datei**; ein inline gesetzter Wert wie
 `SALE_OPENS_IN_SECONDS=0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm seed`

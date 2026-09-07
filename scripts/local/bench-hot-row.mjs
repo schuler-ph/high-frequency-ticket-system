@@ -28,7 +28,7 @@ const POSTGRES_CONTAINER = "hts-postgres";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 
-// Alle Werte kommen aus dem `bench`-Profil (config/env/bench.env, ADR-034).
+// Alle Werte kommen aus dem `bench`-Profil (packages/env/profiles/bench.env, ADR-034).
 const projectId = requireEnv("GOOGLE_CLOUD_PROJECT");
 const topicName = requireEnv("PUBSUB_TOPIC_BUY_TICKET");
 const pubsubHost = requireEnv("PUBSUB_EMULATOR_HOST");

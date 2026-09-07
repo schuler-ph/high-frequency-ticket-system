@@ -2,9 +2,9 @@
 /**
  * Vorschaltguard fuer die Root-Skripte (`seed`, `spike`, `spike:report`, ...).
  *
- * Diese Skripte laden ihr Profil ueber `node --env-file=config/env/$X.env` und
+ * Diese Skripte laden ihr Profil ueber `node --env-file=packages/env/profiles/$X.env` und
  * nicht ueber `@repo/env` — sie sollen ohne Build laufen. Ohne diesen Guard
- * meldet Node bei fehlendem `HTS_ENV_PROFILE` nur `config/env/.env: not found`,
+ * meldet Node bei fehlendem `HTS_ENV_PROFILE` nur `packages/env/profiles/.env: not found`,
  * was die Ursache verschweigt. Hier steht stattdessen, was fehlt und was es
  * gibt (ADR-034).
  */
@@ -12,7 +12,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const PROFILE_DIR = fileURLToPath(new URL("../../config/env/", import.meta.url));
+const PROFILE_DIR = fileURLToPath(new URL("../../packages/env/profiles/", import.meta.url));
 
 const available = () => {
   try {

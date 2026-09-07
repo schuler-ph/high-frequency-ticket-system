@@ -80,7 +80,7 @@ pnpm seed
 pnpm dev
 ```
 
-Configuration comes entirely from `config/env/<profile>.env`; there is no
+Configuration comes entirely from `packages/env/profiles/<profile>.env`; there is no
 `.env` and there are no defaults. `HTS_ENV_PROFILE` selects the file — if it
 is missing, nothing starts and the error message lists the available profiles
 (`dev`, `test`, `ci`, `browse-and-buy-full-speed`, `browse-and-buy-human-pace`,

@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
-const PROFILE_DIR = join(REPO_ROOT, "config/env");
+const PROFILE_DIR = join(REPO_ROOT, "packages/env/profiles");
 const SCHEMA_FILE = join(REPO_ROOT, "packages/env/src/index.ts");
 
 /** Alle Variablen aus dem Zod-Schema — die Liste hat genau eine Quelle. */
@@ -132,21 +132,21 @@ for (const entry of profiles) {
   for (const variable of required) {
     if (!keys.has(variable)) {
       problems.push(
-        `config/env/${entry}: ${variable} fehlt (Schema-Variable).`,
+        `packages/env/profiles/${entry}: ${variable} fehlt (Schema-Variable).`,
       );
     }
   }
 
   for (const variable of SEED_VARIABLES) {
     if (!keys.has(variable)) {
-      problems.push(`config/env/${entry}: ${variable} fehlt (Seed-Variable).`);
+      problems.push(`packages/env/profiles/${entry}: ${variable} fehlt (Seed-Variable).`);
     }
   }
 
   for (const variable of WEB_VARIABLES) {
     if (!keys.has(variable)) {
       problems.push(
-        `config/env/${entry}: ${variable} fehlt (Frontend-Variable).`,
+        `packages/env/profiles/${entry}: ${variable} fehlt (Frontend-Variable).`,
       );
     }
   }
@@ -155,7 +155,7 @@ for (const entry of profiles) {
     for (const variable of LOADTEST_VARIABLES) {
       if (!keys.has(variable)) {
         problems.push(
-          `config/env/${entry}: ${variable} fehlt (Lasttest-Variable).`,
+          `packages/env/profiles/${entry}: ${variable} fehlt (Lasttest-Variable).`,
         );
       }
     }
@@ -165,7 +165,7 @@ for (const entry of profiles) {
     for (const variable of BENCH_VARIABLES) {
       if (!keys.has(variable)) {
         problems.push(
-          `config/env/${entry}: ${variable} fehlt (Benchmark-Variable).`,
+          `packages/env/profiles/${entry}: ${variable} fehlt (Benchmark-Variable).`,
         );
       }
     }

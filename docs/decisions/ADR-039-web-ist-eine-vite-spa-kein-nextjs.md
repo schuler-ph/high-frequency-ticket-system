@@ -23,7 +23,7 @@
   `dist/`; zur Laufzeit gibt es keinen Node-Prozess. Client-Routing braucht
   vom ausliefernden Webserver nur einen Fallback auf `index.html`. Öffentliche
   Konfiguration heißt `VITE_API_URL`/`VITE_EVENT_ID` und kommt weiterhin aus
-  dem Profil `config/env/<profil>.env` über
+  dem Profil `packages/env/profiles/<profil>.env` über
   `run-with-profile.mjs --prefix=VITE_`. Das Web-Paket prüft Typen mit `tsgo`
   wie alle anderen Pakete.
 - **Begründung:**

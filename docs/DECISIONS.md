@@ -41,6 +41,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-038 kubectl als Client, kind als lokaler Kubernetes-Cluster](decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)
 - [ADR-039 Web ist eine Vite-SPA, kein Next.js](decisions/ADR-039-web-ist-eine-vite-spa-kein-nextjs.md)
 - [ADR-040 Cloud-Profile — Zugangsdaten aus dem Prozess-Env, Profil bleibt Datei](decisions/ADR-040-cloud-profile-geheimnisse-aus-dem-prozess-env.md)
+- [ADR-041 Env-Profile liegen im Paket `@repo/env`](decisions/ADR-041-env-profile-liegen-im-paket-repo-env.md)
 
 ## Teilweise umgesetzt
 

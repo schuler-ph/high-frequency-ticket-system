@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 
 /**
- * Laedt genau eine Profil-Datei aus `config/env/`.
+ * Laedt genau eine Profil-Datei aus `packages/env/profiles/`.
  *
  * Das Profil kommt aus `HTS_ENV_PROFILE` und hat bewusst keinen Default: ein
  * stillschweigend gewaehltes Profil ist genau die Klasse von Fehler, die dieser
@@ -13,15 +13,17 @@ import { config } from "dotenv";
  * Der Pfad wird modul-relativ aufgeloest, nicht ueber `process.cwd()`. Der
  * fruehere Aufruf `config({ path: ["../../.env"] })` funktionierte nur, wenn der
  * Prozess aus `apps/*` oder `packages/*` gestartet wurde; aus dem Repo-Root
- * zeigte er aus dem Repository heraus. `../../../` gilt sowohl fuer `src/` als
- * auch fuer das gebaute `dist/`, weil beide dieselbe Tiefe haben.
+ * zeigte er aus dem Repository heraus. `../profiles/` gilt sowohl fuer `src/`
+ * als auch fuer das gebaute `dist/`, weil beide dieselbe Tiefe haben.
+ *
+ * Die Profile liegen in diesem Paket und nicht in einem Repo-Ordner, damit sie
+ * ueberall mitreisen, wo `@repo/env` mitreist — insbesondere in
+ * `pnpm deploy`-Images (ADR-041).
  *
  * `override: false` erhaelt die bisherige Rangfolge: was schon im Prozess-Env
  * steht (Shell-inline, CI-Job, VS-Code-Task), schlaegt die Datei.
  */
-const PROFILE_DIR = fileURLToPath(
-  new URL("../../../config/env/", import.meta.url),
-);
+const PROFILE_DIR = fileURLToPath(new URL("../profiles/", import.meta.url));
 
 const availableProfiles = (): string[] => {
   try {

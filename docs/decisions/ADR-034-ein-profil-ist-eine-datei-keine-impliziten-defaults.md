@@ -32,10 +32,11 @@
      `??`-Fallback in den Node-Skripten, noch als `||`-Fallback im k6-Skript.
      Fehlt ein Wert, bricht der Prozess mit einer Meldung ab, die die Variable
      benennt.
-  2. **Ein Profil ist genau eine Datei** unter `config/env/<profil>.env`. Die
-     Datei ist vollständig: was dort nicht steht, gilt nicht. Profile erben
-     nicht voneinander — Vererbung wäre kürzer und würde genau die Frage
-     „welcher Wert galt im Lauf?" wieder öffnen.
+  2. **Ein Profil ist genau eine Datei** unter
+     `packages/env/profiles/<profil>.env` (Ort seit ADR-041; ursprünglich
+     `config/env/`). Die Datei ist vollständig: was dort nicht steht, gilt
+     nicht. Profile erben nicht voneinander — Vererbung wäre kürzer und würde
+     genau die Frage „welcher Wert galt im Lauf?" wieder öffnen.
   3. **`HTS_ENV_PROFILE` wählt das Profil** und hat selbst keinen Default.
      Einzige Ausnahme: die Test-Skripte setzen `${HTS_ENV_PROFILE:-test}`, damit
      `pnpm test` ohne Zeremonie läuft; CI überschreibt mit `ci`. Das ist eine
@@ -158,3 +159,12 @@ false` und `emptyStringAsUndefined` machen das ohne Code-Änderung möglich, und
 ein fehlendes Secret bleibt ein Zod-Fehler beim Boot. Das ganze `config/env/`
 liegt im Image, damit `HTS_ENV_PROFILE` ein Laufzeit-Schalter bleibt. Neu sind
 die Profile `cloud-dev` und `cloud-capacity`.
+
+## Nachtrag 2026-09-07: Profile liegen im Paket `@repo/env` (ADR-041)
+
+Der Ort ist von `config/env/` nach `packages/env/profiles/` gewandert.
+Punkt 2 bleibt inhaltlich unberührt — ein Profil ist weiterhin genau eine
+vollständige Datei ohne Vererbung. Geändert hat sich nur, dass die Dateien im
+Paket liegen, das sie lädt: `@repo/env` löst sie als `../profiles/` auf, und
+sie reisen dadurch überall mit, wo das Paket mitreist.
+[ADR-041](ADR-041-env-profile-liegen-im-paket-repo-env.md) begründet das.

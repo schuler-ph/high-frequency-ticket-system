@@ -5,7 +5,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "../../config/env/*.env"],
+      "inputs": ["$TURBO_DEFAULT$", "../../packages/env/profiles/*.env"],
       "outputs": ["dist/**"]
     },
     "lint": {
@@ -16,12 +16,12 @@
     },
     "test": {
       "dependsOn": [],
-      "inputs": ["$TURBO_DEFAULT$", "../../config/env/*.env"],
+      "inputs": ["$TURBO_DEFAULT$", "../../packages/env/profiles/*.env"],
       "outputs": []
     },
     "test:ci": {
       "dependsOn": [],
-      "inputs": ["$TURBO_DEFAULT$", "../../config/env/*.env"],
+      "inputs": ["$TURBO_DEFAULT$", "../../packages/env/profiles/*.env"],
       "outputs": ["coverage/**"]
     },
     "@repo/e2e-tests#test:ci": {

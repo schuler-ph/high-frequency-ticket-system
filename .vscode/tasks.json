@@ -231,7 +231,7 @@
     },
     {
       // Split-Werte (K6_SSH_HOST, K6_REST_URL, K6_REMOTE_DIR, BASE_URL mit
-      // LAN-IP) kommen aus config/env/split.local.env — gitignoriert, weil
+      // LAN-IP) kommen aus packages/env/profiles/split.local.env — gitignoriert, weil
       // Host-Topologie nicht ins Repo gehoert. Vorlage: split.local.env.example.
       // `set -a` exportiert die Werte ins Prozess-Env; Node laesst gesetztes
       // Env vor `--env-file` gewinnen, sie stechen also das Profil.
@@ -239,7 +239,7 @@
       "detail": "Nur der Split-Lauf selbst; ueber 'loadtest:run+report (split)' aufrufen.",
       "hide": true,
       "type": "shell",
-      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && if [ ! -f config/env/split.local.env ]; then echo 'config/env/split.local.env fehlt — Vorlage kopieren: cp config/env/split.local.env.example config/env/split.local.env (RUNBOOK §4)'; exit 1; fi && set -a && source config/env/split.local.env && set +a && K6_RUNNER=ssh HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run spike:report",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && if [ ! -f packages/env/profiles/split.local.env ]; then echo 'packages/env/profiles/split.local.env fehlt — Vorlage kopieren: cp packages/env/profiles/split.local.env.example packages/env/profiles/split.local.env (RUNBOOK §4)'; exit 1; fi && set -a && source packages/env/profiles/split.local.env && set +a && K6_RUNNER=ssh HTS_ENV_PROFILE='${input:loadtestEnvProfile}' pnpm run spike:report",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
       "problemMatcher": []
@@ -258,16 +258,16 @@
       // nach dem Zusammenstecken nur, dass alles noch steht: Link, ssh,
       // Remote-k6 und (informativ) das SUT.
       "label": "loadtest:split-check",
-      "detail": "Zwei-Maschinen-Setup pruefen: Ping zum Generator-PC, ssh + Remote-k6, SUT-Erreichbarkeit. Liest config/env/split.local.env; aendert nichts.",
+      "detail": "Zwei-Maschinen-Setup pruefen: Ping zum Generator-PC, ssh + Remote-k6, SUT-Erreichbarkeit. Liest packages/env/profiles/split.local.env; aendert nichts.",
       "type": "shell",
-      "command": "if [ ! -f config/env/split.local.env ]; then echo 'config/env/split.local.env fehlt — Vorlage kopieren: cp config/env/split.local.env.example config/env/split.local.env (RUNBOOK §4)'; exit 1; fi; set -a; source config/env/split.local.env; set +a; PC_HOST=\"${K6_SSH_HOST#*@}\"; ok=1; SOMAXCONN=$(sysctl -n kern.ipc.somaxconn); if [ \"$SOMAXCONN\" -ge 1024 ]; then echo \"[0/3] SUT kern.ipc.somaxconn=$SOMAXCONN: OK\"; else echo \"[0/3] SUT kern.ipc.somaxconn=$SOMAXCONN: zu klein — Listen-Backlog laeuft unter Volllast ueber (15-s-Connect-Stalls). sudo sysctl -w kern.ipc.somaxconn=1024 (RUNBOOK §3)\"; ok=0; fi; if ping -c 2 -t 3 \"$PC_HOST\" >/dev/null 2>&1; then echo \"[1/3] Link zum PC ($PC_HOST): OK\"; else echo \"[1/3] Link zum PC ($PC_HOST): FEHLT — Kabel/Adapter pruefen, PC-IP gesetzt?\"; ok=0; fi; if V=$(ssh -o ConnectTimeout=5 -o BatchMode=yes \"$K6_SSH_HOST\" k6 --version 2>/dev/null); then echo \"[2/3] ssh + Remote-k6: OK ($V)\"; else echo \"[2/3] ssh + Remote-k6: FEHLT — sshd auf dem PC? Key hinterlegt? (RUNBOOK §3)\"; ok=0; fi; if curl -sf -m 3 -o /dev/null \"$BASE_URL/metrics\"; then echo \"[3/3] SUT ($BASE_URL): OK\"; else echo \"[3/3] SUT ($BASE_URL): nicht erreichbar — nur relevant, wenn der LT Stack schon laufen soll (Topologie 0.0.0.0)\"; fi; [ $ok -eq 1 ] && echo 'Split-Setup bereit.' || exit 1",
+      "command": "if [ ! -f packages/env/profiles/split.local.env ]; then echo 'packages/env/profiles/split.local.env fehlt — Vorlage kopieren: cp packages/env/profiles/split.local.env.example packages/env/profiles/split.local.env (RUNBOOK §4)'; exit 1; fi; set -a; source packages/env/profiles/split.local.env; set +a; PC_HOST=\"${K6_SSH_HOST#*@}\"; ok=1; SOMAXCONN=$(sysctl -n kern.ipc.somaxconn); if [ \"$SOMAXCONN\" -ge 1024 ]; then echo \"[0/3] SUT kern.ipc.somaxconn=$SOMAXCONN: OK\"; else echo \"[0/3] SUT kern.ipc.somaxconn=$SOMAXCONN: zu klein — Listen-Backlog laeuft unter Volllast ueber (15-s-Connect-Stalls). sudo sysctl -w kern.ipc.somaxconn=1024 (RUNBOOK §3)\"; ok=0; fi; if ping -c 2 -t 3 \"$PC_HOST\" >/dev/null 2>&1; then echo \"[1/3] Link zum PC ($PC_HOST): OK\"; else echo \"[1/3] Link zum PC ($PC_HOST): FEHLT — Kabel/Adapter pruefen, PC-IP gesetzt?\"; ok=0; fi; if V=$(ssh -o ConnectTimeout=5 -o BatchMode=yes \"$K6_SSH_HOST\" k6 --version 2>/dev/null); then echo \"[2/3] ssh + Remote-k6: OK ($V)\"; else echo \"[2/3] ssh + Remote-k6: FEHLT — sshd auf dem PC? Key hinterlegt? (RUNBOOK §3)\"; ok=0; fi; if curl -sf -m 3 -o /dev/null \"$BASE_URL/metrics\"; then echo \"[3/3] SUT ($BASE_URL): OK\"; else echo \"[3/3] SUT ($BASE_URL): nicht erreichbar — nur relevant, wenn der LT Stack schon laufen soll (Topologie 0.0.0.0)\"; fi; [ $ok -eq 1 ] && echo 'Split-Setup bereit.' || exit 1",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []
     },
     {
       "label": "loadtest:run+report (split)",
-      "detail": "RUNBOOK §4, Zwei-Maschinen-Lauf — k6 via ssh auf dem Generator-PC, Stop per REST. Liest die Split-Werte aus config/env/split.local.env (gitignoriert); Stack vorher mit 'loadtest:stack up' und Topologie 0.0.0.0 starten.",
+      "detail": "RUNBOOK §4, Zwei-Maschinen-Lauf — k6 via ssh auf dem Generator-PC, Stop per REST. Liest die Split-Werte aus packages/env/profiles/split.local.env (gitignoriert); Stack vorher mit 'loadtest:stack up' und Topologie 0.0.0.0 starten.",
       "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report (split)"],
@@ -337,7 +337,7 @@
       "args": "http://localhost:10008"
     },
     {
-      // Env-Profil eines Lasttest-Laufs (config/env/<profil>.env, ADR-034).
+      // Env-Profil eines Lasttest-Laufs (packages/env/profiles/<profil>.env, ADR-034).
       // Loest den frueheren `loadProfile`-Input ab: die Datei traegt jetzt
       // sowohl LOAD_PROFILE fuer k6 als auch die Service-Werte (Deadline,
       // Reaper-Batch, Kapazitaet). Damit koennen Generator und Services nicht

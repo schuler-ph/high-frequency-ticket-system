@@ -21,7 +21,6 @@ RUN pnpm --filter=api --prod --legacy deploy /app/api-out
 FROM node:24-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/api-out /app
-COPY ./config/env/cloud-dev.env /app/config/env/cloud-dev.env
 ENV NODE_ENV=production
 
 USER node

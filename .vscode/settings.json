@@ -101,7 +101,7 @@
       {
         "name": "$(remote) Spike Split",
         "color": "#E5C07B",
-        "tooltip": "RUNBOOK §4, Zwei-Maschinen-Lauf: k6 via ssh auf dem Generator-PC, Sold-out-Stop per REST. Liest K6_SSH_HOST/K6_REST_URL/K6_REMOTE_DIR/BASE_URL aus config/env/split.local.env (gitignoriert, Vorlage: split.local.env.example). Stack vorher mit 'LT Stack' und Topologie 0.0.0.0 starten.",
+        "tooltip": "RUNBOOK §4, Zwei-Maschinen-Lauf: k6 via ssh auf dem Generator-PC, Sold-out-Stop per REST. Liest K6_SSH_HOST/K6_REST_URL/K6_REMOTE_DIR/BASE_URL aus packages/env/profiles/split.local.env (gitignoriert, Vorlage: split.local.env.example). Stack vorher mit 'LT Stack' und Topologie 0.0.0.0 starten.",
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:run+report (split)"]

@@ -5,7 +5,7 @@ import {
 } from "./lib/scenario-helpers.js";
 
 // Lastform als Profil-Knoepfe (ADR-034: kein Skript-Default). Die Werte stehen
-// je Profil in config/env/<profil>.env und landen im Report-Manifest, damit ein
+// je Profil in packages/env/profiles/<profil>.env und landen im Report-Manifest, damit ein
 // Lauf im Nachhinein rekonstruierbar bleibt. Ein verteilter Generator (Phase
 // 5.7) teilt die Zielrate ueber Shards auf — mit hartkodierten Groessen ginge
 // das nicht.

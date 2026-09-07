@@ -8,7 +8,7 @@ const schema = z.object({
 /**
  * Oeffentliche Frontend-Konfiguration. Vite ersetzt `import.meta.env.VITE_*`
  * beim Build durch die Werte aus dem Prozess-Env — die Web-Skripte laden sie
- * aus dem Profil `config/env/<profil>.env` (ADR-034). Fehlt ein Wert, bricht
+ * aus dem Profil `packages/env/profiles/<profil>.env` (ADR-034). Fehlt ein Wert, bricht
  * die App beim Laden sichtbar ab statt spaeter im Kauf-Handler.
  */
 export const env = schema.parse({

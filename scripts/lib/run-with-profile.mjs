@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Startet ein Kommando mit dem Env-Profil aus `config/env/$HTS_ENV_PROFILE.env`
+ * Startet ein Kommando mit dem Env-Profil aus `packages/env/profiles/$HTS_ENV_PROFILE.env`
  * im Prozess-Env — fuer Programme, die `node --env-file` nicht vertragen.
  *
  * Anlass war Next.js, das `--env-file` in seine Worker-Threads weiterreichte
  * und daran scheiterte (`ERR_WORKER_INVALID_EXEC_ARGV`); heute nutzt das
  * Vite-Frontend das Skript, weil Vite `.env`-Dateien nur aus dem eigenen
- * Verzeichnis liest und das Profil in `config/env/` liegt. Das Skript liest die
+ * Verzeichnis liest und das Profil in `packages/env/profiles/` liegt. Das Skript liest die
  * Profil-Datei selbst (`util.parseEnv`, Node >= 20.12) und startet das
  * Kommando als Kindprozess mit zusammengefuehrtem Env. Rangfolge wie bei
  * `--env-file` und `@repo/env`: was schon im Prozess-Env steht (Shell-inline,
@@ -28,7 +28,7 @@ import { parseEnv } from "node:util";
 await import("./require-profile.mjs");
 
 const PROFILE_DIR = fileURLToPath(
-  new URL("../../config/env/", import.meta.url),
+  new URL("../../packages/env/profiles/", import.meta.url),
 );
 const profilePath = join(PROFILE_DIR, `${process.env.HTS_ENV_PROFILE}.env`);
 

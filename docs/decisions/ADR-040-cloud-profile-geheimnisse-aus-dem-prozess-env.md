@@ -1,6 +1,6 @@
 # ADR-040: Cloud-Profile — Zugangsdaten kommen aus dem Prozess-Env, das Profil bleibt eine Datei
 
-- **Status:** Teilweise umgesetzt
+- **Status:** Umgesetzt; Entscheidung 1 abgelöst durch ADR-041
 - **Datum:** 2026-09-06
 - **Kontext:** ADR-034 hat die Konfiguration auf genau eine Quelle gezogen: ein
   Profil ist eine eingecheckte, vollständige Datei unter `config/env/`, kein
@@ -93,3 +93,20 @@
     `PUBSUB_EMULATOR_HOST` ist umgesetzt (`check-types`, `test` und ein
     Profil-Start ohne die Variable sind grün). Offen und deshalb „Teilweise
     umgesetzt": die Dockerfile-Zeile für `config/env/` und die Manifeste.
+
+## Nachtrag 2026-09-07: Entscheidung 1 ist durch ADR-041 abgelöst
+
+Entscheidung 1 löste das Transportproblem, indem das Dockerfile `config/env/`
+ausdrücklich ins Image kopiert — an derselben relativen Tiefe wie im Repo,
+weil der Loader modul-relativ auflöst. Genau diese Kopplung an eine
+Verzeichnistiefe ist unter „Alternativen" als Preis benannt.
+
+[ADR-041](ADR-041-env-profile-liegen-im-paket-repo-env.md) beseitigt sie an
+der Wurzel: die Profile liegen jetzt in `packages/env/profiles/` und damit in
+dem Paket, das `pnpm deploy` ohnehin vollständig ins Image kopiert. Die
+`COPY`-Zeile im Dockerfile entfällt ersatzlos — sie war das letzte offene
+Stück dieses ADRs und wird nun nicht mehr gebraucht.
+
+Entscheidungen 2 bis 4 gelten unverändert: Zugangsdaten bleiben leere
+Zuweisungen aus dem Kubernetes-Secret, es bleibt bei zwei Cloud-Profilen, und
+`HTS_ENV_PROFILE` bleibt ein Laufzeit-Schalter ohne Rebuild.

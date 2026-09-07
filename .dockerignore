@@ -8,4 +8,4 @@ out
 .claude
 tmp
 output
-config/env/*.local.env
+packages/env/profiles/*.local.env

@@ -139,7 +139,7 @@ HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report
 
 Verfügbare Profile: `dev`, `test`, `ci`, `browse-and-buy-full-speed`,
 `browse-and-buy-human-pace`, `buy-only-full-speed` — je eine Datei unter
-`config/env/`. Die Lasttest-Namen folgen dem Schema
+`packages/env/profiles/`. Die Lasttest-Namen folgen dem Schema
 `<Traffic-Mix>-<Tempo>`: was die Last tut (browsen + kaufen vs. nur kaufen)
 und wie schnell (Maschinentempo vs. menschliche Denkzeit); Details in
 [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile).
@@ -313,7 +313,7 @@ Danach den Lauf vom Mac starten:
 #### Manueller Fallback (ohne Orchestrator)
 
 Wenn der ssh-Spawn klemmt, lässt sich die Last von Hand fahren. Auf dem PC
-(alle `-e`-Werte aus `config/env/<profil>.env`, `BASE_URL` auf die Mac-IP):
+(alle `-e`-Werte aus `packages/env/profiles/<profil>.env`, `BASE_URL` auf die Mac-IP):
 
 ```powershell
 cd C:/hts
@@ -430,10 +430,10 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc).
 
-**Der bequeme Weg — Button `Spike Split`** (Task `loadtest:run+report (split)`): liest die vier Split-Werte aus `config/env/split.local.env`. Die Datei ist gitignoriert (Host-Topologie — IPs, ssh-User, Remote-Pfad — gehört nicht ins Repo) und wird einmalig aus der Vorlage erzeugt:
+**Der bequeme Weg — Button `Spike Split`** (Task `loadtest:run+report (split)`): liest die vier Split-Werte aus `packages/env/profiles/split.local.env`. Die Datei ist gitignoriert (Host-Topologie — IPs, ssh-User, Remote-Pfad — gehört nicht ins Repo) und wird einmalig aus der Vorlage erzeugt:
 
 ```bash
-cp config/env/split.local.env.example config/env/split.local.env
+cp packages/env/profiles/split.local.env.example packages/env/profiles/split.local.env
 # dann die vier Werte eintragen: K6_SSH_HOST, K6_REST_URL, K6_REMOTE_DIR, BASE_URL
 ```
 

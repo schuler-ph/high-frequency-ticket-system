@@ -11,7 +11,7 @@
 
 const fail = (name, hint) => {
   throw new Error(
-    `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (config/env/<profil>.env, ADR-034)` +
+    `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (packages/env/profiles/<profil>.env, ADR-034)` +
       (hint ? ` — ${hint}` : "") +
       `. Aktuelles Profil: ${process.env.HTS_ENV_PROFILE ?? "(keins)"}`,
   );
