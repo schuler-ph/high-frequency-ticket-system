@@ -30,8 +30,11 @@
       "default": "./dist/redis-client.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsgo",
+    "build": "rm -rf dist && tsgo",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsgo --noEmit"
   },

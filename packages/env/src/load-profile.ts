@@ -56,6 +56,6 @@ export const loadEnvProfile = (): string => {
     );
   }
 
-  config({ path: [file], override: false });
+  config({ path: [file], override: false, quiet: true });
   return profile;
 };

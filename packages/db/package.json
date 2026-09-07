@@ -16,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "tsgo",
+    "build": "rm -rf dist && tsgo",
     "seed": "node --import tsx src/seed.ts",
     "test": "pnpm run db:test",
     "db:generate": "drizzle-kit generate",

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite",
-    "build": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-dev} node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite build",
+    "build": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-dev} node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite build --emptyOutDir",
     "preview": "node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite preview",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsgo --noEmit"

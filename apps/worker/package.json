@@ -13,7 +13,7 @@
     "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10003 dist/app.js",
     "start:loadtest": "pnpm run build && fastify start -l warn -p 10003 dist/app.js",
-    "build": "pnpm --filter @repo/env run build && pnpm --filter @repo/types run build && pnpm --filter @repo/db run build && tsgo",
+    "build": "pnpm --filter @repo/env run build && pnpm --filter @repo/types run build && pnpm --filter @repo/db run build && rm -rf dist && tsgo",
     "watch": "tsgo -w",
     "dev": "tsc-watch --onSuccess \"pnpm run dev:start\"",
     "dev:start": "fastify start -P -l info -p 10003 dist/app.js",
