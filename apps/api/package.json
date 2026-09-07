@@ -7,6 +7,9 @@
   "directories": {
     "test": "test"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-test} node --conditions=source --test \"test/**/*.test.ts\"",
     "test:coverage": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-test} node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
