@@ -20,8 +20,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "preflight:test": "node scripts/debug/preflight-test.mjs",
-    "test": "pnpm run preflight:test && turbo run test --ui=stream --concurrency=1",
-    "test:ci": "pnpm run preflight:test && turbo run test:ci --ui=stream --concurrency=1",
+    "test": "pnpm run preflight:test && HTS_ENV_PROFILE=test turbo run test --ui=stream --concurrency=1",
+    "test:ci": "pnpm run preflight:test && HTS_ENV_PROFILE=test turbo run test:ci --ui=stream --concurrency=1",
     "debug:runtime": "node scripts/debug/print-runtime.mjs",
     "debug:migrations": "node scripts/debug/check-migrations.mjs",
     "debug:buy-ticket-contract": "node scripts/debug/check-buy-ticket-contract.mjs",
@@ -31,7 +31,7 @@
     "debug:env": "node scripts/debug/check-env-profiles.mjs",
     "debug:all": "pnpm run debug:runtime && pnpm run debug:migrations && pnpm run debug:buy-ticket-contract && pnpm run debug:docs && pnpm run debug:env",
     "verify:quick": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test",
-    "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && pnpm run build",
+    "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && HTS_ENV_PROFILE=dev pnpm run build",
     "prepare": "husky",
     "docker:build:api": "docker build -f apps/api/Dockerfile -t hts-api:dev ."
   },
@@ -39,7 +39,6 @@
     "@typescript/native-preview": "7.0.0-dev.20260319.1",
     "husky": "^9.1.7",
     "prettier": "^3.8.1",
-    "tsx": "^4.21.0",
     "turbo": "^2.8.11",
     "typescript": "5.9.3"
   },

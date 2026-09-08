@@ -68,8 +68,10 @@
     zum Rebuild. ADR-040 Entscheidung 3 hat das bewusst verworfen.
 - **Konsequenzen:**
   - Der Loader ist auf `new URL("../profiles/", import.meta.url)` verkürzt;
-    `require-profile.mjs`, `run-with-profile.mjs` und
-    `check-env-profiles.mjs` zeigen auf denselben neuen Ort.
+    `require-profile.mjs` und `check-env-profiles.mjs` zeigen auf denselben
+    neuen Ort. (`run-with-profile.mjs` ebenfalls, bis es der
+    ADR-034-Nachtrag 2026-09-08 durch den Subpath-Export `@repo/env/profile`
+    ersetzt hat.)
   - `apps/api/Dockerfile` kopiert kein Profil mehr. ADR-040 ist damit
     vollständig umgesetzt statt teilweise.
   - `turbo.json` nennt `../../packages/env/profiles/*.env` als Build- und

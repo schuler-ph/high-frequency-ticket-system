@@ -11,8 +11,8 @@
     "dist"
   ],
   "scripts": {
-    "test": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-test} node --conditions=source --test \"test/**/*.test.ts\"",
-    "test:coverage": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-test} node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
+    "test": "node --conditions=source --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --conditions=source --test --experimental-test-coverage '--test-coverage-include=src/**' \"test/**/*.test.ts\"",
     "test:ci": "pnpm run test:coverage",
     "start": "pnpm run build && fastify start -l info -p 10002 dist/app.js",
     "start:loadtest": "pnpm run build && fastify start -l warn -p 10002 dist/app.js",

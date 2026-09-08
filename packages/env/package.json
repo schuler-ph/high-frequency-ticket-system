@@ -8,6 +8,11 @@
       "types": "./src/index.ts",
       "source": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./profile": {
+      "types": "./src/load-profile.ts",
+      "source": "./src/load-profile.ts",
+      "default": "./dist/load-profile.js"
     }
   },
   "files": [

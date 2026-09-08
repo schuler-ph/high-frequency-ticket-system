@@ -82,8 +82,9 @@ const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
 /**
  * Frontend-Variablen. Vite inlined `VITE_*` zur Build-/Dev-Zeit aus dem
- * Prozess-Env; die Web-Skripte laden dafuer das Profil ueber
- * `run-with-profile.mjs --prefix=VITE_` (ADR-034 Nachtrag, ADR-039). Das
+ * Prozess-Env; `apps/web/vite.config.ts` holt sie dafuer ueber
+ * `profileVarsWithPrefix("VITE_")` aus `@repo/env/profile` (ADR-034
+ * Nachtrag 2026-09-08, ADR-039). Das
  * Zod-Schema kennt sie nicht (`client: {}`), deshalb hier explizit — sonst
  * faellt ein Profil ohne sie erst im Browser auf.
  */

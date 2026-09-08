@@ -23,9 +23,11 @@
   `dist/`; zur Laufzeit gibt es keinen Node-Prozess. Client-Routing braucht
   vom ausliefernden Webserver nur einen Fallback auf `index.html`. Öffentliche
   Konfiguration heißt `VITE_API_URL`/`VITE_EVENT_ID` und kommt weiterhin aus
-  dem Profil `packages/env/profiles/<profil>.env` über
-  `run-with-profile.mjs --prefix=VITE_`. Das Web-Paket prüft Typen mit `tsgo`
-  wie alle anderen Pakete.
+  dem Profil `packages/env/profiles/<profil>.env`. Den Weg dorthin hat der
+  ADR-034-Nachtrag 2026-09-08 seither geändert: `vite.config.ts` holt die
+  `VITE_*`-Werte über `@repo/env/profile`, das frühere
+  `run-with-profile.mjs --prefix=VITE_` ist gelöscht. Das Web-Paket prüft Typen
+  mit `tsgo` wie alle anderen Pakete.
 - **Begründung:**
   - **Kleinstes Delta.** React, Tailwind, `packages/ui`, alle Komponenten,
     Hooks und die API-Schicht bleiben unverändert; ausgetauscht wurden

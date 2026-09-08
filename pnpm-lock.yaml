@@ -17,9 +17,6 @@ importers:
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
       turbo:
         specifier: ^2.8.11
         version: 2.8.11
@@ -99,6 +96,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@repo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@repo/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6546,6 +6546,7 @@ snapshots:
       get-tsconfig: 4.13.6
     optionalDependencies:
       fsevents: 2.3.3
+    optional: true
 
   turbo-darwin-64@2.8.11:
     optional: true

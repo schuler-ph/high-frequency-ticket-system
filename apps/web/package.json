@@ -4,13 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite",
-    "build": "HTS_ENV_PROFILE=${HTS_ENV_PROFILE:-dev} node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite build --emptyOutDir",
-    "preview": "node ../../scripts/lib/run-with-profile.mjs --prefix=VITE_ vite preview",
+    "dev": "vite",
+    "build": "vite build --emptyOutDir",
+    "preview": "vite preview",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsgo --noEmit"
   },
   "dependencies": {
+    "@repo/env": "workspace:*",
     "@repo/types": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

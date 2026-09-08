@@ -1,6 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { config } from "dotenv";
+import { config, parse } from "dotenv";
 
 /**
  * Laedt genau eine Profil-Datei aus `packages/env/profiles/`.
@@ -36,7 +36,8 @@ const availableProfiles = (): string[] => {
   }
 };
 
-export const loadEnvProfile = (): string => {
+/** Profil aus `HTS_ENV_PROFILE` aufloesen und die Datei pruefen. */
+const resolveProfileFile = (): { profile: string; file: string } => {
   const profile = process.env.HTS_ENV_PROFILE;
 
   if (profile === undefined || profile.trim() === "") {
@@ -56,6 +57,34 @@ export const loadEnvProfile = (): string => {
     );
   }
 
+  return { profile, file };
+};
+
+export const loadEnvProfile = (): string => {
+  const { profile, file } = resolveProfileFile();
+
   config({ path: [file], override: false, quiet: true });
   return profile;
+};
+
+/**
+ * Liest die Profil-Datei und gibt nur die Variablen mit `prefix` zurueck, ohne
+ * `process.env` anzufassen.
+ *
+ * Fuer Prozesse, die das ganze Profil nicht vertragen: das Vite-Frontend
+ * braucht genau die `VITE_*`-Werte, und ein `NODE_ENV` aus dem Profil wuerde
+ * Vites Modus-Erkennung (`development`/`production`) ueberschreiben. Der
+ * Aufrufer entscheidet, was er ins Prozess-Env uebernimmt; die Rangfolge aus
+ * ADR-034 (Prozess-Env schlaegt Datei) bleibt damit seine Sache.
+ */
+export const profileVarsWithPrefix = (
+  prefix: string,
+): Record<string, string> => {
+  const { file } = resolveProfileFile();
+
+  return Object.fromEntries(
+    Object.entries(parse(readFileSync(file, "utf8"))).filter(([key]) =>
+      key.startsWith(prefix),
+    ),
+  );
 };

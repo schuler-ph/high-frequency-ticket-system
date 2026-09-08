@@ -168,3 +168,42 @@ vollständige Datei ohne Vererbung. Geändert hat sich nur, dass die Dateien im
 Paket liegen, das sie lädt: `@repo/env` löst sie als `../profiles/` auf, und
 sie reisen dadurch überall mit, wo das Paket mitreist.
 [ADR-041](ADR-041-env-profile-liegen-im-paket-repo-env.md) begründet das.
+
+## Nachtrag 2026-09-08: die Default-Ausnahme aus Punkt 3 fällt weg
+
+Punkt 3 nannte eine Ausnahme: Test-Skripte setzten `${HTS_ENV_PROFILE:-test}`,
+das Web-`build` fiel auf `dev` zurück. Beides ist entfernt — kein Paket-Skript
+setzt mehr ein Profil, und `HTS_ENV_PROFILE` hat damit nirgends mehr einen
+Default. Die Auswahl steht jetzt in der Root-Orchestrierung: `pnpm test` und
+`pnpm test:ci` setzen `HTS_ENV_PROFILE=test`, `verify:all` setzt für den
+Build-Schritt `dev`. Ein direkt aufgerufenes Paket-Skript ohne Profil bricht mit
+der Profilliste ab.
+
+Die Begründung von damals — „eine Aussage über die Auswahl, nicht über einen
+Wert" — hält beim Frontend-Build nicht, weil dessen Ergebnis ein Artefakt ist,
+das den Prozess überlebt: `vite build` backt `VITE_API_URL` in das Bundle. Ein
+`docker build` ohne gesetztes Profil erzeugte damit stillschweigend ein Image
+mit `http://localhost:10002` darin. Bei den Test-Skripten war der Default
+harmlos, aber die Ausnahme war der Grund, dass es überhaupt eine gab; ohne sie
+ist die Regel wieder ohne Zusatz lesbar.
+
+Der Mechanismus aus den Nachträgen 2026-08-25 und 2026-08-27 ist ersetzt.
+Das Skript `run-with-profile.mjs` ist gelöscht. Stattdessen exportiert
+`@repo/env` über den Subpath `@repo/env/profile` die Funktion
+`profileVarsWithPrefix(prefix)`: sie liest die Profil-Datei und gibt nur die
+Variablen mit diesem Präfix zurück, ohne `process.env` anzufassen.
+`apps/web/vite.config.ts` übernimmt daraus die `VITE_*`-Werte mit `??=`, womit
+die Rangfolge aus Punkt 3 erhalten bleibt — was schon im Prozess-Env steht,
+schlägt die Datei. Der Präfix-Filter bleibt nötig, weil jedes Profil `NODE_ENV`
+setzt und das Vites Modus-Erkennung überschreiben würde.
+
+Drei Dinge werden dadurch besser. Die Profil-Auflösung existiert nur noch
+einmal: `@repo/env` löst `../profiles/` modul-relativ auf (ADR-041), in
+`apps/web` steht kein Repo-Layout-Pfad mehr. Die Fehlermeldungen für fehlendes
+und unbekanntes Profil kommen aus derselben Quelle wie für die Server-Pakete.
+Und der Containerbau funktioniert: `apps/web` deklariert `@repo/env` als
+Abhängigkeit, weshalb `turbo prune web --docker` die Profile mitnimmt — vorher
+fehlte das Root-Verzeichnis `scripts/` im Prune, genau die Fehlerklasse, die
+ADR-041 für `config/env/` beschreibt. Der Subpath-Export ist bewusst nicht der
+Haupt-Export: `packages/env/src/index.ts` validiert beim Import das ganze
+Server-Schema, das ein Frontend-Build nicht liefern kann.

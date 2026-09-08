@@ -24,23 +24,22 @@ Vom Repository-Root:
 
 ```bash
 HTS_ENV_PROFILE=dev pnpm --filter web run dev      # Dev-Server auf :10001
-pnpm --filter web run build                        # inlined VITE_* aus dem Profil (Default: dev)
+HTS_ENV_PROFILE=dev pnpm --filter web run build    # inlined VITE_* aus dem Profil
 HTS_ENV_PROFILE=dev pnpm --filter web run preview  # dist/ auf :10001 ausliefern
 pnpm --filter web run check-types                  # tsgo
 pnpm --filter web run lint
 ```
 
 `VITE_API_URL` und `VITE_EVENT_ID` kommen aus dem Profil
-`packages/env/profiles/<profil>.env`, aus dem `dev`/`preview`/`build` über
-`scripts/lib/run-with-profile.mjs --prefix=VITE_` genau die
-Frontend-Variablen ins Prozess-Env laden (ADR-034 Nachträge 2026-08-25 und
-2026-08-27). Vite liest `.env`-Dateien nur aus dem eigenen Verzeichnis, das
-Profil erreicht den Build also nur über diesen Weg; der Rest des Profils —
-etwa `NODE_ENV` — bleibt draußen. `dev` und `preview` verlangen
-`HTS_ENV_PROFILE`, `build` fällt auf `dev` zurück, weil die Frontend-Werte in
-allen Profilen identisch sind und `pnpm build` sonst überall ein Profil
-bräuchte. Fehlt ein Wert, bricht `src/lib/env.ts` beim Laden der App sichtbar
-ab.
+`packages/env/profiles/<profil>.env`. `vite.config.ts` holt sie über
+`profileVarsWithPrefix("VITE_")` aus `@repo/env/profile` und übernimmt genau
+die Frontend-Variablen ins Prozess-Env (ADR-034 Nachtrag 2026-09-08). Vite
+liest `.env`-Dateien nur aus dem eigenen Verzeichnis, das Profil erreicht den
+Build also nur über diesen Weg; der Rest des Profils — etwa `NODE_ENV` — bleibt
+draußen, weil er Vites Modus-Erkennung überschreiben würde. Alle drei Skripte
+verlangen `HTS_ENV_PROFILE` und brechen ohne Profil mit der Profilliste ab; es
+gibt keinen Default, denn `vite build` backt die Werte in das Bundle. Fehlt ein
+Wert, bricht `src/lib/env.ts` beim Laden der App sichtbar ab.
 
 Die Anwendung läuft standardmäßig auf
 [http://localhost:10001](http://localhost:10001) und erwartet die API auf Port
