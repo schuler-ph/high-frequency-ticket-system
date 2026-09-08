@@ -4,6 +4,7 @@ import { env } from "@repo/env";
 const databaseUrl = env.DATABASE_URL;
 
 const fail = (message: string): never => {
+  // eslint-disable-next-line no-console
   console.error(`[db:debug:buy-ticket-function] ${message}`);
   process.exit(1);
 };
@@ -59,6 +60,7 @@ const main = async () => {
       fail("buy_ticket function does not mark orders as completed on success.");
     }
 
+    // eslint-disable-next-line no-console
     console.log(
       "[db:debug:buy-ticket-function] buy_ticket function contract is valid.",
     );

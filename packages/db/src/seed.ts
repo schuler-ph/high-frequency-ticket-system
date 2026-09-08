@@ -13,6 +13,7 @@ const seed = async () => {
     })
     .onConflictDoNothing();
 
+  // eslint-disable-next-line no-console
   console.log("Seed complete", { eventId: EVENT_ID });
 };
 

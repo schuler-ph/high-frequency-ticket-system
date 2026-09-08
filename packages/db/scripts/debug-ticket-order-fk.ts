@@ -4,6 +4,7 @@ import { env } from "@repo/env";
 const databaseUrl = env.DATABASE_URL;
 
 const fail = (message: string): never => {
+  // eslint-disable-next-line no-console
   console.error(`[db:debug:ticket-order-fk] ${message}`);
   process.exit(1);
 };
@@ -64,6 +65,7 @@ const main = async () => {
       fail("Foreign key tickets.order_id -> orders.id is missing.");
     }
 
+    // eslint-disable-next-line no-console
     console.log(
       "[db:debug:ticket-order-fk] Constraint and nullability are valid.",
     );

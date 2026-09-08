@@ -11,6 +11,7 @@ const databaseUrl = env.DATABASE_URL;
 const ledgerTable = "drizzle_sql_migrations";
 
 const fail = (message: string): never => {
+  // eslint-disable-next-line no-console
   console.error(`[db:apply-sql] ${message}`);
   process.exit(1);
 };
@@ -76,6 +77,7 @@ const main = async () => {
     );
 
     if (alreadyApplied.rowCount && alreadyApplied.rowCount > 0) {
+      // eslint-disable-next-line no-console
       console.log(
         `[db:apply-sql] Migration ${tag} already applied (ledger: ${ledgerTable}).`,
       );
@@ -87,6 +89,7 @@ const main = async () => {
     await client.query(`INSERT INTO ${ledgerTable} (tag) VALUES ($1)`, [tag]);
     await client.query("COMMIT");
 
+    // eslint-disable-next-line no-console
     console.log(
       `[db:apply-sql] Applied ${tag}.sql and recorded it in ${ledgerTable}.`,
     );
