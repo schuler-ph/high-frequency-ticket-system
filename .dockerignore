@@ -9,3 +9,9 @@ out
 tmp
 output
 packages/env/profiles/*.local.env
+docs
+tests
+load-tests
+monitoring
+.github
+.vscode

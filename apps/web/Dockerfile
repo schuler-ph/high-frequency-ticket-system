@@ -16,9 +16,11 @@ COPY --from=pruner /app/out/json .
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full .
 RUN pnpm exec turbo run build --filter=web
-RUN pnpm --filter=web --prod --legacy deploy /app/web-out
 
 FROM nginxinc/nginx-unprivileged:alpine AS runner
-COPY --from=builder /app/web-out /app
+# default aus base image löschen
+RUN rm -f /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 10001
