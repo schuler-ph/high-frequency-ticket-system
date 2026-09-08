@@ -19,8 +19,6 @@ RUN pnpm exec turbo run build --filter=web
 RUN pnpm --filter=web --prod --legacy deploy /app/web-out
 
 FROM nginxinc/nginx-unprivileged:alpine AS runner
-WORKDIR /app
 COPY --from=builder /app/web-out /app
-ENV NODE_ENV=production
 
 EXPOSE 10001

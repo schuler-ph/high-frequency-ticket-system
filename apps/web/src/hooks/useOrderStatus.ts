@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { OrderStatusResponse } from "@repo/types/tickets";
 import { fetchOrderStatus } from "../lib/api";
-import { env } from "../lib/env";
 
 interface OrderStatusState {
   status: OrderStatusResponse | null;
@@ -39,7 +38,7 @@ export function useOrderStatus(
 
     async function poll() {
       try {
-        const status = await fetchOrderStatus(env.apiUrl, orderId);
+        const status = await fetchOrderStatus(orderId);
         if (cancelled) return;
         setState({ status, error: null, loaded: true });
         if (status === null) return; // unbekannte orderId → stop

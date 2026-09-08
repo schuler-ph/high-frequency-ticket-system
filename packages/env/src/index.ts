@@ -74,11 +74,15 @@ export const env = createEnv({
   },
 
   /**
-   * Prefix, den clientseitige Variablen tragen muessen. Bewusst `VITE_` und
-   * nicht `PUBLIC_`: das Frontend liest `VITE_API_URL` und `VITE_EVENT_ID`
-   * (`apps/web/src/lib/env.ts`), weil Vite nur diesen Prefix zur Build-Zeit
-   * ins Client-Bundle inlined (ADR-039). Solange `client` leer ist, ist der
-   * Wert folgenlos — aber er soll nicht irrefuehren.
+   * Prefix, den clientseitige Variablen tragen muessten. `VITE_` und nicht
+   * `PUBLIC_`, weil Vite nur diesen Prefix ins Client-Bundle inlined
+   * (ADR-039).
+   *
+   * Aktuell traegt ihn keine Variable: `apps/web` ist konfigurationsfrei. Die
+   * API wird same origin unter `/api/...` angesprochen, die Event-Id ist eine
+   * Konstante in `@repo/types`. Solange `client` leer ist, ist der Wert
+   * folgenlos — er steht hier fuer den Fall, dass das Frontend doch einmal
+   * eine oeffentliche Variable braucht.
    */
   clientPrefix: "VITE_",
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MAIN_SALE_EVENT_ID } from "@repo/types/tickets";
 import { fetchAvailability } from "../lib/api";
-import { env } from "../lib/env";
 
 interface AvailabilityState {
   available: number | null;
@@ -24,7 +24,7 @@ export function useTicketAvailability(intervalMs = 3000): AvailabilityState {
 
   const poll = useCallback(async () => {
     try {
-      const data = await fetchAvailability(env.apiUrl, env.eventId);
+      const data = await fetchAvailability(MAIN_SALE_EVENT_ID);
       setState({
         available: data.available,
         total: data.total,

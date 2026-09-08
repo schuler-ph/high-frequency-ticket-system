@@ -23,23 +23,27 @@ src/index.css       Tailwind-Import, Fonts, Theme
 Vom Repository-Root:
 
 ```bash
-HTS_ENV_PROFILE=dev pnpm --filter web run dev      # Dev-Server auf :10001
-HTS_ENV_PROFILE=dev pnpm --filter web run build    # inlined VITE_* aus dem Profil
-HTS_ENV_PROFILE=dev pnpm --filter web run preview  # dist/ auf :10001 ausliefern
-pnpm --filter web run check-types                  # tsgo
+pnpm --filter web run dev      # Dev-Server auf :10001
+pnpm --filter web run build    # statisches dist/
+pnpm --filter web run preview  # dist/ auf :10001 ausliefern
+pnpm --filter web run check-types
 pnpm --filter web run lint
 ```
 
-`VITE_API_URL` und `VITE_EVENT_ID` kommen aus dem Profil
-`packages/env/profiles/<profil>.env`. `vite.config.ts` holt sie über
-`profileVarsWithPrefix("VITE_")` aus `@repo/env/profile` und übernimmt genau
-die Frontend-Variablen ins Prozess-Env (ADR-034 Nachtrag 2026-09-08). Vite
-liest `.env`-Dateien nur aus dem eigenen Verzeichnis, das Profil erreicht den
-Build also nur über diesen Weg; der Rest des Profils — etwa `NODE_ENV` — bleibt
-draußen, weil er Vites Modus-Erkennung überschreiben würde. Alle drei Skripte
-verlangen `HTS_ENV_PROFILE` und brechen ohne Profil mit der Profilliste ab; es
-gibt keinen Default, denn `vite build` backt die Werte in das Bundle. Fehlt ein
-Wert, bricht `src/lib/env.ts` beim Laden der App sichtbar ab.
+## Konfiguration
+
+Keine. `apps/web` hat keine Env-Variablen und braucht kein `HTS_ENV_PROFILE`
+(ADR-043) — auch nicht für `dev` und `preview`.
+
+- **API-Adresse:** das Frontend kennt sie nicht. `src/lib/api.ts` ruft
+  `/api/...` relativ auf, den gemeinsamen Origin stellt ein Reverse Proxy her
+  — nginx im Container, der Ingress in GKE, lokal `server.proxy` und
+  `preview.proxy` in [`vite.config.ts`](vite.config.ts) mit Ziel `:10002`.
+- **Event-Id:** `MAIN_SALE_EVENT_ID` aus `@repo/types/tickets`.
+
+Damit steht keine Umgebungsadresse im Bundle: dasselbe `dist/` und dasselbe
+Container-Image laufen in jeder Umgebung. **Voraussetzung ist der Proxy** —
+ohne eine `/api/`-Regel vor Web und API läuft das Frontend ins Leere.
 
 Die Anwendung läuft standardmäßig auf
 [http://localhost:10001](http://localhost:10001) und erwartet die API auf Port
@@ -52,7 +56,8 @@ pnpm dev
 ```
 
 Beim Ausliefern von `dist/` über einen Webserver braucht das Client-Routing
-einen Fallback auf `index.html` (nginx: `try_files $uri /index.html`).
+einen Fallback auf `index.html` (nginx: `try_files $uri /index.html`) und eine
+Proxy-Regel für `/api/`.
 
 Fachliches Verhalten:
 [`docs/REQUIREMENTS.md`](../../docs/REQUIREMENTS.md). Datenfluss:

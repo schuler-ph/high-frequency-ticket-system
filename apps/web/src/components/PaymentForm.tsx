@@ -7,7 +7,6 @@ import { inputClass, primaryBtn, secondaryBtn } from "./PageChrome";
 import { Spinner } from "./Spinner";
 
 interface PaymentFormProps {
-  apiUrl: string;
   orderId: string;
   /** Name der Reservierung — Karteninhaber wird damit vorbefuellt. */
   cardHolder: string;
@@ -34,7 +33,6 @@ const labelClass =
  * — kein Modal, kein Backdrop; die Seite ist ueber ihre URL erreichbar.
  */
 export function PaymentForm({
-  apiUrl,
   orderId,
   cardHolder,
   onPaid,
@@ -72,7 +70,7 @@ export function PaymentForm({
     e.preventDefault();
     setStatus("processing");
     setError(null);
-    const result = await payOrder(apiUrl, orderId, payment);
+    const result = await payOrder(orderId, payment);
     if (result.ok) {
       onPaid(orderId);
       return;

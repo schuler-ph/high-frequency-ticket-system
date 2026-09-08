@@ -43,6 +43,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-040 Cloud-Profile — Zugangsdaten aus dem Prozess-Env, Profil bleibt Datei](decisions/ADR-040-cloud-profile-geheimnisse-aus-dem-prozess-env.md)
 - [ADR-041 Env-Profile liegen im Paket `@repo/env`](decisions/ADR-041-env-profile-liegen-im-paket-repo-env.md)
 - [ADR-042 Turbo ist der einzige Build-Einstieg](decisions/ADR-042-turbo-ist-der-einzige-build-einstieg.md)
+- [ADR-043 Web ist konfigurationsfrei](decisions/ADR-043-web-ist-konfigurationsfrei.md)
 
 ## Teilweise umgesetzt
 

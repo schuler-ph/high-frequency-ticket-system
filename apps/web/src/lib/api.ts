@@ -8,11 +8,17 @@ import type {
   TicketAvailabilityResponse,
 } from "@repo/types/tickets";
 
+/**
+ * Alle Aufrufe sind same origin: das Frontend kennt die API-Adresse nicht,
+ * sondern ruft `/api/...` relativ auf. Davor sitzt ein Reverse Proxy — nginx
+ * im Container, der Ingress in GKE, `server.proxy` im Vite-Dev-Server. Damit
+ * steht keine Umgebungsadresse im Bundle und dasselbe `dist/` laeuft ueberall.
+ */
+
 export async function fetchAvailability(
-  apiUrl: string,
   eventId: string,
 ): Promise<TicketAvailabilityResponse> {
-  const res = await fetch(`${apiUrl}/api/tickets/${eventId}/availability`);
+  const res = await fetch(`/api/tickets/${eventId}/availability`);
   if (!res.ok) throw new Error(`Availability fetch failed: ${res.status}`);
   return res.json() as Promise<TicketAvailabilityResponse>;
 }
@@ -22,11 +28,10 @@ type BuyResult =
   | { ok: false; soldOut: boolean; message: string };
 
 export async function buyTicket(
-  apiUrl: string,
   eventId: string,
   body: BuyTicketBody,
 ): Promise<BuyResult> {
-  const res = await fetch(`${apiUrl}/api/tickets/${eventId}/buy`, {
+  const res = await fetch(`/api/tickets/${eventId}/buy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -54,11 +59,10 @@ type PayResult =
  * serverseitig nur validiert und verworfen.
  */
 export async function payOrder(
-  apiUrl: string,
   orderId: string,
   payment: PaymentRequest,
 ): Promise<PayResult> {
-  const res = await fetch(`${apiUrl}/api/orders/${orderId}/pay`, {
+  const res = await fetch(`/api/orders/${orderId}/pay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payment),
@@ -99,10 +103,9 @@ export async function payOrder(
  * verwaiste Reservierungen ohnehin nach.
  */
 export async function cancelOrder(
-  apiUrl: string,
   orderId: string,
 ): Promise<CancelOrderResponse | null> {
-  const res = await fetch(`${apiUrl}/api/orders/${orderId}/cancel`, {
+  const res = await fetch(`/api/orders/${orderId}/cancel`, {
     method: "POST",
   });
   if (!res.ok) return null;
@@ -115,10 +118,9 @@ export async function cancelOrder(
  * existiert (`404`).
  */
 export async function fetchOrderStatus(
-  apiUrl: string,
   orderId: string,
 ): Promise<OrderStatusResponse | null> {
-  const res = await fetch(`${apiUrl}/api/orders/${orderId}`);
+  const res = await fetch(`/api/orders/${orderId}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Order status fetch failed: ${res.status}`);
   return res.json() as Promise<OrderStatusResponse>;

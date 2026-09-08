@@ -11,8 +11,8 @@ import { Spinner } from "../components/Spinner";
 import { StatusChip } from "../components/StatusChip";
 import { Toast } from "../components/Toast";
 import { useTicketAvailability } from "../hooks/useTicketAvailability";
+import { MAIN_SALE_EVENT_ID } from "@repo/types/tickets";
 import { buyTicket } from "../lib/api";
-import { env } from "../lib/env";
 import { randomName } from "../lib/names";
 import { OFFER } from "../lib/offer";
 
@@ -167,7 +167,7 @@ function ActiveSaleView({
   async function handleBuy(e: React.FormEvent) {
     e.preventDefault();
     setReserving(true);
-    const result = await buyTicket(env.apiUrl, env.eventId, {
+    const result = await buyTicket(MAIN_SALE_EVENT_ID, {
       firstName,
       lastName,
     });

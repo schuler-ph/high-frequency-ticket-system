@@ -335,3 +335,23 @@ export const cancelOrderResponseSchema = z.object({
 });
 
 export type CancelOrderResponse = z.infer<typeof cancelOrderResponseSchema>;
+
+/**
+ * Die UUID des einen Festival-Sales, den dieses System abwickelt.
+ *
+ * Der Wert war zuvor als `VITE_EVENT_ID` in jedem Env-Profil doppelt gefuehrt
+ * — in allen Profilen mit demselben Wert. Damit war er nie Konfiguration,
+ * sondern eine Konstante, die nur wie Konfiguration aussah und das Frontend
+ * zwang, sein Env-Profil zur Build-Zeit zu kennen.
+ *
+ * Er steht hier, weil sowohl das Frontend als auch die Vertraege ihn brauchen.
+ * Sobald es mehr als einen Sale gibt, ist das keine Konstante mehr: dann
+ * gehoert die Id in die Route (`/events/:eventId`) oder in einen
+ * API-Endpunkt, der den aktiven Sale nennt.
+ *
+ * Achtung: `scripts/local/lib/stack-steps.mjs` traegt denselben Wert als
+ * Literal. Root-Skripte sind plain Node ohne `@repo/*`-Abhaengigkeit und
+ * koennen diese Konstante nicht importieren, ohne dass `pnpm seed` vorher
+ * einen Build braucht. Wer den Wert aendert, aendert beide Stellen.
+ */
+export const MAIN_SALE_EVENT_ID = "00000000-0000-4000-8000-000000000000";

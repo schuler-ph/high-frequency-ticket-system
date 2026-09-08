@@ -12,7 +12,6 @@ import {
 } from "../hooks/useCheckoutDeadline";
 import { useOrderStatus } from "../hooks/useOrderStatus";
 import { cancelOrder } from "../lib/api";
-import { env } from "../lib/env";
 import { OFFER } from "../lib/offer";
 
 /**
@@ -61,7 +60,7 @@ function Checkout({ orderId }: { orderId: string }) {
   // Abbruch: Reservierung freigeben (idempotent, fire-and-forget — ADR-028)
   // und zurueck zur Angebotsseite.
   function handleCancel() {
-    void cancelOrder(env.apiUrl, orderId);
+    void cancelOrder(orderId);
     leaveCheckout();
   }
 
@@ -201,7 +200,6 @@ function Checkout({ orderId }: { orderId: string }) {
       <div className="mt-5 border-t border-slate-100 pt-5">
         <h4 className="mb-4 text-base font-bold text-slate-900">Bezahlung</h4>
         <PaymentForm
-          apiUrl={env.apiUrl}
           orderId={orderId}
           cardHolder={`${status.firstName} ${status.lastName}`}
           onPaid={() => setPaid(true)}
