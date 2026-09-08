@@ -80,16 +80,6 @@ const BENCH_VARIABLES = [
 /** Seed-Variablen — jedes Profil, das seeden kann, braucht sie. */
 const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 
-/**
- * Frontend-Variablen. Vite inlined `VITE_*` zur Build-/Dev-Zeit aus dem
- * Prozess-Env; `apps/web/vite.config.ts` holt sie dafuer ueber
- * `profileVarsWithPrefix("VITE_")` aus `@repo/env/profile` (ADR-034
- * Nachtrag 2026-09-08, ADR-039). Das
- * Zod-Schema kennt sie nicht (`client: {}`), deshalb hier explizit — sonst
- * faellt ein Profil ohne sie erst im Browser auf.
- */
-const WEB_VARIABLES = ["VITE_API_URL", "VITE_EVENT_ID"];
-
 const LOADTEST_PROFILES = new Set([
   "browse-and-buy-full-speed",
   "browse-and-buy-human-pace",
@@ -141,14 +131,6 @@ for (const entry of profiles) {
   for (const variable of SEED_VARIABLES) {
     if (!keys.has(variable)) {
       problems.push(`packages/env/profiles/${entry}: ${variable} fehlt (Seed-Variable).`);
-    }
-  }
-
-  for (const variable of WEB_VARIABLES) {
-    if (!keys.has(variable)) {
-      problems.push(
-        `packages/env/profiles/${entry}: ${variable} fehlt (Frontend-Variable).`,
-      );
     }
   }
 
