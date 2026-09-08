@@ -127,8 +127,11 @@ jobs:
             gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
           timeout 60 bash -c 'until nc -z localhost 10005; do sleep 2; done'
 
+      # `drizzle-kit` setzt die `source`-Condition nicht, loest `@repo/env` also
+      # nach `dist/` auf. Der Build laeuft ueber Turbo, damit auch hier nur ein
+      # Build-Einstieg existiert (ADR-042).
       - name: Build @repo/env
-        run: pnpm --filter @repo/env run build
+        run: pnpm exec turbo run build --filter=@repo/env
         env:
           TURBO_TELEMETRY_DISABLED: 1
 

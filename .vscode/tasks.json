@@ -31,7 +31,7 @@
       "label": "api:build",
       "type": "shell",
       "command": "pnpm",
-      "args": ["--filter", "api", "run", "build"],
+      "args": ["exec", "turbo", "run", "build", "--filter=api"],
       "group": "build",
       "problemMatcher": ["$tsc"]
     },

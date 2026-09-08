@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 const schema = z.object({
-  apiUrl: z.url(),
+  // Leerer String heisst "same origin": `api.ts` setzt jeden Call als
+  // `${apiUrl}/api/...` zusammen, aus `""` werden also die relativen Pfade
+  // `/api/...`. Damit braucht das Frontend die API-Adresse nicht zu kennen —
+  // ein Reverse Proxy vor beiden (nginx im Container, Ingress in GKE) leitet
+  // `/api/` an die API weiter. Eine absolute URL bleibt fuer den lokalen
+  // Dev-Server erlaubt, wo Web (:10001) und API (:10002) getrennte Origins
+  // sind.
+  apiUrl: z.union([z.url(), z.literal("")]),
   eventId: z.uuid(),
 });
 

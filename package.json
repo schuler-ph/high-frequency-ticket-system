@@ -33,7 +33,10 @@
     "verify:quick": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test",
     "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && HTS_ENV_PROFILE=dev pnpm run build",
     "prepare": "husky",
-    "docker:build:api": "docker build -f apps/api/Dockerfile -t hts-api:dev ."
+    "docker:build:api": "docker build -f apps/api/Dockerfile -t hts-api:dev .",
+    "docker:build:worker": "docker build -f apps/worker/Dockerfile -t hts-worker:dev .",
+    "docker:build:web": "docker build -f apps/web/Dockerfile -t hts-web:dev .",
+    "docker:build": "pnpm run docker:build:api && pnpm run docker:build:worker && pnpm run docker:build:web"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260319.1",

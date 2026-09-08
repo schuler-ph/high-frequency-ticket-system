@@ -18,7 +18,7 @@ erzeugte SQL-Datei, ihren `meta/*_snapshot.json` und den `tag` im
 `meta/_journal.json` auf die naechste freie Nummer umbenennen (der `idx` im
 Journal bleibt). `pnpm run debug:migrations` meldet doppelte Prefixe. Braucht
 `drizzle.config.ts` das Profil (`HTS_ENV_PROFILE=dev`), muss `@repo/env` gebaut
-sein (`pnpm --filter @repo/env run build`).
+sein (`pnpm exec turbo run build --filter=@repo/env`, ADR-042).
 
 ## Raw SQL Function Migrations
 
