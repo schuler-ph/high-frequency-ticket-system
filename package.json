@@ -32,7 +32,8 @@
     "debug:all": "pnpm run debug:runtime && pnpm run debug:migrations && pnpm run debug:buy-ticket-contract && pnpm run debug:docs && pnpm run debug:env",
     "verify:quick": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test",
     "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && pnpm run build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:build:api": "docker build -f apps/api/Dockerfile -t hts-api:dev ."
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260319.1",

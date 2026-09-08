@@ -8,12 +8,10 @@ RUN npm i -g turbo@2
 COPY . .
 RUN turbo prune api --docker
 
-FROM node:24-alpine AS installer
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=pruner /app/out/json .
 RUN corepack enable && pnpm install --frozen-lockfile
-
-FROM installer AS builder
 COPY --from=pruner /app/out/full .
 RUN pnpm exec turbo run build --filter=api
 RUN pnpm --filter=api --prod --legacy deploy /app/api-out

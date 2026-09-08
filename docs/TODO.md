@@ -124,12 +124,19 @@ ADRs: ADR-036 (Performance als drittes Verdict), ADR-037 (Pending-Reaper in eige
 Roter Faden: erst lokal beweisen (5.1–5.3), dann Cloud (5.4–5.7); Cloud-Arbeit
 erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Details](notes/phases/phase-5-cloud-deployment.md)
 
+### Wichtige Dokumente
+
+- Lernüberblick → [Der Sprung nach GKE](https://claude.ai/code/artifact/db918407-944b-40a2-b9e7-42f4b1d05de5)
+- Selbstlernkurs für Phase 5.1 - 5.7 → [GKE-Werkstatt](https://claude.ai/code/artifact/7b9a13ca-f581-4075-819c-690f996e019a)
+- Überblick über die nächsten Phasen [HTS Standortbestimmung](/Users/p.schuler/repos/privat/hts-standortbestimmung-2026-08-26.md)
+
 ### Phase 5.1 — Containerisierung und lokales Kubernetes
 
 - [x] **Web von Next.js auf Vite-SPA umgestellt (2026-08-27):** statisches `dist/`, kein Node zur Laufzeit; Vorarbeit fuer das Web-Dockerfile (nginx + `index.html`-Fallback). → ADR-039
+- [x] **Env-Profile nach `packages/env/profiles/` verschoben (2026-09-07):** Loader loest `../profiles/` auf; `pnpm deploy` bringt sie ins Image, die `COPY`-Zeile im API-Dockerfile entfaellt. → ADR-041
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
 - [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
-- [x] **Env-Profile nach `packages/env/profiles/` verschoben (2026-09-07):** Loader loest `../profiles/` auf; `pnpm deploy` bringt sie ins Image, die `COPY`-Zeile im API-Dockerfile entfaellt. → ADR-041
+
 
 ### Phase 5.2 — Multi-Replica-Korrektheit lokal
 
