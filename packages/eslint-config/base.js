@@ -28,6 +28,7 @@ const config = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+      "no-console": "warn",
     },
   },
   {
