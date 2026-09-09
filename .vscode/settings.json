@@ -99,6 +99,14 @@
         "args": ["loadtest:run+report"]
       },
       {
+        "name": "$(beaker) Smoke",
+        "color": "#56B6C2",
+        "tooltip": "RUNBOOK §4: Smoke-Lauf ohne Rueckfrage (Profil browse-and-buy-smoke): 1k Tickets, alles zahlt, ~3 min, prueft nur, ob die Messkette richtig zaehlt. Laeuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus 'LT Stack' genauso wie die Container aus 'pnpm docker:run' (dort HTS_ENV_PROFILE=browse-and-buy-smoke setzen). Prueft vorher die Bereitschaft, resettet dann selbst; Auswertung laeuft automatisch mit.",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:smoke"]
+      },
+      {
         "name": "$(remote) Spike Split",
         "color": "#E5C07B",
         "tooltip": "RUNBOOK §4, Zwei-Maschinen-Lauf: k6 via ssh auf dem Generator-PC, Sold-out-Stop per REST. Liest K6_SSH_HOST/K6_REST_URL/K6_REMOTE_DIR/BASE_URL aus packages/env/profiles/split.local.env (gitignoriert, Vorlage: split.local.env.example). Stack vorher mit 'LT Stack' und Topologie 0.0.0.0 starten.",

@@ -130,7 +130,7 @@
       "label": "stack:wait-ready",
       "detail": "Pollt /metrics von API und Worker per HTTP, mit Timeout. Bewusst kein Log-Pattern — die 'Server listening'-Zeile ist Info-Level und erscheint bei LOG_LEVEL=warn nie (RUNBOOK §3, Falle 2). Bei Timeout Abbruch mit Hinweis statt endlosem Warten.",
       "type": "shell",
-      "command": "i=0; until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 240 ]; then echo \"TIMEOUT nach ${i}s: API (10002) und/oder Worker (10003) antworten nicht.\"; for p in 10002 10003; do if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"  Port $p: Listener vorhanden\"; else echo \"  Port $p: KEIN Listener — Service laeuft nicht\"; fi; done; echo \"Ursache im jeweiligen Service-Terminal nachsehen (Tasks loadtest:api / loadtest:worker). Haeufigster Fall: das Terminal wurde geschlossen, dann beendet VS Code den Prozess.\"; exit 1; fi; done; echo \"API (10002) + Worker (10003) bereit nach ${i}s.\"",
+      "command": "i=0; until curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 240 ]; then echo \"TIMEOUT nach ${i}s: API (10002) und/oder Worker (10003) antworten nicht.\"; for p in 10002 10003; do if lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then echo \"  Port $p: Listener vorhanden\"; else echo \"  Port $p: KEIN Listener — Service laeuft nicht\"; fi; done; echo \"Host-Prozesse: Ursache im jeweiligen Service-Terminal nachsehen (Tasks loadtest:api / loadtest:worker); haeufigster Fall: das Terminal wurde geschlossen, dann beendet VS Code den Prozess. Container (pnpm docker:run): docker ps und docker logs hts-api / hts-worker.\"; exit 1; fi; done; echo \"API (10002) + Worker (10003) bereit nach ${i}s.\"",
       "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
       "presentation": { "reveal": "always", "panel": "shared", "focus": false },
       "problemMatcher": []
@@ -250,6 +250,29 @@
       "hide": true,
       "dependsOrder": "sequence",
       "dependsOn": ["stack:wait-ready", "loadtest:report"],
+      "problemMatcher": []
+    },
+    {
+      // Festes Profil statt Prompt: der Smoke-Lauf hat genau einen Zweck
+      // (zaehlt die Messkette richtig?) und soll mit einem Klick startbar sein.
+      // Er laeuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus
+      // 'loadtest:stack up' genauso wie die Container aus 'pnpm docker:run';
+      // Prometheus scrapt beides ueber host.docker.internal.
+      "label": "loadtest:report (smoke)",
+      "detail": "Nur der Smoke-Lauf selbst (Profil browse-and-buy-smoke, setzt einen bereiten Stack voraus); ueber 'loadtest:smoke' aufrufen.",
+      "hide": true,
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HTS_ENV_PROFILE=browse-and-buy-smoke pnpm run spike:report",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:smoke",
+      "detail": "RUNBOOK §4 — Smoke-Lauf ohne Rueckfrage: prueft die Bereitschaft von API/Worker (Host-Prozess oder Container) und faehrt dann browse-and-buy-smoke mit Belegerhebung nach artifacts/load-tests/<run-id>/. 1k Tickets, alles zahlt, ~3 min; prueft nur, ob die Messkette richtig zaehlt — kein Kapazitaetsnachweis.",
+      "hide": true,
+      "dependsOrder": "sequence",
+      "dependsOn": ["stack:wait-ready", "loadtest:report (smoke)"],
       "problemMatcher": []
     },
     {

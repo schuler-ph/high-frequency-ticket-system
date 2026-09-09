@@ -426,6 +426,8 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 **Task:** `loadtest:run+report` — fragt das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
+**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `browse-and-buy-smoke` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie Container aus `pnpm docker:run`; die Container dabei mit `HTS_ENV_PROFILE=browse-and-buy-smoke` starten, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
+
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
 Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc).

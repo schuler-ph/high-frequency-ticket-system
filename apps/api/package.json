@@ -21,7 +21,9 @@
     "dev": "tsc-watch --onSuccess \"pnpm run dev:start\"",
     "dev:start": "fastify start -P -l info -p 10002 dist/app.js",
     "check-types": "tsgo --noEmit",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "docker:build": "docker build -f Dockerfile -t hts-api:dev ../..",
+    "docker:run": "docker run --rm --name hts-api --network high-frequency-ticket-system_default --network-alias api -p 10002:10002 -e HTS_ENV_PROFILE -e DATABASE_URL=postgres://postgres:postgres@postgres:5432/high_frequency_tickets -e REDIS_URL=redis://redis:6379 -e PUBSUB_EMULATOR_HOST=pubsub:8085 hts-api:dev"
   },
   "keywords": [],
   "author": "",
