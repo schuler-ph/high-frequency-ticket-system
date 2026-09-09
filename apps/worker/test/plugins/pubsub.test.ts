@@ -13,6 +13,14 @@ function createFakeFastify() {
       info: () => undefined,
       warn: () => undefined,
       error: () => undefined,
+      fatal: () => undefined,
+      debug: () => undefined,
+    },
+    serviceHealth: {
+      fatalReason: null as string | null,
+      markFatal(reason: string) {
+        instance.serviceHealth.fatalReason ??= reason;
+      },
     },
     addHook(name: string, hook: () => Promise<void>) {
       hooks[name] ??= [];
@@ -73,7 +81,10 @@ function createListenerRegistry(): ListenerRegistry {
   };
 }
 
-function createSubscriptionMock(listeners: ListenerRegistry): Subscription {
+function createSubscriptionMock(
+  listeners: ListenerRegistry,
+  exists = true,
+): Subscription {
   function on(
     event: "message",
     listener: (message: Message) => void | Promise<void>,
@@ -97,6 +108,9 @@ function createSubscriptionMock(listeners: ListenerRegistry): Subscription {
 
   return {
     on,
+    exists() {
+      return Promise.resolve([exists]);
+    },
     removeAllListeners() {
       listeners.message = [];
       listeners.error = [];
@@ -194,4 +208,56 @@ void test("pubsub subscriber nacks messages when handler throws", async () => {
   assert.ok(fakeMessage.nacked);
 
   await fastify.pubsubSubscriber.stop();
+});
+
+async function deliverError(
+  listeners: ListenerRegistry,
+  error: Error,
+): Promise<void> {
+  for (const listener of listeners.error) listener(error);
+  await Promise.resolve();
+}
+
+void test("a permanent subscription error marks the worker unhealthy", async () => {
+  const listeners = createListenerRegistry();
+  const fakeClient = createClientMock(createSubscriptionMock(listeners));
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: fakeClient,
+    subscriptionName: "buy-ticket-worker",
+  });
+  fastify.pubsubSubscriber.start();
+
+  // Exakt der Fehler vom 2026-09-09: der Streaming-Pull stirbt endgueltig,
+  // der Prozess laeuft weiter und verarbeitet nichts mehr.
+  await deliverError(
+    listeners,
+    Object.assign(new Error("Subscription does not exist"), { code: 5 }),
+  );
+
+  assert.match(
+    fastify.serviceHealth.fatalReason ?? "",
+    /permanently unavailable \(NOT_FOUND\)/,
+  );
+});
+
+void test("a transient subscription error leaves the worker healthy", async () => {
+  const listeners = createListenerRegistry();
+  const fakeClient = createClientMock(createSubscriptionMock(listeners));
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: fakeClient,
+    subscriptionName: "buy-ticket-worker",
+  });
+  fastify.pubsubSubscriber.start();
+
+  // UNAVAILABLE (14): der Client stellt den Stream selbst wieder her.
+  await deliverError(
+    listeners,
+    Object.assign(new Error("503 UNAVAILABLE"), { code: 14 }),
+  );
+
+  assert.equal(fastify.serviceHealth.fatalReason, null);
 });

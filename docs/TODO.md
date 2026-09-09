@@ -137,6 +137,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Turbo ist der einzige Build-Einstieg (2026-09-08):** Dep-Ketten aus den Package-Skripten entfernt. → ADR-042
 - [x] **Web ist konfigurationsfrei (2026-09-08):** API same origin, Event-Id als Konstante; `vite build` braucht kein Profil. Setzt eine `/api/`-Proxy-Regel voraus. → ADR-043
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
+- [x] **Arbeitsunfaehigkeit meldet 503 (2026-09-09):** API und Worker markieren dauerhafte Pub/Sub-Fehler; `/health` antwortet 503 mit Grund. Liveness-Probe muss darauf zeigen. → ADR-044
 - [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
 
 ### Phase 5.2 — Multi-Replica-Korrektheit lokal

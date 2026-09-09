@@ -2,6 +2,10 @@ import type { PubSub } from "@google-cloud/pubsub";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "@repo/env";
+import { fatalPubSubCode } from "../lib/pubsub-errors.ts";
+// Zieht die `serviceHealth`-Deklaration aus dem Plugin in diesen Typgraphen.
+// Das Gegenstueck zur Laufzeit-Abhaengigkeit `dependencies: ["service-health"]`.
+import type {} from "./service-health.ts";
 
 export type PubSubAttributes = Record<string, string>;
 
@@ -19,7 +23,9 @@ export interface PubSubPluginOptions {
 
 // Topic-Provisioning lebt in scripts/local/reset-seed.mjs (Emulator-REST),
 // nicht mehr im Startup-Pfad der API. Der Publisher ist ein reiner
-// Runtime-Client und setzt voraus, dass das Topic bereits existiert.
+// Runtime-Client und setzt voraus, dass das Topic bereits existiert. Fehlt es,
+// faellt das beim ersten Publish auf und macht den Prozess arbeitsunfaehig
+// (ADR-044) — nicht beim Boot, siehe dort "Alternativen".
 const createPubSubClient = async (): Promise<PubSub> => {
   const { PubSub } = await import("@google-cloud/pubsub");
 
@@ -37,11 +43,26 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   const topic = client.topic(topicName);
 
   fastify.decorate("pubsubPublisher", {
-    publishBuyTicket(payload: unknown, attributes?: PubSubAttributes) {
-      return topic.publishMessage({
-        data: Buffer.from(JSON.stringify(payload)),
-        attributes,
-      });
+    async publishBuyTicket(payload: unknown, attributes?: PubSubAttributes) {
+      try {
+        return await topic.publishMessage({
+          data: Buffer.from(JSON.stringify(payload)),
+          attributes,
+        });
+      } catch (err) {
+        // Nach der Startup-Pruefung kann das Topic nur noch verschwinden, wenn
+        // es jemand loescht oder die Rechte entzieht. Beides trifft alle
+        // Requests gleichermassen, also den Prozess als arbeitsunfaehig
+        // markieren statt jede Zahlung einzeln mit 500 abzuweisen.
+        const fatalCode = fatalPubSubCode(err);
+        if (fatalCode !== null) {
+          fastify.serviceHealth.markFatal(
+            `Pub/Sub topic "${topicName}" is permanently unavailable (${fatalCode}). ` +
+              "Provision it and restart the API.",
+          );
+        }
+        throw err;
+      }
     },
   });
 
@@ -56,7 +77,10 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   );
 };
 
-export default fp(pubSubPlugin);
+export default fp(pubSubPlugin, {
+  name: "pubsub",
+  dependencies: ["service-health"],
+});
 
 declare module "fastify" {
   export interface FastifyInstance {

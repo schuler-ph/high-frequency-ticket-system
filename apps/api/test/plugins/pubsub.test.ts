@@ -16,6 +16,12 @@ function createFakeFastify() {
       fatal: () => undefined,
       debug: () => undefined,
     },
+    serviceHealth: {
+      fatalReason: null as string | null,
+      markFatal(reason: string) {
+        instance.serviceHealth.fatalReason ??= reason;
+      },
+    },
     addHook(name: string, hook: () => Promise<void>) {
       hooks[name] ??= [];
       hooks[name].push(hook);
@@ -46,6 +52,9 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
   const fakeClient = {
     topic(_topicName: string) {
       return {
+        exists() {
+          return Promise.resolve([true]);
+        },
         publishMessage(message: {
           data: Buffer;
           attributes?: Record<string, string>;
@@ -75,4 +84,59 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
     quantity: 1,
   });
   assert.deepEqual(capturedMessage.attributes, { requestId: "req-123" });
+});
+
+/** Topic-Mock mit steuerbarer Existenz und steuerbarem Publish-Fehler. */
+function createTopicClient(options: {
+  exists?: boolean;
+  publishError?: unknown;
+}): PubSub {
+  return {
+    topic() {
+      return {
+        exists() {
+          return Promise.resolve([options.exists ?? true]);
+        },
+        publishMessage() {
+          if (options.publishError) return Promise.reject(options.publishError);
+          return Promise.resolve("message-1");
+        },
+      };
+    },
+  } as unknown as PubSub;
+}
+
+void test("a permanent publish failure marks the api unhealthy", async () => {
+  const fastify = createFakeFastify();
+  await pubSubPlugin(fastify as never, {
+    client: createTopicClient({
+      publishError: Object.assign(new Error("Topic not found"), { code: 5 }),
+    }),
+    topicName: "buy-ticket",
+  });
+
+  await assert.rejects(() =>
+    fastify.pubsubPublisher.publishBuyTicket({ orderId: "order-1" }),
+  );
+
+  assert.match(
+    fastify.serviceHealth.fatalReason ?? "",
+    /permanently unavailable \(NOT_FOUND\)/,
+  );
+});
+
+void test("a transient publish failure leaves the api healthy", async () => {
+  const fastify = createFakeFastify();
+  await pubSubPlugin(fastify as never, {
+    client: createTopicClient({
+      publishError: Object.assign(new Error("UNAVAILABLE"), { code: 14 }),
+    }),
+    topicName: "buy-ticket",
+  });
+
+  await assert.rejects(() =>
+    fastify.pubsubPublisher.publishBuyTicket({ orderId: "order-1" }),
+  );
+
+  assert.equal(fastify.serviceHealth.fatalReason, null);
 });
