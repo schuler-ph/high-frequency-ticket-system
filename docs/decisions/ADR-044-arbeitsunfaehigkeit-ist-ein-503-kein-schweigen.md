@@ -35,8 +35,11 @@ transient und bleibt dem Retry des Clients überlassen.
 - **Worker:** ein dauerhafter Fehler des Subscribers setzt den Zustand.
 - **API:** ein dauerhafter Fehler beim Publish setzt ihn.
 
-Die Reparatur ist der Neustart, und auslösen soll ihn die **Liveness-Probe** auf
-`/health`. Der Prozess beendet sich nicht selbst.
+Die Reparatur ist der Neustart, und **der Prozess löst ihn selbst aus**: nach
+`fastify.close()` beendet er sich mit Exit-Code 1. Darauf reagieren sowohl
+Docker (`restart: unless-stopped`) als auch Kubernetes, beide mit wachsendem
+Abstand zwischen den Versuchen. Der 503 bleibt daneben bestehen — für die
+Sekunden bis zum Shutdown und für jede Probe, die in der Zeit fragt.
 
 ## Begründung
 
@@ -53,6 +56,24 @@ Der Grund steht im Body, damit er im Probe-Log landet und nicht erst im
 Service-Log gesucht werden muss — genau die Suche, die diesen Vorfall 13
 Minuten lang verzögert hat.
 
+**Warum sich der Prozess beendet, statt nur zu melden.** Ein 503 ist ein
+Bericht, keine Handlung; er wirkt erst, wenn ihn jemand abfragt _und_ daraus
+eine Konsequenz zieht. Docker tut das nicht: `restart:` reagiert auf das
+Prozess-Ende, und ein fehlgeschlagener `healthcheck:` markiert einen Container
+nur als `unhealthy`, ohne ihn neu zu starten. Eine Liveness-Probe gibt es erst
+in Kubernetes. Ein Prozess, der sich selbst beendet, braucht dagegen keinen
+Akteur und verhält sich lokal wie in der Cloud gleich.
+
+**Warum das auch für die API gilt.** Der erste Entwurf ließ die API nur melden,
+mit dem Argument, ein fehlendes Topic breche nur die Zahlungen, während
+Verfügbarkeit und Reservierung weiterliefen. Das hält nicht stand: `/buy`
+reserviert dann Inventar, das keine Zahlung mehr einlösen kann — die API hält
+Tickets fest und zeigt Nutzern einen Checkout, der garantiert scheitert. Das
+ist kein Teilbetrieb, sondern ein kaputter Kauf-Funnel mit Nebenwirkung. Dass
+alle Replicas gleichzeitig neu starten, ist kein Verlust: sie wären alle gleich
+kaputt, und ein CrashLoopBackOff ist sichtbar, während N still 500ende Pods es
+nicht sind.
+
 ## Alternativen
 
 - **Existenzprüfung beim Boot** (`topic.exists()` / `subscription.exists()` im
@@ -65,9 +86,11 @@ Minuten lang verzögert hat.
   tauscht man einen stillen Defekt gegen einen lauten Fehlalarm — ein
   schlechteres Geschäft. Die Prüfung bringt zudem wenig: der Worker meldet eine
   fehlende Subscription ohnehin binnen vier Sekunden über den Subscriber.
-- **`process.exit()` statt 503:** überspringt den Graceful Shutdown und macht
-  das Verhalten in Tests schwer greifbar. Der Neustart über die Probe ist
-  derselbe, nur beobachtbar.
+- **Nur melden, ohne sich zu beenden** (erster Entwurf): setzt einen Akteur
+  voraus, den es lokal nicht gibt — siehe oben. Verworfen.
+- **`process.exit()` ohne vorherigen Shutdown:** überspringt den geordneten
+  Weg, den SIGTERM sonst nimmt. Deshalb erst `fastify.close()`, dann Exit. Die
+  Testbarkeit bleibt über eine injizierbare `onFatal`-Option erhalten.
 - **Eigener `/ready`-Endpunkt:** die übliche Trennung Liveness/Readiness. Für
   den Worker führt sie ins Leere — er nimmt keinen Verkehr entgegen, den man
   ihm entziehen könnte; der Neustart ist die Reparatur. Ein zweiter Endpunkt
@@ -76,8 +99,14 @@ Minuten lang verzögert hat.
 
 ## Konsequenzen
 
-- **Die Liveness-Probe muss auf `/health` zeigen**, sonst hat die Entscheidung
-  keine Wirkung. Das gehört in die Kubernetes-Manifeste von Phase 5.1.
+- Lokal genügt `restart: unless-stopped` in der `docker-compose.yml`: der
+  Worker startet nach einem `docker compose up` ohne provisionierten Emulator
+  in wachsenden Abständen neu, bis `pnpm seed` gelaufen ist, und hält dann.
+- **Was die Kubernetes-Probes damit tun**, ist eine eigene Entscheidung, die
+  mit den Manifesten fällt (Phase 5.1). Der Selbstabbruch deckt den Neustart
+  bereits ab; eine `livenessProbe` auf `/health` wäre Redundanz, eine
+  `readinessProbe` dagegen sinnvoll, um einen sterbenden API-Pod vor dem
+  Shutdown aus der Rotation zu nehmen.
 - `/health` hat jetzt zwei Antwortformen (200 `ok`, 503 `unhealthy` mit
   `reason`). Wer den Endpunkt als reinen Ping benutzt, muss den Statuscode
   auswerten, nicht nur die Erreichbarkeit — das gilt auch für
@@ -90,3 +119,11 @@ Minuten lang verzögert hat.
   Provisioning-Schritt, von dem API und Worker abhängen.
 - Transiente Pub/Sub-Fehler werden weiterhin nur geloggt, jetzt aber
   ausdrücklich als solche benannt.
+- **Redis bleibt ausdrücklich außen vor.** Beim Boot gilt dort schon
+  Fail-fast über `REDIS_CONNECT_TIMEOUT_MS`. Zur Laufzeit verbindet ioredis
+  sich selbst neu, und kurze Aussetzer sind normal — sie zu einem
+  Prozessabbruch zu machen hieße, aus einem Schluckauf einen flottenweiten
+  Neustartsturm zu machen, und zwar genau unter Last, wenn er am meisten
+  schadet. Dauerhaft nicht erreichbares Redis bleibt damit vorerst ein
+  unentdeckter Zustand; das zu erkennen bräuchte eine Schwelle
+  ("seit N Sekunden getrennt") und ist offen.

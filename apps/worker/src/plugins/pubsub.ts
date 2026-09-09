@@ -18,6 +18,12 @@ export interface PubSubSubscriber {
 export interface PubSubSubscriberPluginOptions {
   client?: PubSub;
   subscriptionName?: string;
+  /**
+   * Reaktion auf einen dauerhaften Subscriber-Fehler. Default: sauber
+   * herunterfahren und mit Exit-Code 1 beenden (ADR-044). Tests reichen hier
+   * eine Attrappe herein, damit sie nicht den Testrunner beenden.
+   */
+  onFatal?: () => void;
 }
 
 // Subscription-Provisioning lebt in scripts/local/reset-seed.mjs
@@ -44,6 +50,27 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
   const subscription = client.subscription(subscriptionName, {
     flowControl: { maxMessages: env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES },
   });
+
+  /**
+   * Ohne Subscription kann der Worker nichts — und ein Prozess, der nur einen
+   * 503 meldet, wird von niemandem neu gestartet: Docker reagiert auf das
+   * Prozess-Ende, nicht auf einen Healthcheck, und eine Liveness-Probe gibt es
+   * nur in Kubernetes. Also beendet er sich selbst; Neustart und Backoff
+   * uebernehmen `restart: unless-stopped` bzw. der kubelet (ADR-044).
+   *
+   * `close()` zuerst, damit der Shutdown derselbe geordnete Weg ist wie bei
+   * SIGTERM (Subscriber stoppen, Verbindungen schliessen).
+   */
+  const shutdownAsUnrecoverable = (): void => {
+    void fastify
+      .close()
+      .catch((err: unknown) =>
+        fastify.log.error({ err }, "Shutdown after fatal error failed"),
+      )
+      .finally(() => process.exit(1));
+  };
+
+  const onFatal = opts.onFatal ?? shutdownAsUnrecoverable;
 
   let messageHandler: MessageHandler | null = null;
   let isListening = false;
@@ -99,6 +126,7 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
           `Pub/Sub subscription "${subscriptionName}" is permanently unavailable (${fatalCode}). ` +
             "Provision it and restart the worker.",
         );
+        onFatal();
       });
 
       isListening = true;

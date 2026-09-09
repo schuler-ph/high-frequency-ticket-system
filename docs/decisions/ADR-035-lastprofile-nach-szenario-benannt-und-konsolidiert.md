@@ -60,11 +60,11 @@
   beweispflichtige Checks entfallen; die Erhaltungs-Invariante prüft das
   Inventar in jedem Fall.
 
-- **Nachtrag 2026-08-26 (viertes Profil `browse-and-buy-smoke`):** Baseline F
+- **Nachtrag 2026-08-26 (viertes Profil `smoke-test`):** Baseline F
   hat die lokale Kapazitätsfrage beantwortet (ein API-Core, ~9k it/s); Phase 5
   braucht kein Kapazitätsprofil mehr, sondern einen kleinen, schnellen Lauf,
   der in jeder Umgebung prüft, ob Metriken, Panels, Report und alle drei
-  Verdicts stimmen — genauer: ob sie **richtig zählen**. `browse-and-buy-smoke`
+  Verdicts stimmen — genauer: ob sie **richtig zählen**. `smoke-test`
   verkauft 1 000 Tickets ohne jede Störgröße: Verkauf sofort offen, keine
   Denkzeit, kein Cancel, kein Ablauf, jeder Checkout zahlt. Am Ende muss jeder
   Zähler exakt 1 000 zeigen, jede Abweichung ist eine Doppel- oder Fehlzählung

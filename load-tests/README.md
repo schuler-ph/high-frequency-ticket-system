@@ -177,7 +177,7 @@ menschliche Denkzeit). Die frueheren Profile `capacity`/`realism`/`checkout`/
   keine Denkzeit — jede Iteration geht direkt `buy`→`pay` und zahlt
   vollstaendig (`PAY_RATE=1`, `CANCEL_RATE=0`). Isoliert den Write-Pfad
   (Reserve + Publish + Worker-Persistenz) ohne die Read-Modelle im Mix.
-- **`browse-and-buy-smoke`** (Phase 5): 1.000 Tickets, Verkauf sofort offen,
+- **`smoke-test`** (Phase 5): 1.000 Tickets, Verkauf sofort offen,
   50 % Checkout, jeder Checkout zahlt — kein Unlock-Gate, kein Cancel, keine
   Denkzeit, kein Ablauf. In ~3 Minuten durch. Prueft, ob die Messkette
   **richtig zaehlt**: am Ende muessen `reservations_created`, `orders_accepted`,

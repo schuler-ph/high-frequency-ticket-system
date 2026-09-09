@@ -83,7 +83,7 @@ const SEED_VARIABLES = ["SEED_CAPACITY", "SALE_OPENS_IN_SECONDS"];
 const LOADTEST_PROFILES = new Set([
   "browse-and-buy-full-speed",
   "browse-and-buy-human-pace",
-  "browse-and-buy-smoke",
+  "smoke-test",
   "buy-only-full-speed",
 ]);
 

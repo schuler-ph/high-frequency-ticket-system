@@ -270,17 +270,19 @@ const main = async () => {
     eventId: EVENT_ID,
     // Lets the plateau detector tell a real sell-out from host contention.
     readAvailable: (eventId) => readAvailableTickets(eventId),
-    // Ablauf-Semantik statt Profilname: ist die Checkout-Deadline kurz genug,
-    // um innerhalb des Phase-A-Fensters (max ~990 s) abzulaufen, gibt der
-    // Reaper Ansprueche zurueck in den Verkauf — ein Stopp bei
-    // `available == 0` wuerde den Lauf dann mit unverkauftem Inventar beenden,
-    // also wartet er zusaetzlich auf den leeren Ledger. Bei langer Deadline
-    // (900 s) wuerde dieselbe Bedingung nie greifen und der Lauf ins
-    // 15-min-Sicherheitsnetz laufen.
-    readLedgerActive:
-      Number(requireEnv("CHECKOUT_PENDING_TIMEOUT_SECONDS")) <= 600
-        ? (eventId) => fetchLedgerActive(WORKER_METRICS, eventId)
-        : undefined,
+    // Immer gelesen: zusammen mit `available == 0` ist ein leerer Ledger der
+    // eindeutige Beleg, dass der Verkauf entschieden ist — dann bricht Phase A
+    // sofort ab, ohne erst ein Completion-Plateau abzuwarten.
+    readLedgerActive: (eventId) => fetchLedgerActive(WORKER_METRICS, eventId),
+    // Fuer die Plateau-Erkennung gilt weiter Ablauf-Semantik statt Profilname:
+    // ist die Checkout-Deadline kurz genug, um innerhalb des Phase-A-Fensters
+    // (max ~990 s) abzulaufen, gibt der Reaper Ansprueche zurueck in den
+    // Verkauf — ein Stopp bei `available == 0` wuerde den Lauf dann mit
+    // unverkauftem Inventar beenden. Bei langer Deadline (900 s) wuerde
+    // dieselbe Bedingung nie greifen und der Lauf ins 15-min-Sicherheitsnetz
+    // laufen.
+    plateauWaitsForEmptyLedger:
+      Number(requireEnv("CHECKOUT_PENDING_TIMEOUT_SECONDS")) <= 600,
     spawnPhase,
     requestStop,
     // k6-Konsole (Insufficient VUs, dial-Fehler, Thresholds) als Beleg.

@@ -330,6 +330,22 @@ export const fetchLedgerActive = async (
  * @param {number | null} [ledgerActive]
  * @returns {"sold-out" | "stalled" | "ledger-pending"}
  */
+/**
+ * Der Verkauf ist endgueltig entschieden: kein Ticket mehr verfuegbar UND kein
+ * Anspruch mehr offen. Dann kann nichts mehr passieren — es gibt nichts zu
+ * kaufen, und weil der Ledger leer ist, kann auch kein Reaper Inventar
+ * zuruecklegen. Weiterlaufen misst ab hier nur noch Leerlauf.
+ *
+ * Bewusst unabhaengig von der Plateau-Erkennung: die wartet erst ~9 s auf
+ * einen stehenden Completion-Zaehler, bevor sie ueberhaupt Inventar liest.
+ * Diese Bedingung ist dagegen sofort eindeutig.
+ *
+ * @param {number | null} available
+ * @param {number | null} ledgerActive
+ */
+export const isSaleSettled = (available, ledgerActive) =>
+  available === 0 && ledgerActive === 0;
+
 export const classifyPlateau = (available, ledgerActive = null) => {
   if (available !== 0) return "stalled";
   if (ledgerActive !== null && ledgerActive > 0) return "ledger-pending";
@@ -364,9 +380,18 @@ export const pollUntilSoldOut = async (
     confirmPolls = 3,
     readAvailable,
     readLedgerActive,
+    plateauWaitsForEmptyLedger = false,
     fetchImpl = fetch,
   },
 ) => {
+  const readOrNull = async (read) => {
+    if (!read) return null;
+    try {
+      return await read(eventId);
+    } catch {
+      return null;
+    }
+  };
   let childExited = false;
   exitPromise.then(() => {
     childExited = true;
@@ -385,6 +410,16 @@ export const pollUntilSoldOut = async (
     } catch {
       continue;
     }
+    // Schnellabbruch: ausverkauft und Ledger leer heisst, der Verkauf ist
+    // vorbei. Darauf muss niemand ein Plateau abwarten.
+    if (readAvailable && readLedgerActive) {
+      const available = await readOrNull(readAvailable);
+      const ledgerActive = await readOrNull(readLedgerActive);
+      if (isSaleSettled(available, ledgerActive)) {
+        return { stopped: true, reason: "sold-out", available, completed };
+      }
+    }
+
     if (completed === null) continue;
     if (baseline === null) {
       baseline = completed;
@@ -399,22 +434,10 @@ export const pollUntilSoldOut = async (
     last = completed;
 
     if (stalls >= confirmPolls) {
-      let available = null;
-      if (readAvailable) {
-        try {
-          available = await readAvailable(eventId);
-        } catch {
-          available = null;
-        }
-      }
-      let ledgerActive = null;
-      if (readLedgerActive) {
-        try {
-          ledgerActive = await readLedgerActive(eventId);
-        } catch {
-          ledgerActive = null;
-        }
-      }
+      const available = await readOrNull(readAvailable);
+      const ledgerActive = plateauWaitsForEmptyLedger
+        ? await readOrNull(readLedgerActive)
+        : null;
       // Without an inventory reading the plateau stays unclassified rather
       // than being asserted as a sell-out.
       const reason =
@@ -466,6 +489,7 @@ export const runPhaseAReactive = async ({
   confirmPolls,
   readAvailable,
   readLedgerActive,
+  plateauWaitsForEmptyLedger,
   gracefulStopTimeoutMs = 40_000,
   spawnPhase = spawnK6,
   requestStop,
@@ -485,6 +509,7 @@ export const runPhaseAReactive = async ({
     confirmPolls,
     readAvailable,
     readLedgerActive,
+    plateauWaitsForEmptyLedger,
     fetchImpl,
   });
 

@@ -70,6 +70,7 @@ void test("pubsub plugin decorates fastify with a publish method", async () => {
   await pubSubPlugin(fastify as never, {
     client: fakeClient,
     topicName: "buy-ticket",
+    onFatal: () => {},
   });
 
   const messageId = await fastify.pubsubPublisher.publishBuyTicket(
@@ -113,6 +114,7 @@ void test("a permanent publish failure marks the api unhealthy", async () => {
       publishError: Object.assign(new Error("Topic not found"), { code: 5 }),
     }),
     topicName: "buy-ticket",
+    onFatal: () => {},
   });
 
   await assert.rejects(() =>
@@ -132,6 +134,7 @@ void test("a transient publish failure leaves the api healthy", async () => {
       publishError: Object.assign(new Error("UNAVAILABLE"), { code: 14 }),
     }),
     topicName: "buy-ticket",
+    onFatal: () => {},
   });
 
   await assert.rejects(() =>
@@ -139,4 +142,46 @@ void test("a transient publish failure leaves the api healthy", async () => {
   );
 
   assert.equal(fastify.serviceHealth.fatalReason, null);
+});
+
+void test("a permanent publish failure shuts the api down so it gets restarted", async () => {
+  let fatalCalls = 0;
+  const fastify = createFakeFastify();
+  await pubSubPlugin(fastify as never, {
+    client: createTopicClient({
+      publishError: Object.assign(new Error("Topic not found"), { code: 5 }),
+    }),
+    topicName: "buy-ticket",
+    onFatal: () => {
+      fatalCalls += 1;
+    },
+  });
+
+  await assert.rejects(() =>
+    fastify.pubsubPublisher.publishBuyTicket({ orderId: "order-1" }),
+  );
+
+  // Ohne Topic reserviert /buy weiter Inventar, das keine Zahlung einloesen
+  // kann — der Prozess ist nicht "teilweise gesund", sondern kaputt.
+  assert.equal(fatalCalls, 1);
+});
+
+void test("a transient publish failure does not shut the api down", async () => {
+  let fatalCalls = 0;
+  const fastify = createFakeFastify();
+  await pubSubPlugin(fastify as never, {
+    client: createTopicClient({
+      publishError: Object.assign(new Error("UNAVAILABLE"), { code: 14 }),
+    }),
+    topicName: "buy-ticket",
+    onFatal: () => {
+      fatalCalls += 1;
+    },
+  });
+
+  await assert.rejects(() =>
+    fastify.pubsubPublisher.publishBuyTicket({ orderId: "order-1" }),
+  );
+
+  assert.equal(fatalCalls, 0);
 });

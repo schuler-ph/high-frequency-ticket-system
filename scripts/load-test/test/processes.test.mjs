@@ -6,6 +6,7 @@ import {
   buildK6Args,
   buildRemoteK6Args,
   classifyPlateau,
+  isSaleSettled,
   fetchCompletedCount,
   isExpectedK6Exit,
   K6_SCRIPT_ENV_KEYS,
@@ -402,4 +403,73 @@ test("an unreadable inventory leaves the plateau unclassified (stalled)", async 
   });
   assert.equal(result.reason, "stalled");
   assert.equal(result.available, null);
+});
+
+test("isSaleSettled only holds when nothing is left to sell and nothing is claimed", () => {
+  assert.equal(isSaleSettled(0, 0), true);
+  // Ansprueche offen: ein gereapter geht zurueck in den Verkauf.
+  assert.equal(isSaleSettled(0, 3), false);
+  assert.equal(isSaleSettled(500, 0), false);
+  // Ohne Messwert wird nichts behauptet.
+  assert.equal(isSaleSettled(null, 0), false);
+  assert.equal(isSaleSettled(0, null), false);
+});
+
+test("phase A stops immediately once sold out with an empty ledger", async () => {
+  const never = new Promise(() => {});
+  let polls = 0;
+  const result = await pollUntilSoldOut(never, {
+    metricsUrl: "http://x/metrics",
+    eventId: "e-1",
+    pollIntervalMs: 1,
+    // Ein Plateau braeuchte mindestens 5 Polls; der Schnellabbruch greift beim
+    // ersten, weil die Endbedingung schon eindeutig ist.
+    confirmPolls: 3,
+    readAvailable: async () => {
+      polls += 1;
+      return 0;
+    },
+    readLedgerActive: async () => 0,
+    fetchImpl: metricsSequence([1, 2, 3, 4, 5, 6, 7, 8]),
+  });
+
+  assert.equal(result.stopped, true);
+  assert.equal(result.reason, "sold-out");
+  assert.equal(result.available, 0);
+  assert.equal(polls, 1, "der Verkauf war nach dem ersten Poll entschieden");
+});
+
+test("a still-filled ledger does not trigger the fast stop", async () => {
+  const never = new Promise(() => {});
+  const result = await pollUntilSoldOut(never, {
+    metricsUrl: "http://x/metrics",
+    eventId: "e-1",
+    pollIntervalMs: 1,
+    confirmPolls: 2,
+    readAvailable: async () => 0,
+    readLedgerActive: async () => 7,
+    // Ledger voll -> kein Schnellabbruch; ohne
+    // `plateauWaitsForEmptyLedger` bleibt der Plateau-Pfad wie bisher.
+    plateauWaitsForEmptyLedger: false,
+    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+  });
+
+  assert.equal(result.reason, "sold-out");
+});
+
+test("with a short checkout deadline the plateau still waits for the ledger", async () => {
+  const exit = new Promise((resolve) => setTimeout(() => resolve(0), 60));
+  const result = await pollUntilSoldOut(exit, {
+    metricsUrl: "http://x/metrics",
+    eventId: "e-1",
+    pollIntervalMs: 1,
+    confirmPolls: 2,
+    readAvailable: async () => 0,
+    readLedgerActive: async () => 7,
+    plateauWaitsForEmptyLedger: true,
+    fetchImpl: metricsSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
+  });
+
+  // Der Lauf darf nicht als Sell-out enden, solange Ansprueche offen sind.
+  assert.equal(result.reason, "k6-exited");
 });

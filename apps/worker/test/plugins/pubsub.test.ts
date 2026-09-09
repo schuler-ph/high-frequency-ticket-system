@@ -145,6 +145,7 @@ void test("pubsub subscriber plugin decorates fastify with subscriber methods", 
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
   });
 
   assert.ok(fastify.pubsubSubscriber);
@@ -162,6 +163,7 @@ void test("pubsub subscriber processes messages through registered handler", asy
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
   });
 
   const receivedMessages: unknown[] = [];
@@ -193,6 +195,7 @@ void test("pubsub subscriber nacks messages when handler throws", async () => {
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
   });
 
   fastify.pubsubSubscriber.onMessage(async () => {
@@ -226,6 +229,7 @@ void test("a permanent subscription error marks the worker unhealthy", async () 
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
   });
   fastify.pubsubSubscriber.start();
 
@@ -250,6 +254,7 @@ void test("a transient subscription error leaves the worker healthy", async () =
   await pubSubSubscriberPlugin(fastify as never, {
     client: fakeClient,
     subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
   });
   fastify.pubsubSubscriber.start();
 
@@ -260,4 +265,52 @@ void test("a transient subscription error leaves the worker healthy", async () =
   );
 
   assert.equal(fastify.serviceHealth.fatalReason, null);
+});
+
+void test("a permanent subscription error shuts the worker down so it gets restarted", async () => {
+  let fatalCalls = 0;
+  const listeners = createListenerRegistry();
+  const fakeClient = createClientMock(createSubscriptionMock(listeners));
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: fakeClient,
+    subscriptionName: "buy-ticket-worker",
+    onFatal: () => {
+      fatalCalls += 1;
+    },
+  });
+  fastify.pubsubSubscriber.start();
+
+  await deliverError(
+    listeners,
+    Object.assign(new Error("Subscription does not exist"), { code: 5 }),
+  );
+
+  // Nur das Prozess-Ende loest einen Neustart aus — Docker reagiert nicht auf
+  // Healthchecks, und lokal gibt es keine Liveness-Probe (ADR-044).
+  assert.equal(fatalCalls, 1);
+});
+
+void test("a transient subscription error does not shut the worker down", async () => {
+  let fatalCalls = 0;
+  const listeners = createListenerRegistry();
+  const fakeClient = createClientMock(createSubscriptionMock(listeners));
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: fakeClient,
+    subscriptionName: "buy-ticket-worker",
+    onFatal: () => {
+      fatalCalls += 1;
+    },
+  });
+  fastify.pubsubSubscriber.start();
+
+  await deliverError(
+    listeners,
+    Object.assign(new Error("503 UNAVAILABLE"), { code: 14 }),
+  );
+
+  assert.equal(fatalCalls, 0);
 });

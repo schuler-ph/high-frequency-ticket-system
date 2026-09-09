@@ -19,6 +19,12 @@ export interface PubSubPublisher {
 export interface PubSubPluginOptions {
   client?: PubSub;
   topicName?: string;
+  /**
+   * Reaktion auf einen dauerhaften Publish-Fehler. Default: sauber
+   * herunterfahren und mit Exit-Code 1 beenden (ADR-044). Tests reichen hier
+   * eine Attrappe herein, damit sie nicht den Testrunner beenden.
+   */
+  onFatal?: () => void;
 }
 
 // Topic-Provisioning lebt in scripts/local/reset-seed.mjs (Emulator-REST),
@@ -42,6 +48,25 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
   const topicName = opts.topicName ?? env.PUBSUB_TOPIC_BUY_TICKET;
   const topic = client.topic(topicName);
 
+  /**
+   * Ohne Topic ist der Kauf-Funnel tot: `/buy` reserviert weiter, aber jede
+   * Zahlung scheitert — die API haelt dann Inventar fest, das niemand
+   * einloesen kann. Ein Prozess, der nur 503 meldet, wird von niemandem neu
+   * gestartet: Docker reagiert auf das Prozess-Ende, nicht auf einen
+   * Healthcheck. Also beendet er sich selbst; Neustart und Backoff uebernehmen
+   * `restart: unless-stopped` bzw. der kubelet (ADR-044).
+   */
+  const shutdownAsUnrecoverable = (): void => {
+    void fastify
+      .close()
+      .catch((err: unknown) =>
+        fastify.log.error({ err }, "Shutdown after fatal error failed"),
+      )
+      .finally(() => process.exit(1));
+  };
+
+  const onFatal = opts.onFatal ?? shutdownAsUnrecoverable;
+
   fastify.decorate("pubsubPublisher", {
     async publishBuyTicket(payload: unknown, attributes?: PubSubAttributes) {
       try {
@@ -60,6 +85,7 @@ export const pubSubPlugin: FastifyPluginAsync<PubSubPluginOptions> = async (
             `Pub/Sub topic "${topicName}" is permanently unavailable (${fatalCode}). ` +
               "Provision it and restart the API.",
           );
+          onFatal();
         }
         throw err;
       }

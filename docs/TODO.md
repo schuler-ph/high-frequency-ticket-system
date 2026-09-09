@@ -138,6 +138,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Web ist konfigurationsfrei (2026-09-08):** API same origin, Event-Id als Konstante; `vite build` braucht kein Profil. Setzt eine `/api/`-Proxy-Regel voraus. → ADR-043
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
 - [x] **Arbeitsunfaehigkeit meldet 503 (2026-09-09):** API und Worker markieren dauerhafte Pub/Sub-Fehler; `/health` antwortet 503 mit Grund. Liveness-Probe muss darauf zeigen. → ADR-044
+- [x] **Smoke-Profil umbenannt und Schnellabbruch (2026-09-09):** `browse-and-buy-smoke` heisst jetzt `smoke-test`; Phase A stoppt sofort, wenn ausverkauft und Ledger leer. → ADR-025 Nachtrag
 - [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
 
 ### Phase 5.2 — Multi-Replica-Korrektheit lokal
@@ -150,7 +151,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 - [ ] **Zugriffspfade abstrahieren** (Snapshots, Preflight, Reset/Seed, TSDB-Wipe, Sold-out-Quelle ADR-025); eigener ADR.
 - [ ] **Aggregation bei N Instanzen fixen:** `targetUp`/Erst-Serie-Queries, `sum()` ueber replizierte Gauges (REQ-D04).
-- [ ] **Smoke-Profil `browse-and-buy-smoke` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig (alle Zaehler exakt 1 000)? Erst lokal, dann in jeder Cloud-Stufe. Lauf nur mit Freigabe. → ADR-035 Nachtrag
+- [ ] **Smoke-Profil `smoke-test` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig (alle Zaehler exakt 1 000)? Erst lokal, dann in jeder Cloud-Stufe. Lauf nur mit Freigabe. → ADR-035 Nachtrag
 
 ### Phase 5.4 — Cloud-Fundament
 
