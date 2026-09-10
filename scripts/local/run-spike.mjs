@@ -37,7 +37,7 @@ const k6Env = {
  */
 const spawnK6 = (scriptPath) => {
   // Prometheus-Remote-Write ist bewusst opt-in (`K6_PROMETHEUS_RW=true`): die
-  // `{endpoint,status}`-Tags pro Iteration trieben `hts-prometheus` in Baseline B
+  // `{endpoint,status}`-Tags pro Iteration trieben `hfts-prometheus` in Baseline B
   // auf 5,5 GiB, bis es mit `503` antwortete — und nahmen damit genau die
   // Health-/Peak-Auswertung mit, die der Report braucht (Report §4.1).
   const args = ["run"];

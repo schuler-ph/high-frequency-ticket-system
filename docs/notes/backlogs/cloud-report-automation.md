@@ -12,11 +12,11 @@ dort fuer alle Cloud-Sub-Phasen weiter.
 
 ### State-Snapshots gegen Cloud SQL und Memorystore
 
-> - [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `scripts/load-test/lib/snapshots.mjs` ist auf `docker exec hts-postgres psql` bzw. `docker exec hts-redis redis-cli` **hart verdrahtet** (Konstanten `POSTGRES_CONTAINER`/`REDIS_CONTAINER`). Gegen Cloud SQL und Memorystore gibt es diese Container nicht — `snapshotPostgres`/`snapshotRedis`/`readAvailableTickets` liefern dort gar nichts. Braucht einen austauschbaren Zugriffspfad (echte Verbindung via `@repo/db`-Pool bzw. Redis-Client statt Container-CLI), damit derselbe pure Analyzer beide Umgebungen bedienen kann.
+> - [ ] **State-Snapshots gegen Cloud SQL / Memorystore:** `scripts/load-test/lib/snapshots.mjs` ist auf `docker exec hfts-postgres psql` bzw. `docker exec hfts-redis redis-cli` **hart verdrahtet** (Konstanten `POSTGRES_CONTAINER`/`REDIS_CONTAINER`). Gegen Cloud SQL und Memorystore gibt es diese Container nicht — `snapshotPostgres`/`snapshotRedis`/`readAvailableTickets` liefern dort gar nichts. Braucht einen austauschbaren Zugriffspfad (echte Verbindung via `@repo/db`-Pool bzw. Redis-Client statt Container-CLI), damit derselbe pure Analyzer beide Umgebungen bedienen kann.
 
 ### Preflight umgebungsabhaengig machen
 
-> - [ ] **Preflight umgebungsabhaengig machen:** `preflight()` in `scripts/load-test/lib/config.mjs` verlangt per Default die laufenden Container `hts-postgres`/`hts-redis`/`hts-pubsub` und bricht in einem Cloud-Lauf sofort ab. Die Signatur nimmt `requiredContainers` bereits als Option — es fehlt ein Cloud-Profil, das stattdessen Erreichbarkeit/Health der echten Endpunkte prueft.
+> - [ ] **Preflight umgebungsabhaengig machen:** `preflight()` in `scripts/load-test/lib/config.mjs` verlangt per Default die laufenden Container `hfts-postgres`/`hfts-redis`/`hfts-pubsub` und bricht in einem Cloud-Lauf sofort ab. Die Signatur nimmt `requiredContainers` bereits als Option — es fehlt ein Cloud-Profil, das stattdessen Erreichbarkeit/Health der echten Endpunkte prueft.
 
 ### Seed-Pfad fuer die Cloud
 

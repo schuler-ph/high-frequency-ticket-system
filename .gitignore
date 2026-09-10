@@ -8,7 +8,7 @@ node_modules
 # Local env files
 #
 # Die eigentliche Konfiguration liegt eingecheckt in `packages/env/profiles/*.env` und
-# wird ueber HTS_ENV_PROFILE gewaehlt (ADR-034). Die Werte sind lokale
+# wird ueber HFTS_ENV gewaehlt (ADR-034). Die Werte sind lokale
 # Container-Zugangsdaten, keine Geheimnisse. Was hier steht, sind nur die
 # Reste des alten Mechanismus — falls jemand noch eine lokale .env liegen hat,
 # soll sie nicht ins Repo wandern.

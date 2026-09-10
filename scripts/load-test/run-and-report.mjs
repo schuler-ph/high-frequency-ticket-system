@@ -72,7 +72,7 @@ const REMOTE =
         sshHost: requireEnv("K6_SSH_HOST", "z.B. loadgen bzw. user@<pc-ip>"),
         remoteDir: requireEnv(
           "K6_REMOTE_DIR",
-          "Repo-Klon auf dem Generator-Host, Pfad ohne Leerzeichen, z.B. C:/hts",
+          "Repo-Klon auf dem Generator-Host, Pfad ohne Leerzeichen, z.B. C:/hfts",
         ),
         restUrl: requireEnv(
           "K6_REST_URL",
@@ -421,7 +421,7 @@ const main = async () => {
         `[spike:report] Grafana export skipped: ${error instanceof Error ? error.message : error}`,
       );
       console.warn(
-        "[spike:report]   Renderer running? `docker compose up -d renderer` (hts-grafana-renderer). Nachtraeglich: `pnpm spike:graphs`.",
+        "[spike:report]   Renderer running? `docker compose up -d renderer` (hfts-grafana-renderer). Nachtraeglich: `pnpm spike:graphs`.",
       );
     }
   }

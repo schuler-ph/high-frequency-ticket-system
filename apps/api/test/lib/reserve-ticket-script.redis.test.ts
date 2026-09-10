@@ -10,7 +10,7 @@ import {
 } from "../../src/lib/redis-scripts.ts";
 
 // Integrationstest: fuehrt das echte RESERVE_TICKET_SCRIPT gegen den lokalen
-// `hts-redis`-Container aus (ADR-024-Follow-up). Die Unit-Tests in
+// `hfts-redis`-Container aus (ADR-024-Follow-up). Die Unit-Tests in
 // tickets.buy.test.ts mocken nur den `-2`/`-1`-Rueckgabewert; hier verifizieren
 // wir das tatsaechliche Lua-Verhalten des Sale-Unlock-Gates inkl. der
 // Nebeneffekte (DECR/ZADD/SET) — und beweisen, dass die beiden Fehlerpfade

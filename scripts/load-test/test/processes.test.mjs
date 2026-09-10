@@ -114,19 +114,19 @@ const remoteEnv = () => ({
   K6_PREALLOCATED_VUS: "200",
   K6_COOLDOWN_RATE: "1000",
   K6_COOLDOWN_MAX_VUS: "5000",
-  HTS_ENV_PROFILE: "capacity",
+  HFTS_ENV: "capacity",
 });
 
 test("buildRemoteK6Args passes every set contract key as -e flag", () => {
   const env = remoteEnv();
-  const args = buildRemoteK6Args("C:/hts/load-tests/spike-phase-a.js", {
+  const args = buildRemoteK6Args("C:/hfts/load-tests/spike-phase-a.js", {
     runId: "r1",
-    summaryPath: "C:/hts/artifacts/phase-a-summary.json",
+    summaryPath: "C:/hfts/artifacts/phase-a-summary.json",
     restAddress: "0.0.0.0:6565",
     env,
   });
   assert.deepEqual(args.slice(0, 3), ["run", "--address", "0.0.0.0:6565"]);
-  assert.equal(args.at(-1), "C:/hts/load-tests/spike-phase-a.js");
+  assert.equal(args.at(-1), "C:/hfts/load-tests/spike-phase-a.js");
   assert.ok(!args.includes("--out"), "remote-write darf nie mitfahren");
   for (const [key, value] of Object.entries(env)) {
     const flagIndex = args.indexOf(`${key}=${value}`);
@@ -140,10 +140,10 @@ test("buildRemoteK6Args skips unset keys instead of sending empty values", () =>
     runId: "r1",
     summaryPath: "s.json",
     restAddress: "0.0.0.0:6565",
-    env: { BASE_URL: "http://x", HTS_ENV_PROFILE: "" },
+    env: { BASE_URL: "http://x", HFTS_ENV: "" },
   });
   assert.ok(args.includes("BASE_URL=http://x"));
-  assert.ok(!args.some((a) => a.startsWith("HTS_ENV_PROFILE=")));
+  assert.ok(!args.some((a) => a.startsWith("HFTS_ENV=")));
 });
 
 test("spawnK6Ssh runs k6 on the ssh host and passes the exit code through", async () => {
@@ -154,9 +154,9 @@ test("spawnK6Ssh runs k6 on the ssh host and passes the exit code through", asyn
       this.handlers[event] = cb;
     },
   };
-  const { exitPromise } = spawnK6Ssh("C:/hts/load-tests/spike-phase-a.js", {
+  const { exitPromise } = spawnK6Ssh("C:/hfts/load-tests/spike-phase-a.js", {
     runId: "r1",
-    summaryPath: "C:/hts/summary.json",
+    summaryPath: "C:/hfts/summary.json",
     restAddress: "0.0.0.0:6565",
     env: { BASE_URL: "http://x" },
     sshHost: "loadgen",
@@ -167,7 +167,7 @@ test("spawnK6Ssh runs k6 on the ssh host and passes the exit code through", asyn
   });
   assert.equal(calls[0].cmd, "ssh");
   assert.deepEqual(calls[0].args.slice(0, 2), ["loadgen", "k6"]);
-  assert.equal(calls[0].args.at(-1), "C:/hts/load-tests/spike-phase-a.js");
+  assert.equal(calls[0].args.at(-1), "C:/hfts/load-tests/spike-phase-a.js");
   fakeChild.handlers.exit(105);
   assert.equal(await exitPromise, 105);
 });
@@ -182,7 +182,7 @@ test("spawnK6Ssh mirrors k6 stdout/stderr into the log file when logPath is set"
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const logPath = join(
-    mkdtempSync(join(tmpdir(), "hts-k6-log-")),
+    mkdtempSync(join(tmpdir(), "hfts-k6-log-")),
     "phase-a.log",
   );
 
@@ -194,9 +194,9 @@ test("spawnK6Ssh mirrors k6 stdout/stderr into the log file when logPath is set"
       this.handlers[event] = cb;
     },
   };
-  const { exitPromise } = spawnK6Ssh("C:/hts/load-tests/spike-phase-a.js", {
+  const { exitPromise } = spawnK6Ssh("C:/hfts/load-tests/spike-phase-a.js", {
     runId: "r1",
-    summaryPath: "C:/hts/summary.json",
+    summaryPath: "C:/hfts/summary.json",
     restAddress: "0.0.0.0:6565",
     env: { BASE_URL: "http://x" },
     sshHost: "loadgen",

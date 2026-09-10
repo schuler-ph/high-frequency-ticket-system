@@ -36,7 +36,7 @@
      stillschweigend wieder aus dem Image werfen — genau der Fehler, den
      dieser ADR beseitigt, nur schwerer zu finden. `apps/api` hat ein solches
      Feld (`files: ["dist"]`); für `@repo/env` ist es verboten.
-  4. **Die Profil-Auswahl bleibt unverändert.** `HTS_ENV_PROFILE` ohne
+  4. **Die Profil-Auswahl bleibt unverändert.** `HFTS_ENV` ohne
      Default, eine Datei pro Profil, keine Vererbung, `override: false`,
      `pnpm run debug:env` prüft Vollständigkeit. Dieser ADR verschiebt einen
      Ort, keine Regel.
@@ -64,7 +64,7 @@
     Profile weiterhin von ihrem Loader. Kein Gewinn gegenüber einem
     Unterordner.
   - **Profile ins Image backen statt zur Laufzeit wählen** (ein Profil pro
-    Build): macht `HTS_ENV_PROFILE` zum Build-Argument und den Profilwechsel
+    Build): macht `HFTS_ENV` zum Build-Argument und den Profilwechsel
     zum Rebuild. ADR-040 Entscheidung 3 hat das bewusst verworfen.
 - **Konsequenzen:**
   - Der Loader ist auf `new URL("../profiles/", import.meta.url)` verkürzt;

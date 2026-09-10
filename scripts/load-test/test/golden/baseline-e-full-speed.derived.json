@@ -14,7 +14,7 @@
     "memoryBytes": 38654705664
   },
   "configuration": {
-    "HTS_ENV_PROFILE": "browse-and-buy-full-speed",
+    "HFTS_ENV": "browse-and-buy-full-speed",
     "NODE_ENV": "production",
     "LOG_LEVEL": "warn",
     "DISABLE_REQUEST_LOGGING": "true",

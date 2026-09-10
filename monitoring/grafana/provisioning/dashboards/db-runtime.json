@@ -587,7 +587,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "database", "runtime"],
+  "tags": ["hfts", "database", "runtime"],
   "templating": {
     "list": [
       {
@@ -609,6 +609,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "DB & Runtime",
-  "uid": "hts-db-runtime",
+  "uid": "hfts-db-runtime",
   "version": 1
 }

@@ -4,7 +4,7 @@
  *
  * Diese Skripte laden ihr Profil ueber `node --env-file=packages/env/profiles/$X.env` und
  * nicht ueber `@repo/env` — sie sollen ohne Build laufen. Ohne diesen Guard
- * meldet Node bei fehlendem `HTS_ENV_PROFILE` nur `packages/env/profiles/.env: not found`,
+ * meldet Node bei fehlendem `HFTS_ENV` nur `packages/env/profiles/.env: not found`,
  * was die Ursache verschweigt. Hier steht stattdessen, was fehlt und was es
  * gibt (ADR-034).
  */
@@ -26,12 +26,12 @@ const available = () => {
   }
 };
 
-const profile = process.env.HTS_ENV_PROFILE;
+const profile = process.env.HFTS_ENV;
 
 if (profile === undefined || profile.trim() === "") {
   console.error(
-    `[env] HTS_ENV_PROFILE ist nicht gesetzt. Verfuegbare Profile: ${available()}.\n` +
-      `[env] Beispiel: HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report`,
+    `[env] HFTS_ENV ist nicht gesetzt. Verfuegbare Profile: ${available()}.\n` +
+      `[env] Beispiel: HFTS_ENV=browse-and-buy-full-speed pnpm spike:report`,
   );
   process.exit(1);
 }

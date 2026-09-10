@@ -5,7 +5,7 @@ import { loadEnvProfile } from "./load-profile.ts";
 /**
  * Die geladene Profil-Datei bestimmt die gesamte Konfiguration. Es gibt keine
  * `.env` mehr und keinen impliziten Fallback — welches Profil laeuft, steht in
- * `HTS_ENV_PROFILE` und ist damit auch im Report ablesbar.
+ * `HFTS_ENV` und ist damit auch im Report ablesbar.
  */
 export const ENV_PROFILE = loadEnvProfile();
 

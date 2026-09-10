@@ -33,7 +33,7 @@ const K6_EXTERNAL_ABORT_EXIT_CODE = 105;
  * gleicht die Liste gegen die `requireEnv`-Aufrufe im Skript ab, damit ein
  * neuer Skript-Knopf hier nicht still fehlt.
  *
- * `HTS_ENV_PROFILE` ist im Skript optional (nur Fehlermeldungs-Kontext),
+ * `HFTS_ENV` ist im Skript optional (nur Fehlermeldungs-Kontext),
  * gehoert aber dazu, damit Remote-Fehlermeldungen das Profil nennen.
  */
 export const K6_SCRIPT_ENV_KEYS = [
@@ -59,7 +59,7 @@ export const K6_SCRIPT_ENV_KEYS = [
   "K6_PREALLOCATED_VUS",
   "K6_COOLDOWN_RATE",
   "K6_COOLDOWN_MAX_VUS",
-  "HTS_ENV_PROFILE",
+  "HFTS_ENV",
 ];
 
 /**
@@ -70,7 +70,7 @@ export const K6_SCRIPT_ENV_KEYS = [
  * report at all — every PromQL query in `load-tests/report-queries.json` targets
  * `job="api"`/`job="worker"`, never a `k6_*` series. It exists purely to watch
  * Grafana live during a run, and at capacity volume it is actively harmful: the
- * per-iteration `{endpoint,status}` tags drove `hts-prometheus` to 5.5 GiB during
+ * per-iteration `{endpoint,status}` tags drove `hfts-prometheus` to 5.5 GiB during
  * Baseline B until it answered `503`, which cost that run its `apiUp`/`workerUp`
  * health facts and both peak-throughput range queries — i.e. it destroyed the
  * data the report does need (report §4.1). Opt in with `K6_PROMETHEUS_RW=true`

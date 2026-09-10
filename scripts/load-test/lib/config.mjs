@@ -68,9 +68,9 @@ export const getHostInfo = () => ({
 export const preflight = (opts = {}) => {
   const requiredCommands = opts.requiredCommands ?? ["node", "pnpm", "k6"];
   const requiredContainers = opts.requiredContainers ?? [
-    "hts-postgres",
-    "hts-redis",
-    "hts-pubsub",
+    "hfts-postgres",
+    "hfts-redis",
+    "hfts-pubsub",
   ];
   const problems = [];
 

@@ -300,7 +300,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "worker", "reliability"],
+  "tags": ["hfts", "worker", "reliability"],
   "templating": {
     "list": [
       {
@@ -322,6 +322,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Worker Reliability",
-  "uid": "hts-worker-reliability",
+  "uid": "hfts-worker-reliability",
   "version": 1
 }

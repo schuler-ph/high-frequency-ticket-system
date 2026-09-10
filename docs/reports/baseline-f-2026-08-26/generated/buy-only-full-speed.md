@@ -13,7 +13,7 @@
   - `DATABASE_POOL_CONNECTION_TIMEOUT_MS` = `5000`
   - `DATABASE_POOL_MAX` = `50`
   - `DISABLE_REQUEST_LOGGING` = `true`
-  - `HTS_ENV_PROFILE` = `buy-only-full-speed`
+  - `HFTS_ENV` = `buy-only-full-speed`
   - `K6_COOLDOWN_MAX_VUS` = `5000`
   - `K6_COOLDOWN_RATE` = `1000`
   - `K6_MAX_VUS` = `10000`

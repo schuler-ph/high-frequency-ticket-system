@@ -10,8 +10,8 @@
 
 import { execFileSync } from "node:child_process";
 
-const POSTGRES_CONTAINER = "hts-postgres";
-const REDIS_CONTAINER = "hts-redis";
+const POSTGRES_CONTAINER = "hfts-postgres";
+const REDIS_CONTAINER = "hfts-redis";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 

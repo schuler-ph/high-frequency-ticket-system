@@ -73,7 +73,7 @@ function requireEnv(name) {
   if (value === undefined || value === "") {
     throw new Error(
       `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (packages/env/profiles/<profil>.env). Aktuelles Profil: ${
-        __ENV.HTS_ENV_PROFILE || "(keins)"
+        __ENV.HFTS_ENV || "(keins)"
       }`,
     );
   }

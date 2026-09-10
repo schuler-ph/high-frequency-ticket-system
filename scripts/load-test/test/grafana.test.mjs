@@ -85,7 +85,7 @@ test("buildRenderUrl targets d-solo and pins the datasource variable", () => {
   const url = new URL(
     buildRenderUrl({
       baseUrl: "http://localhost:10008/",
-      uid: "hts-api-performance",
+      uid: "hfts-api-performance",
       slug: "api-performance",
       panelId: 2,
       from: "100",
@@ -98,7 +98,7 @@ test("buildRenderUrl targets d-solo and pins the datasource variable", () => {
       datasourceUid: "prom-uid",
     }),
   );
-  assert.equal(url.pathname, "/render/d-solo/hts-api-performance/api-performance");
+  assert.equal(url.pathname, "/render/d-solo/hfts-api-performance/api-performance");
   assert.equal(url.searchParams.get("panelId"), "2");
   assert.equal(url.searchParams.get("from"), "100");
   assert.equal(url.searchParams.get("tz"), "Europe/Vienna");
@@ -133,7 +133,7 @@ test("renderIndexMarkdown is deterministic and marks failed panels", () => {
     dashboards: [
       {
         title: "API Performance",
-        uid: "hts-api-performance",
+        uid: "hfts-api-performance",
         panels: [
           { title: "Request Rate (RPS)", file: "api-performance/01-request-rate-rps.png", error: null },
           { title: "Broken", file: "api-performance/02-broken.png", error: "render -> 500" },

@@ -5,7 +5,7 @@ import { config, parse } from "dotenv";
 /**
  * Laedt genau eine Profil-Datei aus `packages/env/profiles/`.
  *
- * Das Profil kommt aus `HTS_ENV_PROFILE` und hat bewusst keinen Default: ein
+ * Das Profil kommt aus `HFTS_ENV` und hat bewusst keinen Default: ein
  * stillschweigend gewaehltes Profil ist genau die Klasse von Fehler, die dieser
  * Umbau beseitigt — ein Lasttest, der versehentlich mit Dev-Werten laeuft, ist
  * schlimmer als einer, der gar nicht startet.
@@ -36,15 +36,15 @@ const availableProfiles = (): string[] => {
   }
 };
 
-/** Profil aus `HTS_ENV_PROFILE` aufloesen und die Datei pruefen. */
+/** Profil aus `HFTS_ENV` aufloesen und die Datei pruefen. */
 const resolveProfileFile = (): { profile: string; file: string } => {
-  const profile = process.env.HTS_ENV_PROFILE;
+  const profile = process.env.HFTS_ENV;
 
   if (profile === undefined || profile.trim() === "") {
     throw new Error(
-      `HTS_ENV_PROFILE ist nicht gesetzt. Verfuegbare Profile: ${
+      `HFTS_ENV ist nicht gesetzt. Verfuegbare Profile: ${
         availableProfiles().join(", ") || "(keine gefunden)"
-      }. Beispiel: HTS_ENV_PROFILE=dev pnpm dev`,
+      }. Beispiel: HFTS_ENV=dev pnpm dev`,
     );
   }
 

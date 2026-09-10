@@ -16,7 +16,7 @@ export const MANIFEST_SCHEMA_VERSION = 1;
 export const CONFIG_ALLOWLIST = [
   // Seit ADR-034 die wichtigste Zeile im Manifest: sie beantwortet die Frage
   // "mit welcher Konfiguration lief das?" mit einem Wort.
-  "HTS_ENV_PROFILE",
+  "HFTS_ENV",
   "NODE_ENV",
   "LOG_LEVEL",
   "DISABLE_REQUEST_LOGGING",

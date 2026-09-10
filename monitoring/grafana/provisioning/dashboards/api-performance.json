@@ -349,7 +349,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "api"],
+  "tags": ["hfts", "api"],
   "templating": {
     "list": [
       {
@@ -371,6 +371,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "API Performance",
-  "uid": "hts-api-performance",
+  "uid": "hfts-api-performance",
   "version": 1
 }

@@ -84,6 +84,6 @@ pnpm verify:quick
 pnpm verify:all
 ```
 
-Vor `pnpm test`, `pnpm dev` oder Live-Checks müssen `hts-postgres`,
-`hts-redis` und `hts-pubsub` laufen. Mit `docker compose ps` prüfen und bei
+Vor `pnpm test`, `pnpm dev` oder Live-Checks müssen `hfts-postgres`,
+`hfts-redis` und `hfts-pubsub` laufen. Mit `docker compose ps` prüfen und bei
 Bedarf `docker compose up -d` starten.

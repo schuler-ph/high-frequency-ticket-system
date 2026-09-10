@@ -7,7 +7,7 @@
 
 Run-ID: `2026-08-17T19-36-50-348Z-8feefc9`
 Commit: `8feefc9` (`main`)
-Kommando: `K6_RUNNER=ssh K6_SSH_HOST=schul@10.0.0.2 K6_REMOTE_DIR=C:/hts K6_REST_URL=http://10.0.0.2:6565 BASE_URL=http://10.0.0.1:10002 HTS_ENV_PROFILE=capacity pnpm spike:report`
+Kommando: `K6_RUNNER=ssh K6_SSH_HOST=schul@10.0.0.2 K6_REMOTE_DIR=C:/hfts K6_REST_URL=http://10.0.0.2:6565 BASE_URL=http://10.0.0.1:10002 HFTS_ENV=capacity pnpm spike:report`
 Rohartefakte: [`artifacts/`](./artifacts/) (lokal, gitignoriert) · deterministischer Report: [`artifacts/generated-report.md`](./artifacts/generated-report.md)
 
 ---

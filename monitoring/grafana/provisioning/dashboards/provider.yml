@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: hts
+  - name: hfts
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

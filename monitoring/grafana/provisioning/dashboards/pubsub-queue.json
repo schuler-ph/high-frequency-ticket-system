@@ -227,7 +227,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "pubsub", "queue"],
+  "tags": ["hfts", "pubsub", "queue"],
   "templating": {
     "list": [
       {
@@ -249,6 +249,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Pub/Sub Queue & Worker Processing",
-  "uid": "hts-pubsub-queue",
+  "uid": "hfts-pubsub-queue",
   "version": 1
 }

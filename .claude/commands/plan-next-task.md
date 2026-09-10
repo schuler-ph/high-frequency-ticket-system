@@ -1,1 +1,41 @@
-../../.agents/skills/plan-next-task/SKILL.md
+---
+name: plan-next-task
+description: Analysiert `todo.md`, plant die nächste kleine Aufgabe und aktualisiert die Dokumentation
+---
+
+Nutze diesen Workflow jedes Mal, wenn du eine neue Entwicklungs-Session mit dem KI-Agenten startest.
+
+1. **Kontext progressiv aufbauen:**
+   - Lies `docs/TODO.md`, um offene und in Arbeit befindliche Tasks zu analysieren.
+   - Lies die vom Kandidaten-Todo direkt verlinkten Details.
+   - Nutze `docs/DOCS.md` als Router. Lade aus `docs/REQUIREMENTS.md` und
+     `docs/ARCHITECTURE.md` nur die betroffenen Abschnitte.
+   - Suche Entscheidungen zuerst im Index `docs/DECISIONS.md` und lies nur
+     relevante Einzel-ADRs unter `docs/decisions/`.
+
+2. **Aufgabe identifizieren & klein halten:**
+   - Wähle das nächste offene Feature oder den nächsten offenen Bugfix aus `docs/TODO.md`.
+   - WICHTIG: Die auszuführende Änderung muss **klein und atomar** sein, damit sie schnell und sicher reviewt werden kann.
+   - Sollte das nächste TODO zu groß sein, brich es in mehrere kleine, schnell machbare Teilaufgaben herunter.
+
+3. **Dokumentation proaktiv anpassen:**
+   - Sobald absehbar ist, dass für diese Aufgabe neue Design-Patterns, Bibliotheken oder Architekturänderungen nötig werden:
+     - Dokumentiere neue Architektur-Entscheidungen als eigene Datei unter
+       `docs/decisions/` und verlinke sie in `docs/DECISIONS.md`.
+     - Aktualisiere Diagramme und Strukturinfos in `docs/ARCHITECTURE.md`.
+     - Ergänze geändertes Soll-Verhalten in `docs/REQUIREMENTS.md`.
+
+4. **Plan erstellen & bestätigen lassen:**
+   - Präsentiere einen konkreten Schritt-für-Schritt-Implementierungsplan als
+     kompakte Chat-Antwort oder bei längerlebendem Bedarf unter `docs/notes/`.
+   - Vergewissere dich beim Entwickler, ob das Vorgehen und die identifizierte kleine Aufgabe für diese Session passen.
+
+5. **Warte auf das "Go":**
+   - Nach Erstellung des Plans, pausiere und warte auf die Freigabe, bevor du mit dem eigentlichen Schreiben des Codes beginnst.
+
+6. **Lokale Validierung (immer ausführen nach Code-Änderungen):**
+   - Prüfe deinen geschriebenen Code, indem du `pnpm run format`, `pnpm run lint`, `pnpm run check-types` und `pnpm run test` aufrufst. Rufe alle mit "CI=1", damit man die Logs besser lesen kann.
+   - Vor `pnpm run dev` pruefe, dass die lokalen Infrastruktur-Container laufen: `hfts-postgres`, `hfts-redis`, `hfts-pubsub`.
+   - Geeignete Checks sind `docker compose ps` oder `docker inspect -f '{{.State.Running}}' hfts-postgres hfts-redis hfts-pubsub`.
+   - Falls Container fehlen oder gestoppt sind, starte sie zuerst mit `docker compose up -d`.
+   - Stelle danach sicher, dass die Applikation fehlerfrei startet durch `pnpm run dev`.

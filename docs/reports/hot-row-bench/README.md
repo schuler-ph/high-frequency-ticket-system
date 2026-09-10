@@ -47,7 +47,7 @@ Knobs (env): `BENCH_MESSAGES`, `BENCH_EVENT_ID`, `BENCH_PUBLISH_BATCH`,
 ## Ergebnisse
 
 Konfiguration: 20.000 Messages, 1 Event, `PUBSUB_FLOW_CONTROL_MAX_MESSAGES=2000`,
-`DATABASE_POOL_MAX=50`, lokal (Docker `hts-postgres`), 2026-07-18.
+`DATABASE_POOL_MAX=50`, lokal (Docker `hfts-postgres`), 2026-07-18.
 
 ### BEFORE — `buy_ticket` mit `sold_count`-Hot-Row-UPDATE (Migration 0008)
 

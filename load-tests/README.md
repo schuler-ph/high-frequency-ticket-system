@@ -193,11 +193,11 @@ Profilen.
 
 ## Umgebungsvariablen
 
-Alle Werte kommen aus der Profil-Datei, die `HTS_ENV_PROFILE` auswählt —
+Alle Werte kommen aus der Profil-Datei, die `HFTS_ENV` auswählt —
 `packages/env/profiles/<profil>.env`. Es gibt keine `.env` und keine Defaults mehr
 ([ADR-034](../docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)).
 Precedence: **Shell-inline > Profil-Datei**; ein inline gesetzter Wert wie
-`SALE_OPENS_IN_SECONDS=0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm seed`
+`SALE_OPENS_IN_SECONDS=0 HFTS_ENV=browse-and-buy-full-speed pnpm seed`
 schlägt die Datei. Fehlt das Profil, startet nichts.
 
 Die Spalte „Default" unten nennt deshalb keinen Fallback, sondern den Wert, den
@@ -239,7 +239,7 @@ bewusst davon ab.
 Grund: der Report liest gar keine k6-Serien aus Prometheus — alle Queries in
 `load-tests/report-queries.json` gehen gegen `job="api"` bzw. `job="worker"`. Das
 Remote-Write diente nur dem Live-Blick in Grafana, trieb aber in Baseline B durch
-die `{endpoint,status}`-Tags pro Iteration `hts-prometheus` auf 5,5 GiB, bis es mit
+die `{endpoint,status}`-Tags pro Iteration `hfts-prometheus` auf 5,5 GiB, bis es mit
 `503 Service Unavailable` antwortete — und nahm damit genau die Daten mit, die der
 Report braucht (`apiUp`/`workerUp` wurden `null`, beide Peak-Throughput-Queries
 unauswertbar).

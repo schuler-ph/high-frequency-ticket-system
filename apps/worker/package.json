@@ -22,8 +22,8 @@
     "dev:start": "fastify start -P -l info -p 10003 dist/app.js",
     "check-types": "tsgo --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "docker:build": "docker build -f Dockerfile -t hts-worker:dev ../..",
-    "docker:run": "docker run --rm --name hts-worker --network high-frequency-ticket-system_default -p 10003:10003 -e HTS_ENV_PROFILE -e DATABASE_URL=postgres://postgres:postgres@postgres:5432/high_frequency_tickets -e REDIS_URL=redis://redis:6379 -e PUBSUB_EMULATOR_HOST=pubsub:8085 hts-worker:dev"
+    "docker:build": "docker build -f Dockerfile -t hfts-worker:dev ../..",
+    "docker:run": "docker run --rm --name hfts-worker --network high-frequency-ticket-system_default -p 10003:10003 -e HFTS_ENV -e DATABASE_URL=postgres://postgres:postgres@postgres:5432/high_frequency_tickets -e REDIS_URL=redis://redis:6379 -e PUBSUB_EMULATOR_HOST=pubsub:8085 hfts-worker:dev"
   },
   "keywords": [],
   "author": "",

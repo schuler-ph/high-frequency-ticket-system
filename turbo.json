@@ -1,7 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["HTS_ENV_PROFILE", "DATABASE_URL", "NODE_ENV", "LOG_LEVEL"],
+  "globalEnv": ["HFTS_ENV", "DATABASE_URL", "NODE_ENV", "LOG_LEVEL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

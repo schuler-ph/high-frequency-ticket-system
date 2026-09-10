@@ -460,7 +460,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "orders"],
+  "tags": ["hfts", "orders"],
   "templating": {
     "list": [
       {
@@ -482,6 +482,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Order Lifecycle",
-  "uid": "hts-order-lifecycle",
+  "uid": "hfts-order-lifecycle",
   "version": 2
 }

@@ -19,7 +19,7 @@
       },
       "id": 1,
       "options": {
-        "content": "## \u26a0\ufe0f Redis Exporter Not Yet Configured\n\nThis dashboard requires **`redis_exporter`** (oliver006/redis_exporter) to be added to `docker-compose.yml` and scraped by Prometheus.\n\n**Required setup:**\n1. Add `redis_exporter` service to `docker-compose.yml` (image: `oliver006/redis_exporter:latest`, `REDIS_ADDR=redis://hts-redis:6379`)\n2. Add scrape target to `monitoring/prometheus.yml`: `job_name: redis`, target: `redis_exporter:9121`\n3. Restart Prometheus and the exporter\n\nOnce configured, panels below will populate with **Hit/Miss Ratio**, **Key Count**, **Memory Usage**, and **Connected Clients**.",
+        "content": "## \u26a0\ufe0f Redis Exporter Not Yet Configured\n\nThis dashboard requires **`redis_exporter`** (oliver006/redis_exporter) to be added to `docker-compose.yml` and scraped by Prometheus.\n\n**Required setup:**\n1. Add `redis_exporter` service to `docker-compose.yml` (image: `oliver006/redis_exporter:latest`, `REDIS_ADDR=redis://hfts-redis:6379`)\n2. Add scrape target to `monitoring/prometheus.yml`: `job_name: redis`, target: `redis_exporter:9121`\n3. Restart Prometheus and the exporter\n\nOnce configured, panels below will populate with **Hit/Miss Ratio**, **Key Count**, **Memory Usage**, and **Connected Clients**.",
         "mode": "markdown"
       },
       "title": "Setup Required",
@@ -220,7 +220,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "redis"],
+  "tags": ["hfts", "redis"],
   "templating": {
     "list": [
       {
@@ -242,6 +242,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Redis Performance",
-  "uid": "hts-redis-performance",
+  "uid": "hfts-redis-performance",
   "version": 1
 }

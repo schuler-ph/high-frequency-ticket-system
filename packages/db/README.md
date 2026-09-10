@@ -17,7 +17,7 @@ um eins voraus, deshalb kollidiert der Vorschlag: Nach `db:generate` die
 erzeugte SQL-Datei, ihren `meta/*_snapshot.json` und den `tag` im
 `meta/_journal.json` auf die naechste freie Nummer umbenennen (der `idx` im
 Journal bleibt). `pnpm run debug:migrations` meldet doppelte Prefixe. Braucht
-`drizzle.config.ts` das Profil (`HTS_ENV_PROFILE=dev`), muss `@repo/env` gebaut
+`drizzle.config.ts` das Profil (`HFTS_ENV=dev`), muss `@repo/env` gebaut
 sein (`pnpm exec turbo run build --filter=@repo/env`, ADR-042).
 
 ## Raw SQL Function Migrations
@@ -38,13 +38,13 @@ Diese Ledger-Tabelle ist absichtlich Teil des Drizzle-Schemas in `src/schema.ts`
 
 Nach Schema-Aenderungen immer gegen die echte lokale Datenbank verifizieren:
 
-- Container: `hts-postgres`
+- Container: `hfts-postgres`
 - Datenbank: `high_frequency_tickets`
 
 Beispiel:
 
 ```bash
-docker exec -i hts-postgres psql -U postgres -d high_frequency_tickets -c "\\dt"
+docker exec -i hfts-postgres psql -U postgres -d high_frequency_tickets -c "\\dt"
 ```
 
 Wenn eine Tabelle in `packages/db/drizzle/*.sql` existiert, aber nicht in PostgreSQL sichtbar ist, wurde in der Regel `db:push` nicht ausgefuehrt.

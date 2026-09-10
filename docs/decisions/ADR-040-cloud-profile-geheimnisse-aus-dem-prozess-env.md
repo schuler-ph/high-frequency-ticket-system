@@ -24,7 +24,7 @@
   1. **Das ganze `config/env/` liegt im Image**, an derselben relativen Tiefe
      wie im Repo. `turbo prune` kopiert es nicht (es ist kein
      Workspace-Paket); das Dockerfile kopiert es ausdrücklich. Damit bleibt
-     `HTS_ENV_PROFILE` ein Laufzeit-Schalter wie lokal: Profilwechsel ist eine
+     `HFTS_ENV` ein Laufzeit-Schalter wie lokal: Profilwechsel ist eine
      Env-Variable im Manifest, kein Rebuild.
   2. **Zugangsdaten stehen in keiner Datei.** Im Cloud-Profil stehen
      `REDIS_URL=` und `DATABASE_URL=` als **leere Zuweisung**. Der Key ist
@@ -65,7 +65,7 @@
   - **Fail-Fast bleibt.** Ein vergessenes Secret ist ein Zod-Fehler mit
     Variablennamen beim Boot, kein Timeout Minuten später.
 - **Alternativen (verworfen):**
-  - **Sentinel-Profil (`HTS_ENV_PROFILE=env`, alles aus dem Prozess-Env):**
+  - **Sentinel-Profil (`HFTS_ENV=env`, alles aus dem Prozess-Env):**
     braucht eine neue Fallunterscheidung im Loader — genau die Art Ausnahme,
     die ADR-034 abgeschafft hat — und liefert dieselbe Sicherheit wie die
     leere Zuweisung, nur mit mehr Code.
@@ -82,7 +82,7 @@
     neben der Datei, die ADR-034 beseitigt hat.
 - **Konsequenzen:**
   - Dockerfiles (API, Worker) kopieren `config/env/` ausdrücklich; die
-    Manifeste setzen `HTS_ENV_PROFILE` per ConfigMap und `REDIS_URL` /
+    Manifeste setzen `HFTS_ENV` per ConfigMap und `REDIS_URL` /
     `DATABASE_URL` per `secretKeyRef`.
   - `pnpm run debug:env` bleibt unverändert. `cloud-capacity` steht bewusst
     nicht in `LOADTEST_PROFILES`: es trägt keinen Belegerhebungs-Block, und
@@ -109,4 +109,4 @@ Stück dieses ADRs und wird nun nicht mehr gebraucht.
 
 Entscheidungen 2 bis 4 gelten unverändert: Zugangsdaten bleiben leere
 Zuweisungen aus dem Kubernetes-Secret, es bleibt bei zwei Cloud-Profilen, und
-`HTS_ENV_PROFILE` bleibt ein Laufzeit-Schalter ohne Rebuild.
+`HFTS_ENV` bleibt ein Laufzeit-Schalter ohne Rebuild.

@@ -380,7 +380,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["hts", "orders", "latency"],
+  "tags": ["hfts", "orders", "latency"],
   "templating": {
     "list": [
       {
@@ -402,6 +402,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Order Completion Latency",
-  "uid": "hts-order-latency",
+  "uid": "hfts-order-latency",
   "version": 1
 }

@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-const requiredContainers = ["hts-postgres", "hts-redis", "hts-pubsub"];
+const requiredContainers = ["hfts-postgres", "hfts-redis", "hfts-pubsub"];
 
 const isCi = process.env.CI === "1" || process.env.CI === "true";
 if (isCi) {

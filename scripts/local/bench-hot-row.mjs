@@ -24,7 +24,7 @@ import { requireEnv, requireEnvNumber } from "../lib/require-env.mjs";
  * `docs/reports/hot-row-bench/README.md` fuer den Ablauf.
  */
 
-const POSTGRES_CONTAINER = "hts-postgres";
+const POSTGRES_CONTAINER = "hfts-postgres";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 

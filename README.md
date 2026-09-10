@@ -75,19 +75,19 @@ Compose.
 ```bash
 pnpm install
 docker compose up -d
-export HTS_ENV_PROFILE=dev
+export HFTS_ENV=dev
 pnpm seed
 pnpm dev
 ```
 
 Configuration comes entirely from `packages/env/profiles/<profile>.env`; there is no
-`.env` and there are no defaults. `HTS_ENV_PROFILE` selects the file — if it
+`.env` and there are no defaults. `HFTS_ENV` selects the file — if it
 is missing, nothing starts and the error message lists the available profiles
 (`dev`, `test`, `ci`, `browse-and-buy-full-speed`, `browse-and-buy-human-pace`,
 `buy-only-full-speed`).
 Rationale: [ADR-034](docs/decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md).
 Load runs require a load-test profile, e.g.
-`HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike`.
+`HFTS_ENV=browse-and-buy-full-speed pnpm spike`.
 
 After that, the main interfaces are reachable at:
 
@@ -110,7 +110,7 @@ The full startup order, default ports, and known pitfalls are documented in
 | check documentation structure | `pnpm run debug:docs` |
 
 `pnpm test`, `pnpm dev`, and live checks require the running containers
-`hts-postgres`, `hts-redis`, and `hts-pubsub`.
+`hfts-postgres`, `hfts-redis`, and `hfts-pubsub`.
 
 ## Repository
 

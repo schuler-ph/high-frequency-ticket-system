@@ -19,7 +19,7 @@ export default fp<FastifyRedisPluginOptions>(async (fastify, _opts) => {
         connectTimeout: env.REDIS_CONNECT_TIMEOUT_MS,
       }),
       env.REDIS_CONNECT_TIMEOUT_MS,
-      `Redis did not become ready within ${env.REDIS_CONNECT_TIMEOUT_MS}ms at ${redisUrl}. Is the hts-redis container running? Start it with \`docker compose up -d\`.`,
+      `Redis did not become ready within ${env.REDIS_CONNECT_TIMEOUT_MS}ms at ${redisUrl}. Is the hfts-redis container running? Start it with \`docker compose up -d\`.`,
     );
   } catch (err) {
     fastify.log.fatal({ err, redisUrl }, "Redis startup check failed");

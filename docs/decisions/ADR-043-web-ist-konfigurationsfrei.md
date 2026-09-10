@@ -10,7 +10,7 @@
 laut Vite-Doku „statically replaced at build time to make tree-shaking
 effective". Daraus folgte:
 
-- `vite build` verlangte `HTS_ENV_PROFILE`, das Web-Dockerfile also ein `ARG`.
+- `vite build` verlangte `HFTS_ENV`, das Web-Dockerfile also ein `ARG`.
 - Die API-Adresse klebte im Bundle. In GKE steht der Ingress-Hostname zum
   Build-Zeitpunkt nicht fest; `cloud-dev.env` und `cloud-capacity.env` trugen
   deshalb `http://replace-me.invalid` — einen Wert, der nie auflösbar war.
@@ -61,7 +61,7 @@ verhaltensgleich: alle drei sprechen die API unter demselben Origin an.
   und eine zweite Quelle für dieselbe Form eingeführt, um zwei Werte
   auszuliefern, die keine Konfiguration sind. Vite dokumentiert für statische
   Builds ohnehin keinen Runtime-Mechanismus.
-- **`ARG HTS_ENV_PROFILE` im Dockerfile:** kleinster Eingriff, hält aber genau
+- **`ARG HFTS_ENV` im Dockerfile:** kleinster Eingriff, hält aber genau
   die Kopplung fest, die weg soll — ein Image pro Umgebung.
 - **`GET /api/events/current`:** der saubere Weg, sobald es mehr als einen Sale
   gibt. Heute suggeriert der Endpunkt eine Flexibilität, die das System nicht

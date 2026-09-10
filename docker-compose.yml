@@ -1,7 +1,7 @@
 services:
   web:
-    image: hts-web:dev
-    container_name: hts-web
+    image: hfts-web:dev
+    container_name: hfts-web
     ports:
       - "10001:10001"
     depends_on:
@@ -10,12 +10,12 @@ services:
     restart: unless-stopped
 
   api:
-    image: hts-api:dev
-    container_name: hts-api
+    image: hfts-api:dev
+    container_name: hfts-api
     ports:
       - "10002:10002"
     environment:
-      HTS_ENV_PROFILE:
+      HFTS_ENV:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/high_frequency_tickets
       REDIS_URL: redis://redis:6379
       PUBSUB_EMULATOR_HOST: pubsub:8085
@@ -29,12 +29,12 @@ services:
     restart: unless-stopped
 
   worker:
-    image: hts-worker:dev
-    container_name: hts-worker
+    image: hfts-worker:dev
+    container_name: hfts-worker
     ports:
       - "10003:10003"
     environment:
-      HTS_ENV_PROFILE:
+      HFTS_ENV:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/high_frequency_tickets
       REDIS_URL: redis://redis:6379
       PUBSUB_EMULATOR_HOST: pubsub:8085
@@ -49,7 +49,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: hts-redis
+    container_name: hfts-redis
     ports:
       - "10004:6379"
     command: redis-server --save 60 1 --loglevel warning
@@ -65,7 +65,7 @@ services:
   pubsub:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
     platform: linux/amd64
-    container_name: hts-pubsub
+    container_name: hfts-pubsub
     ports:
       - "10005:8085"
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
@@ -80,7 +80,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: hts-postgres
+    container_name: hfts-postgres
     ports:
       - "10006:5432"
     environment:
@@ -98,7 +98,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.4.0
-    container_name: hts-prometheus
+    container_name: hfts-prometheus
     ports:
       - "10007:9090"
     volumes:
@@ -114,7 +114,7 @@ services:
 
   grafana:
     image: grafana/grafana:12.0.1
-    container_name: hts-grafana
+    container_name: hfts-grafana
     ports:
       - "10008:3000"
     volumes:
@@ -133,7 +133,7 @@ services:
 
   redis_exporter:
     image: oliver006/redis_exporter:v1.62.0
-    container_name: hts-redis-exporter
+    container_name: hfts-redis-exporter
     ports:
       - "10009:9121"
     environment:
@@ -144,7 +144,7 @@ services:
 
   renderer:
     image: grafana/grafana-image-renderer:3.12.9
-    container_name: hts-grafana-renderer
+    container_name: hfts-grafana-renderer
     ports:
       - "10010:8081"
     environment:

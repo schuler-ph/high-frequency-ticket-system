@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsgo --noEmit",
-    "docker:build": "docker build -f Dockerfile -t hts-web:dev ../..",
-    "docker:run": "docker run --rm --name hts-web --network high-frequency-ticket-system_default -p 10001:10001 hts-web:dev"
+    "docker:build": "docker build -f Dockerfile -t hfts-web:dev ../..",
+    "docker:run": "docker run --rm --name hfts-web --network high-frequency-ticket-system_default -p 10001:10001 hfts-web:dev"
   },
   "dependencies": {
     "@repo/env": "workspace:*",

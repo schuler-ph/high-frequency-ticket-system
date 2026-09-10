@@ -18,10 +18,10 @@ import { requireEnv, requireEnvNumber } from "../../lib/require-env.mjs";
  * Report-Lauf es beide aufrufen mussten, um beide Zeitpunkte zu treffen.
  */
 
-const POSTGRES_CONTAINER = "hts-postgres";
-const REDIS_CONTAINER = "hts-redis";
-const PUBSUB_CONTAINER = "hts-pubsub";
-const PROMETHEUS_CONTAINER = "hts-prometheus";
+const POSTGRES_CONTAINER = "hfts-postgres";
+const REDIS_CONTAINER = "hfts-redis";
+const PUBSUB_CONTAINER = "hfts-pubsub";
+const PROMETHEUS_CONTAINER = "hfts-prometheus";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 

@@ -37,8 +37,8 @@
      `config/env/`). Die Datei ist vollständig: was dort nicht steht, gilt
      nicht. Profile erben nicht voneinander — Vererbung wäre kürzer und würde
      genau die Frage „welcher Wert galt im Lauf?" wieder öffnen.
-  3. **`HTS_ENV_PROFILE` wählt das Profil** und hat selbst keinen Default.
-     Einzige Ausnahme: die Test-Skripte setzen `${HTS_ENV_PROFILE:-test}`, damit
+  3. **`HFTS_ENV` wählt das Profil** und hat selbst keinen Default.
+     Einzige Ausnahme: die Test-Skripte setzen `${HFTS_ENV:-test}`, damit
      `pnpm test` ohne Zeremonie läuft; CI überschreibt mit `ci`. Das ist eine
      Aussage über die _Auswahl_, nicht über einen _Wert_ — jeder Wert bleibt
      explizit.
@@ -65,7 +65,7 @@
     Sie ist sichtbar und maschinell prüfbar; die vorherige Verteilung über
     Schema, Skripte, package.json und k6-Tabelle war weder das eine noch das
     andere.
-  - Der Report gewinnt: `HTS_ENV_PROFILE` steht im Manifest, und damit ist die
+  - Der Report gewinnt: `HFTS_ENV` steht im Manifest, und damit ist die
     Frage „mit welcher Konfiguration lief das?" mit einem Wort beantwortet
     statt mit zwanzig.
 
@@ -132,7 +132,7 @@ Worker-Threads weiterreicht und Node `--env-file` dort ablehnt
 `NODE_ENV` eines Profils bricht und der Rest im Frontend-Prozess nichts verloren
 hat;
 `dev`/`start` verlangen das Profil über denselben Guard, `build` fällt auf `dev`
-zurück — dieselbe Klasse Ausnahme wie `${HTS_ENV_PROFILE:-test}` in den
+zurück — dieselbe Klasse Ausnahme wie `${HFTS_ENV:-test}` in den
 Test-Skripten: eine Aussage über die Auswahl, nicht über einen Wert, denn die
 Frontend-Werte sind in allen Profilen identisch und `pnpm build` (CI, `verify:all`)
 soll ohne Zeremonie laufen. `pnpm run debug:env` verlangt beide
@@ -157,7 +157,7 @@ Profil bleibt eingecheckt und vollständig, Zugangsdaten stehen aber als leere
 Zuweisung (`REDIS_URL=`) und kommen aus dem Kubernetes-Secret — `override:
 false` und `emptyStringAsUndefined` machen das ohne Code-Änderung möglich, und
 ein fehlendes Secret bleibt ein Zod-Fehler beim Boot. Das ganze `config/env/`
-liegt im Image, damit `HTS_ENV_PROFILE` ein Laufzeit-Schalter bleibt. Neu sind
+liegt im Image, damit `HFTS_ENV` ein Laufzeit-Schalter bleibt. Neu sind
 die Profile `cloud-dev` und `cloud-capacity`.
 
 ## Nachtrag 2026-09-07: Profile liegen im Paket `@repo/env` (ADR-041)
@@ -171,11 +171,11 @@ sie reisen dadurch überall mit, wo das Paket mitreist.
 
 ## Nachtrag 2026-09-08: die Default-Ausnahme aus Punkt 3 fällt weg
 
-Punkt 3 nannte eine Ausnahme: Test-Skripte setzten `${HTS_ENV_PROFILE:-test}`,
+Punkt 3 nannte eine Ausnahme: Test-Skripte setzten `${HFTS_ENV:-test}`,
 das Web-`build` fiel auf `dev` zurück. Beides ist entfernt — kein Paket-Skript
-setzt mehr ein Profil, und `HTS_ENV_PROFILE` hat damit nirgends mehr einen
+setzt mehr ein Profil, und `HFTS_ENV` hat damit nirgends mehr einen
 Default. Die Auswahl steht jetzt in der Root-Orchestrierung: `pnpm test` und
-`pnpm test:ci` setzen `HTS_ENV_PROFILE=test`, `verify:all` setzt für den
+`pnpm test:ci` setzen `HFTS_ENV=test`, `verify:all` setzt für den
 Build-Schritt `dev`. Ein direkt aufgerufenes Paket-Skript ohne Profil bricht mit
 der Profilliste ab.
 

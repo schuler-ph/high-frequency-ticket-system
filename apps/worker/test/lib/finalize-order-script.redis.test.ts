@@ -10,7 +10,7 @@ import {
 } from "../../src/lib/redis-scripts.ts";
 
 // Integrationstest: fuehrt das echte FINALIZE_ORDER_PROCESSING_SCRIPT gegen den
-// lokalen `hts-redis`-Container aus — analog zum Reserve-Script-Test in
+// lokalen `hfts-redis`-Container aus — analog zum Reserve-Script-Test in
 // apps/api (ADR-024-Follow-up). Die Unit-Tests mocken nur den Rueckgabewert;
 // hier wird das tatsaechliche Lua-Verhalten bewiesen, insbesondere das
 // Erst-Finalisierung-Signal (ZREM 1 -> 0), auf dem seit Baseline B die

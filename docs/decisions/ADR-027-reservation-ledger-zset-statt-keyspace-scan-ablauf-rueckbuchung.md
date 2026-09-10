@@ -12,7 +12,7 @@
 - **Begruendung:**
   - Der Kern der Baseline-A-Drift war nicht die SCAN-Dauer, sondern die **TTL-getriebene Freigabe** eines noch beanspruchten Inventars. Ein reines Umstellen von `SCAN`+`ZCOUNT <now> +inf` auf Score=Ablaufzeit haette den Bug reproduziert (abgelaufene Eintraege fielen aus der Zaehlung). Score=Erstellungszeit + `ZCARD` trennt "aktiver Anspruch" (Kardinalitaet) sauber von "verdaechtig alt" (Score-Range) — nur so ist Ablauf ein Signal statt einer stillen Freigabe.
   - `ZCARD` ist O(1), `ZCOUNT` O(log n) — beide unabhaengig von der Gesamtgroesse des Keyspace. Die 20.000-Roundtrip-Landmine des SCAN entfaellt.
-  - Idempotenz bleibt gewahrt: `ZREM` liefert 1 nur beim ersten Entfernen; Rollback- und Kompensations-Script inkrementieren `available` genau dann. Gegen echtes `hts-redis` verifiziert.
+  - Idempotenz bleibt gewahrt: `ZREM` liefert 1 nur beim ersten Entfernen; Rollback- und Kompensations-Script inkrementieren `available` genau dann. Gegen echtes `hfts-redis` verifiziert.
 - **Trade-off / bewusst offen:** Bis Phase 4.9 akkumulieren Ansprueche von Orders, die **nie** finalisiert werden, dauerhaft im Ledger und mindern `available` als Phantom-Claims. Die `reservation_ledger_stale`-Gauge macht den Effekt sichtbar; ADR-031 zieht den sicheren Pending-Reaper vor das Cloud-Deployment.
 - **Alternativen (verworfen):**
   - **Stopgap `REDIS_RESERVATION_TTL_SECONDS` 120→900 s:** ~10 Minuten Aufwand, aber maskiert den Bug nur fuer Laeufe kuerzer als die TTL und laesst die SCAN-Landmine bestehen. Keine strukturelle Loesung.

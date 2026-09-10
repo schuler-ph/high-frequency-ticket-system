@@ -12,7 +12,7 @@
   - `CHECKOUT_SHARE` = `0.4`
   - `DATABASE_POOL_MAX` = `50`
   - `DISABLE_REQUEST_LOGGING` = `true`
-  - `HTS_ENV_PROFILE` = `browse-and-buy-full-speed`
+  - `HFTS_ENV` = `browse-and-buy-full-speed`
   - `K6_RUNNER` = `ssh`
   - `LOAD_PROFILE` = `browse-and-buy-full-speed`
   - `LOG_LEVEL` = `warn`

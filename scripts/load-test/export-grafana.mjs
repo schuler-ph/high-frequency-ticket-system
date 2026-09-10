@@ -137,7 +137,7 @@ main().catch((error) => {
   console.error("[spike:graphs] Fehlgeschlagen.");
   console.error(error instanceof Error ? error.message : error);
   console.error(
-    "Häufigste Ursache: der Renderer läuft nicht — `docker compose up -d renderer` (Container hts-grafana-renderer).",
+    "Häufigste Ursache: der Renderer läuft nicht — `docker compose up -d renderer` (Container hfts-grafana-renderer).",
   );
   process.exit(1);
 });

@@ -78,7 +78,7 @@ Das **Web** startet dagegen bewusst im Dev-Modus (`next dev`, :10001): es liegt 
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B{"docker inspect<br/>hts-postgres hts-redis hts-pubsub"}
+    A([Start]) --> B{"docker inspect<br/>hfts-postgres hfts-redis hfts-pubsub"}
     B -->|nicht alle true| C["docker compose up -d"]
     B -->|alle true| D
     C --> D["<b>pnpm seed</b><br/><i>legt Topic + Subscription an</i>"]
@@ -110,7 +110,7 @@ until curl -sf -o /dev/null localhost:10002/metrics \
 
 > **`LT Stack` setzt den Zustand nicht zurück.** Es provisioniert nur Schema, Topic und Subscription — idempotent und gefahrlos wiederholbar. Der Reset gehört unmittelbar vor die Last und läuft deshalb in `Spike Report` (Begründung in §4). Wer zwischendurch einen sauberen Stand ohne kompletten Lauf will, nimmt den Button `Reset` (Task `stack:reset`).
 
-> **Wenn VS Code das Profil mehrfach abfragt:** `loadtest:services` startet API, Worker und Web parallel, und jeder dieser Tasks referenziert den Input. VS Code löst denselben Input pro Lauf normalerweise einmal auf. Fragt es dennoch mehrfach, überall dasselbe Profil wählen — oder die Services einzeln mit `HTS_ENV_PROFILE=<profil> pnpm --filter <service> run start:loadtest` starten.
+> **Wenn VS Code das Profil mehrfach abfragt:** `loadtest:services` startet API, Worker und Web parallel, und jeder dieser Tasks referenziert den Input. VS Code löst denselben Input pro Lauf normalerweise einmal auf. Fragt es dennoch mehrfach, überall dasselbe Profil wählen — oder die Services einzeln mit `HFTS_ENV=<profil> pnpm --filter <service> run start:loadtest` starten.
 
 ### Warum der Readiness-Check ein eigener Schritt ist (Falle 4)
 
@@ -125,16 +125,16 @@ Deshalb endet `loadtest:stack up` mit den Services, und die Bereitschaft prüft 
 
 Wer nur **einen** Service braucht, startet `loadtest:api`, `loadtest:worker` bzw. `loadtest:web` direkt.
 
-#### Das Profil bestimmt alles: `HTS_ENV_PROFILE`
+#### Das Profil bestimmt alles: `HFTS_ENV`
 
 Seit [ADR-034](decisions/ADR-034-ein-profil-ist-eine-datei-keine-impliziten-defaults.md)
 gibt es keine `.env` und keine Defaults mehr. Welche Konfiguration gilt, steht in
 genau einer Variable, und die Werte stehen in genau einer Datei:
 
 ```bash
-HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm --filter api run start:loadtest
-HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm --filter worker run start:loadtest
-HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report
+HFTS_ENV=browse-and-buy-human-pace pnpm --filter api run start:loadtest
+HFTS_ENV=browse-and-buy-human-pace pnpm --filter worker run start:loadtest
+HFTS_ENV=browse-and-buy-human-pace pnpm spike:report
 ```
 
 Verfügbare Profile: `dev`, `test`, `ci`, `browse-and-buy-full-speed`,
@@ -149,7 +149,7 @@ sowohl `CHECKOUT_PENDING_TIMEOUT_SECONDS` als auch `SEED_CAPACITY` und die
 k6-Knöpfe trägt. Damit verschwindet auch die Falle, dass ein Wert im Manifest
 steht, den die laufenden Prozesse nie gesehen haben.
 
-Fehlt `HTS_ENV_PROFILE` oder ist es vertippt, startet nichts und die Meldung
+Fehlt `HFTS_ENV` oder ist es vertippt, startet nichts und die Meldung
 zählt die verfügbaren Profile auf. `pnpm run debug:env` prüft, dass jedes Profil
 vollständig ist.
 
@@ -197,7 +197,7 @@ sustained) läuft k6 deshalb auf dem Ryzen-PC und das SUT allein auf dem
 MacBook ([Hintergrund](notes/backlogs/local-generator-split.md)).
 
 **Topologie:** Das MacBook bleibt SUT **und** Orchestrator — `spike:report`
-zieht die Zustands-Snapshots per `docker exec` aus `hts-postgres`/`hts-redis`
+zieht die Zustands-Snapshots per `docker exec` aus `hfts-postgres`/`hfts-redis`
 und muss deshalb dort laufen, wo die Container sind. Der PC ist reiner
 Lastgenerator. **Ethernet ist Pflicht** (Direktkabel oder Router-LAN); WLAN
 nur als Fallback — die 2,7–4,4 % Transportfehler der co-located Läufe würden
@@ -212,8 +212,8 @@ bleiben damit unverändert auf localhost.
 
 ```bash
 ipconfig getifaddr en0                    # die <mac-ip> für BASE_URL auf dem PC
-FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm --filter api    run start:loadtest
-FASTIFY_ADDRESS=0.0.0.0 HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm --filter worker run start:loadtest
+FASTIFY_ADDRESS=0.0.0.0 HFTS_ENV=browse-and-buy-full-speed pnpm --filter api    run start:loadtest
+FASTIFY_ADDRESS=0.0.0.0 HFTS_ENV=browse-and-buy-full-speed pnpm --filter worker run start:loadtest
 ```
 
 Beim ersten Start fragt die macOS-Firewall, ob `node` eingehende Verbindungen
@@ -222,11 +222,11 @@ pro Binary erneut, also nach jedem Node-Wechsel über nvm.
 
 **Fremdcontainer stoppen:** In Baseline B liefen envoy/mysql/redis/
 static-server anderer Projekte mit und drückten den Load Average auf 21,95
-bei 11 Cores. Vor dem Lauf muss die Liste der Nicht-`hts-*`-Container leer
+bei 11 Cores. Vor dem Lauf muss die Liste der Nicht-`hfts-*`-Container leer
 sein:
 
 ```bash
-docker ps --format '{{.Names}}' | grep -v '^hts-'   # erwartete Ausgabe: nichts
+docker ps --format '{{.Names}}' | grep -v '^hfts-'   # erwartete Ausgabe: nichts
 ```
 
 **Listen-Backlog anheben (Hygiene, keine Ursache):** macOS deckelt die
@@ -297,8 +297,8 @@ Repo-Pfad ohne Leerzeichen und Pfade mit Forward-Slashes.
 4. **Repo klonen — gleicher Commit wie auf dem Mac**, Pfad ohne Leerzeichen:
 
    ```powershell
-   git clone <repo-url> C:/hts
-   git -C C:/hts checkout <commit-des-laufs>
+   git clone <repo-url> C:/hfts
+   git -C C:/hfts checkout <commit-des-laufs>
    ```
 
 5. **Konnektivität zum SUT prüfen** (Einzelrequest, kein Lasttest):
@@ -316,7 +316,7 @@ Wenn der ssh-Spawn klemmt, lässt sich die Last von Hand fahren. Auf dem PC
 (alle `-e`-Werte aus `packages/env/profiles/<profil>.env`, `BASE_URL` auf die Mac-IP):
 
 ```powershell
-cd C:/hts
+cd C:/hfts
 k6 run --address 0.0.0.0:6565 --summary-export phase-a-summary.json ^
   -e BASE_URL=http://<mac-ip>:10002 -e EVENT_ID=00000000-0000-4000-8000-000000000000 ^
   -e LOAD_PROFILE=browse-and-buy-full-speed -e CHECKOUT_SHARE=0.4 -e PAY_RATE=0.88 -e CANCEL_RATE=0.08 ^
@@ -340,7 +340,7 @@ curl -X PATCH -H 'Content-Type: application/json' \
 Summary auf den Mac holen und auswerten:
 
 ```bash
-scp <user>@<pc-ip>:C:/hts/phase-a-summary.json artifacts/load-tests/<run-id>/k6/
+scp <user>@<pc-ip>:C:/hfts/phase-a-summary.json artifacts/load-tests/<run-id>/k6/
 pnpm spike:analyze -- artifacts/load-tests/<run-id>
 ```
 
@@ -416,9 +416,9 @@ pnpm spike:report             # Standard: Last + alle Belege + Report
 
 # Varianten
 SALE_OPENS_IN_SECONDS=0 pnpm spike:report    # sofort offen statt 60s Vorlauf
-HTS_ENV_PROFILE=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
-HTS_ENV_PROFILE=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
-HTS_ENV_PROFILE=smoke-test pnpm spike:report        # 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig?
+HFTS_ENV=browse-and-buy-human-pace pnpm spike:report   # menschliche Denkzeit + Ablauf/Reaper/410
+HFTS_ENV=buy-only-full-speed pnpm spike:report         # nur buy→pay, keine Availability-Reads
+HFTS_ENV=smoke-test pnpm spike:report        # 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig?
 K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u.)
 ```
 
@@ -426,7 +426,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 **Task:** `loadtest:run+report` — fragt das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
-**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie Container aus `pnpm docker:run`; die Container dabei mit `HTS_ENV_PROFILE=smoke-test` starten, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
+**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie Container aus `pnpm docker:run`; die Container dabei mit `HFTS_ENV=smoke-test` starten, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
@@ -450,10 +450,10 @@ Remote-k6, SUT-Erreichbarkeit.
 ```bash
 K6_RUNNER=ssh \
 K6_SSH_HOST=<user>@<pc-ip> \
-K6_REMOTE_DIR=C:/hts \
+K6_REMOTE_DIR=C:/hfts \
 K6_REST_URL=http://<pc-ip>:6565 \
 BASE_URL=http://<mac-ip>:10002 \
-HTS_ENV_PROFILE=browse-and-buy-full-speed pnpm spike:report
+HFTS_ENV=browse-and-buy-full-speed pnpm spike:report
 ```
 
 Die Lastform — `K6_TARGET_RATE`, `K6_MAX_VUS`, `K6_COOLDOWN_RATE`, `K6_COOLDOWN_MAX_VUS` — kommt aus dem Profil und lässt sich auf demselben Weg inline übersteuern (z. B. `K6_MAX_VUS=16000`); sie steht im Manifest des Laufs.
@@ -504,7 +504,7 @@ Bestehende Baselines: `docs/reports/baseline-a-2026-07-14/`, `docs/reports/basel
 
 ### Grafana-Panels als PNG exportieren (statt Screenshots)
 
-Grafana rendert Panels serverseitig — der Container `hts-grafana-renderer` liefert `GET /render/d-solo/<uid>/<slug>?panelId=…` als PNG. `spike:report` ruft das am Ende jedes Laufs automatisch auf: **alle** Panels **aller** Dashboards, jeweils mit Titel und Legende, für das Fenster `workloadStartedAt − 60 s … drainEndedAt + 30 s`, nach `artifacts/load-tests/<run-id>/grafana/` plus `index.md` als Galerie (ADR-030).
+Grafana rendert Panels serverseitig — der Container `hfts-grafana-renderer` liefert `GET /render/d-solo/<uid>/<slug>?panelId=…` als PNG. `spike:report` ruft das am Ende jedes Laufs automatisch auf: **alle** Panels **aller** Dashboards, jeweils mit Titel und Legende, für das Fenster `workloadStartedAt − 60 s … drainEndedAt + 30 s`, nach `artifacts/load-tests/<run-id>/grafana/` plus `index.md` als Galerie (ADR-030).
 
 ```bash
 pnpm spike:graphs                       # letzter Run, Fenster aus dessen manifest.json
@@ -551,7 +551,7 @@ pnpm verify:all     # + test:ci (Coverage) + build
 pnpm format         # Prettier schreiben (bei format:check-Fehlern)
 ```
 
-> `pnpm test` braucht laufende Container (`hts-postgres`, `hts-redis`, `hts-pubsub`) — der Preflight prüft das und bricht sonst mit klarer Meldung ab.
+> `pnpm test` braucht laufende Container (`hfts-postgres`, `hfts-redis`, `hfts-pubsub`) — der Preflight prüft das und bricht sonst mit klarer Meldung ab.
 
 **Tasks:** `workspace:verify:quick`, `workspace:verify:all` · **Buttons:** `Verify Quick`, `Verify All` (derzeit in `settings.json` auskommentiert)
 
@@ -574,7 +574,7 @@ flowchart TD
 
     D --> H["<b>In PostgreSQL verifizieren</b>"]
     G --> H
-    H --> I["docker exec hts-postgres psql …"]
+    H --> I["docker exec hfts-postgres psql …"]
     I --> J["pnpm debug:all<br/><i>Guardrails</i>"]
     J --> K["pnpm verify:quick"]
 
@@ -587,8 +587,8 @@ pnpm --filter @repo/db run db:push        # gegen die Ziel-DB anwenden
 pnpm db:apply-sql                         # handgeschriebenes SQL (z.B. buy_ticket)
 
 # Verifizieren
-docker exec hts-postgres psql -U postgres -d high_frequency_tickets -c '\d tickets'
-docker exec hts-postgres psql -U postgres -d high_frequency_tickets \
+docker exec hfts-postgres psql -U postgres -d high_frequency_tickets -c '\d tickets'
+docker exec hfts-postgres psql -U postgres -d high_frequency_tickets \
   -tAc "select prosrc from pg_proc where proname='buy_ticket'"
 pnpm debug:all
 ```
@@ -634,9 +634,9 @@ curl -s localhost:10002/metrics | grep '^service_config_info'
 curl -s localhost:10003/metrics | grep '^service_config_info'
 
 # Live-Zustand
-docker exec hts-redis redis-cli GET 'tickets:event:00000000-0000-4000-8000-000000000000:available'
-docker exec hts-redis redis-cli ZCARD 'tickets:event:00000000-0000-4000-8000-000000000000:reservations'
-docker exec hts-postgres psql -U postgres -d high_frequency_tickets \
+docker exec hfts-redis redis-cli GET 'tickets:event:00000000-0000-4000-8000-000000000000:available'
+docker exec hfts-redis redis-cli ZCARD 'tickets:event:00000000-0000-4000-8000-000000000000:reservations'
+docker exec hfts-postgres psql -U postgres -d high_frequency_tickets \
   -tAc 'select count(*) from orders'
 ```
 

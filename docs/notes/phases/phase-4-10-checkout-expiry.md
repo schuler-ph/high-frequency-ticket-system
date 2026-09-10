@@ -288,5 +288,5 @@ Herkunft: [Gedanken-Notiz](../backlogs/checkout-expiry-funnel.md)
 - [x] **Lasttest-Stack-Env:** `CHECKOUT_PENDING_TIMEOUT_SECONDS=120` und `SEED_CAPACITY=100000` dort setzen, wo API und Worker starten; Defaults bleiben.
 - [x] **Abbruchbedingung und Verdict:** Abbruch erst bei `available == 0` **und** leerem Ledger; neue Checks `sold == totalCapacity`, Reaper-Releases > 0, Expired-Rejects > 0.
 - [x] **Panels ergaenzen:** Expired-Serie im Checkout-Funnel, Abandon-Rate ohne Ablaeufe, plus das bisher nirgends geplottete `reservation_reaper_run_duration_seconds`.
-- [x] **Funnel-Lauf fahren:** `HTS_ENV_PROFILE=browse-and-buy-human-pace` (frueher `funnel`, ADR-035), 100k Kapazitaet. Lauf nur mit Freigabe.
+- [x] **Funnel-Lauf fahren:** `HFTS_ENV=browse-and-buy-human-pace` (frueher `funnel`, ADR-035), 100k Kapazitaet. Lauf nur mit Freigabe.
 - [x] **Golden-Report-Test reparieren (vorgefunden):** Golden aus dem Renderer regeneriert — ungepolsterte Tabellen sind die gewollte Form.

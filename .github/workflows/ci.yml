@@ -77,7 +77,7 @@ jobs:
       # Zod-Default. Der Rest kam je nach Schritt aus .env.test oder aus den
       # Defaults, und `Apply DB migrations` sah .env.test gar nicht. Ein Profil
       # macht beide Pfade gleich.
-      HTS_ENV_PROFILE: ci
+      HFTS_ENV: ci
 
     services:
       postgres:
@@ -121,7 +121,7 @@ jobs:
 
       - name: Start Pub/Sub emulator
         run: |
-          docker run -d --name hts-pubsub \
+          docker run -d --name hfts-pubsub \
             -p 10005:8085 \
             gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
             gcloud beta emulators pubsub start --host-port=0.0.0.0:8085

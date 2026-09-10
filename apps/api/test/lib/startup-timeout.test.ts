@@ -23,11 +23,11 @@ void test("withStartupTimeout rejects with an actionable StartupTimeoutError whe
       withStartupTimeout(
         neverResolves,
         20,
-        "Redis did not become ready — is the hts-redis container running?",
+        "Redis did not become ready — is the hfts-redis container running?",
       ),
     (err: unknown) => {
       assert.ok(err instanceof StartupTimeoutError);
-      assert.match(err.message, /hts-redis container running/);
+      assert.match(err.message, /hfts-redis container running/);
       return true;
     },
   );

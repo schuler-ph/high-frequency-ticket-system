@@ -32,7 +32,7 @@ pnpm --filter web run lint
 
 ## Konfiguration
 
-Keine. `apps/web` hat keine Env-Variablen und braucht kein `HTS_ENV_PROFILE`
+Keine. `apps/web` hat keine Env-Variablen und braucht kein `HFTS_ENV`
 (ADR-043) — auch nicht für `dev` und `preview`.
 
 - **API-Adresse:** das Frontend kennt sie nicht. `src/lib/api.ts` ruft

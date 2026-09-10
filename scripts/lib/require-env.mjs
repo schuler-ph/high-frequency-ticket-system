@@ -13,7 +13,7 @@ const fail = (name, hint) => {
   throw new Error(
     `${name} ist nicht gesetzt. Erwartet aus dem Env-Profil (packages/env/profiles/<profil>.env, ADR-034)` +
       (hint ? ` — ${hint}` : "") +
-      `. Aktuelles Profil: ${process.env.HTS_ENV_PROFILE ?? "(keins)"}`,
+      `. Aktuelles Profil: ${process.env.HFTS_ENV ?? "(keins)"}`,
   );
 };
 
@@ -30,7 +30,7 @@ export const requireEnvNumber = (name, hint) => {
   if (!Number.isFinite(value)) {
     throw new Error(
       `${name} ist keine Zahl: "${process.env[name]}" (Profil: ${
-        process.env.HTS_ENV_PROFILE ?? "(keins)"
+        process.env.HFTS_ENV ?? "(keins)"
       })`,
     );
   }
@@ -46,7 +46,7 @@ export const requireEnvBoolean = (name, hint) => {
   if (value !== "true" && value !== "false") {
     throw new Error(
       `${name} muss "true" oder "false" sein, ist aber "${value}" (Profil: ${
-        process.env.HTS_ENV_PROFILE ?? "(keins)"
+        process.env.HFTS_ENV ?? "(keins)"
       })`,
     );
   }
