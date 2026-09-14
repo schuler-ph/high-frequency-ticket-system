@@ -72,7 +72,7 @@ pnpm dev                      # Web + API + Worker parallel (Turbo)
 
 Für belastbare Messungen dürfen API und Worker **nicht** im Dev-Modus laufen: `-P` schaltet pino-pretty ein (synchroner, Event-Loop-blockierender Log-Transform), und der `tsc-watch`-Watcher konkurriert um dieselben Cores wie k6, Postgres und Redis. Ein FS-Event mitten im Lauf triggert sogar einen Rebuild.
 
-`start:loadtest` baut einmal und startet `fastify start` ohne `-P`, mit `NODE_ENV=production`, `LOG_LEVEL=warn` und `DISABLE_REQUEST_LOGGING=true`.
+`start:loadtest` baut einmal und startet `fastify start` ohne `-P`. `NODE_ENV`, `LOG_LEVEL` und `DISABLE_REQUEST_LOGGING` kommen aus dem Profil (in den Lastprofilen `production` / `warn` / `true`), nicht mehr als CLI-Flag: `-o` uebergibt die `options` aus `app.ts` an fastify-cli, und die lesen das Schema.
 
 Das **Web** startet dagegen bewusst im Dev-Modus (`next dev`, :10001): es liegt nicht im Lastpfad — k6 spricht ausschließlich die API an — und dient nur zur Beobachtung während des Laufs, wo Hot-Reload nützlicher ist als ein Produktions-Build.
 
