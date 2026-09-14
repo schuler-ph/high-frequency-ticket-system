@@ -23,4 +23,4 @@ ENV NODE_ENV=production
 
 USER node
 EXPOSE 10002
-CMD ["node", "node_modules/fastify-cli/cli.js", "start", "-l", "info", "-p", "10002", "dist/app.js"]
+CMD ["node", "node_modules/fastify-cli/cli.js", "start", "-o", "-p", "10002", "dist/app.js"]
