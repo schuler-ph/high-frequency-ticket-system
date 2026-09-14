@@ -25,6 +25,22 @@ export const env = createEnv({
     // gleichzeitig laufenden Persist-Operationen (Backpressure gegen den
     // DB-Pool), nicht mehr eine kuenstliche ~N-Kaeufe/s-Sleep-Rate.
     PUBSUB_FLOW_CONTROL_MAX_MESSAGES: z.coerce.number().int().positive(),
+    // Obere Schranke fuer den Drain beim Herunterfahren: `subscription.close()`
+    // laesst bereits zugestellte Nachrichten so lange zu Ende laufen, bevor der
+    // Rest genackt wird. Ohne Drain werden in-flight Kaeufe bei jedem Rolling
+    // Update genackt und erneut zugestellt — fachlich unschaedlich, weil die
+    // Idempotenz sie absorbiert (ADR-023), aber als Redelivery-Ausschlag
+    // sichtbar. Der Wert muss unter der Kubernetes-
+    // `terminationGracePeriodSeconds` bzw. dem `docker stop`-Timeout liegen,
+    // sonst schneidet SIGKILL den Drain ab.
+    WORKER_SHUTDOWN_DRAIN_TIMEOUT_SECONDS: z.coerce.number().int().positive(),
+    // Obergrenze, wie lange fastify-cli nach SIGTERM auf `fastify.close()`
+    // wartet, bevor es hart beendet. Den Wert liest die CLI selbst aus dem
+    // Prozess-Env (Praefix `FASTIFY_`) — nicht dieser Code; er steht hier, weil
+    // `debug:env` damit erzwingt, dass jedes Profil ihn deklariert. Sichtbar
+    // wird er der CLI erst durch `node --import @repo/env/preload` im
+    // Startbefehl, das vor dem Parsen der Argumente laeuft (ADR-045).
+    FASTIFY_CLOSE_GRACE_DELAY: z.coerce.number().int().positive(),
     // Max. PostgreSQL-Connections pro Prozess (node-postgres Pool).
     DATABASE_POOL_MAX: z.coerce.number().int().positive(),
     // Obere Schranke fuer das Warten auf eine freie Pool-Connection. Ohne sie

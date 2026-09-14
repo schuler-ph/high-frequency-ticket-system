@@ -145,7 +145,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 - [ ] **N API-Replicas hinter Ingress:** Korrektheit statt Kapazitaet (REQ-D02).
 - [ ] **Entscheidung Zeitquellen bei Replicas:** Sale-Unlock (ADR-024) und Checkout-Deadline (ADR-033) gemeinsam entscheiden; Drift-Nachweis erst in 5.6.
-- [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown aus Phase 6 als Vorbedingung fuer Rolling Updates.
+- [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown als Vorbedingung fuer Rolling Updates ist erfuellt (ADR-045); das Manifest muss `terminationGracePeriodSeconds` > 30 setzen.
 
 ### Phase 5.3 — Messkette umgebungsunabhaengig
 
@@ -183,7 +183,7 @@ Details: [baseline-b-storage-review](notes/backlogs/baseline-b-storage-review.md
 - [ ] Definiere Polling-Strategie fuer Order-Status (Backoff + Jitter, optional Long-Polling) zur Load-Reduktion.
 - [ ] Konfiguriere `maxDeliveryAttempts` + Dead-Letter Topic pro Subscription, um Retry-Stuerme zu begrenzen.
 - [ ] Definiere klare Poison-Message-Policy (ACK+DLQ vs. NACK) fuer invalides JSON, Schema-Fehler und unbekannte Event-Versionen.
-- [ ] Implementiere Worker-Graceful-Shutdown mit Drain-Verhalten (in-flight Messages abschliessen; Processing-Locks existieren seit dem ADR-004-Update 2026-07-14 nicht mehr).
+- [x] Implementiere Worker-Graceful-Shutdown mit Drain-Verhalten — erledigt 2026-09-14: `close()` wartet auf laufende Handler statt sofort zu nacken, Timeout als Profil-Variable. → ADR-045
 - [ ] Erstelle Replay-Tooling fuer DLQ-Nachrichten (selektiver Replay nach Fehlerklasse, Dry-Run-Modus).
 - [ ] Definiere SLOs + Alerting fuer Resilience-Signale (NACK-Rate, Redelivery-Rate, DLQ-Groesse, stuck pending orders).
 - [ ] Dokumentiere Incident-Runbook fuer Queue-Backlog, Redis-Ausfall und DB-Partial-Outage (Detection, Mitigation, Recovery).

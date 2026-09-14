@@ -42,13 +42,26 @@ const createPubSubClient = async (): Promise<PubSub> => {
 export const pubSubSubscriberPlugin: FastifyPluginAsync<
   PubSubSubscriberPluginOptions
 > = async (fastify, opts) => {
+  const { Duration } = await import("@google-cloud/pubsub");
+
   const client = opts.client ?? (await createPubSubClient());
   const subscriptionName =
     opts.subscriptionName ?? env.PUBSUB_SUBSCRIPTION_BUY_TICKET;
   // Explizite Flow-Control statt Library-Default (~1.000 in-flight): begrenzt
   // die gleichzeitigen Handler und damit den DB-Druck.
+  //
+  // `closeOptions` kehrt den Library-Default um: statt zugestellte Nachrichten
+  // beim Schliessen sofort zu nacken ("NACK"), laesst "WAIT" die laufenden
+  // Handler zu Ende kommen und nackt erst danach, was uebrig ist. Genau das
+  // unterscheidet ein Rolling Update ohne Redelivery-Ausschlag von einem mit.
   const subscription = client.subscription(subscriptionName, {
     flowControl: { maxMessages: env.PUBSUB_FLOW_CONTROL_MAX_MESSAGES },
+    closeOptions: {
+      behavior: "WAIT",
+      timeout: Duration.from({
+        seconds: env.WORKER_SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
+      }),
+    },
   });
 
   /**
@@ -75,6 +88,52 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
   let messageHandler: MessageHandler | null = null;
   let isListening = false;
 
+  const handleMessage = async (message: Message): Promise<void> => {
+    if (!messageHandler) {
+      fastify.log.warn(
+        { messageId: message.id },
+        "Received message but no handler registered, nacking",
+      );
+      message.nack();
+      return;
+    }
+    try {
+      await messageHandler(message);
+    } catch (err) {
+      fastify.log.error(
+        { messageId: message.id, error: err },
+        "Error processing message",
+      );
+      message.nack();
+    }
+  };
+
+  // Der Client stellt einen Streaming-Pull nach transienten Fehlern selbst
+  // wieder her, aber nicht nach dauerhaften: bei NOT_FOUND stirbt der Stream
+  // endgueltig, der Prozess laeuft weiter und verarbeitet nie wieder etwas.
+  // Ohne diese Unterscheidung bleibt genau das unsichtbar (ADR-044).
+  const handleSubscriptionError = (err: Error): void => {
+    const fatalCode = fatalPubSubCode(err);
+
+    if (fatalCode === null) {
+      fastify.log.error(
+        { error: err },
+        "Pub/Sub subscription error (transient, client will retry)",
+      );
+      return;
+    }
+
+    fastify.log.fatal(
+      { error: err, subscription: subscriptionName, code: fatalCode },
+      "Pub/Sub subscription is permanently unavailable",
+    );
+    fastify.serviceHealth.markFatal(
+      `Pub/Sub subscription "${subscriptionName}" is permanently unavailable (${fatalCode}). ` +
+        "Provision it and restart the worker.",
+    );
+    onFatal();
+  };
+
   const subscriber: PubSubSubscriber = {
     onMessage(handler) {
       messageHandler = handler;
@@ -83,51 +142,8 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
     start() {
       if (isListening) return;
 
-      subscription.on("message", async (message) => {
-        if (!messageHandler) {
-          fastify.log.warn(
-            { messageId: message.id },
-            "Received message but no handler registered, nacking",
-          );
-          message.nack();
-          return;
-        }
-        try {
-          await messageHandler(message);
-        } catch (err) {
-          fastify.log.error(
-            { messageId: message.id, error: err },
-            "Error processing message",
-          );
-          message.nack();
-        }
-      });
-      // Der Client stellt einen Streaming-Pull nach transienten Fehlern selbst
-      // wieder her, aber nicht nach dauerhaften: bei NOT_FOUND stirbt der
-      // Stream endgueltig, der Prozess laeuft weiter und verarbeitet nie
-      // wieder etwas. Ohne diese Unterscheidung bleibt genau das unsichtbar
-      // (ADR-044).
-      subscription.on("error", (err) => {
-        const fatalCode = fatalPubSubCode(err);
-
-        if (fatalCode === null) {
-          fastify.log.error(
-            { error: err },
-            "Pub/Sub subscription error (transient, client will retry)",
-          );
-          return;
-        }
-
-        fastify.log.fatal(
-          { error: err, subscription: subscriptionName, code: fatalCode },
-          "Pub/Sub subscription is permanently unavailable",
-        );
-        fastify.serviceHealth.markFatal(
-          `Pub/Sub subscription "${subscriptionName}" is permanently unavailable (${fatalCode}). ` +
-            "Provision it and restart the worker.",
-        );
-        onFatal();
-      });
+      subscription.on("message", handleMessage);
+      subscription.on("error", handleSubscriptionError);
 
       isListening = true;
       fastify.log.info(
@@ -138,9 +154,26 @@ export const pubSubSubscriberPlugin: FastifyPluginAsync<
 
     async stop() {
       if (!isListening) return;
-      subscription.removeAllListeners();
-      await subscription.close();
       isListening = false;
+
+      // Nur den Fehler-Listener abmelden, und zwar vor `close()`: das Schliessen
+      // zerstoert den Streaming-Pull, und der dabei gemeldete Fehler wuerde
+      // sonst als dauerhafter Ausfall gewertet — `onFatal` beendete den Prozess
+      // mitten im Drain per `process.exit(1)`. Der `message`-Listener bleibt
+      // haengen, bis `close()` zurueckkehrt: er quittiert die Nachrichten, auf
+      // deren Abschluss der Drain gerade wartet.
+      subscription.removeListener("error", handleSubscriptionError);
+
+      fastify.log.info(
+        {
+          subscription: subscriptionName,
+          drainTimeoutSeconds: env.WORKER_SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
+        },
+        "Draining in-flight Pub/Sub messages before shutdown",
+      );
+      await subscription.close();
+      subscription.removeAllListeners();
+
       fastify.log.info(
         { subscription: subscriptionName },
         "Stopped listening for Pub/Sub messages",

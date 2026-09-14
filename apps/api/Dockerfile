@@ -22,4 +22,6 @@ COPY --from=builder /app/api-out /app
 
 USER node
 EXPOSE 10002
-CMD ["node", "node_modules/fastify-cli/cli.js", "start", "-o", "-p", "10002", "dist/app.js"]
+# `--import` laedt das Env-Profil, bevor fastify-cli seine Argumente parst —
+# nur so sieht die CLI `FASTIFY_CLOSE_GRACE_DELAY` aus dem Profil (ADR-045).
+CMD ["node", "--import", "@repo/env/preload", "node_modules/fastify-cli/cli.js", "start", "-o", "-p", "10002", "dist/app.js"]

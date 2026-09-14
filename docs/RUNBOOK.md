@@ -74,7 +74,7 @@ Für belastbare Messungen dürfen API und Worker **nicht** im Dev-Modus laufen: 
 
 `start:loadtest` baut einmal und startet `fastify start` ohne `-P`. `NODE_ENV`, `LOG_LEVEL` und `DISABLE_REQUEST_LOGGING` kommen aus dem Profil (in den Lastprofilen `production` / `warn` / `true`), nicht mehr als CLI-Flag: `-o` uebergibt die `options` aus `app.ts` an fastify-cli, und die lesen das Schema.
 
-Das **Web** startet dagegen bewusst im Dev-Modus (`next dev`, :10001): es liegt nicht im Lastpfad — k6 spricht ausschließlich die API an — und dient nur zur Beobachtung während des Laufs, wo Hot-Reload nützlicher ist als ein Produktions-Build.
+Das **Web** startet dagegen bewusst im Dev-Modus (`vite`, :10001, ADR-039): es liegt nicht im Lastpfad — k6 spricht ausschließlich die API an — und dient nur zur Beobachtung während des Laufs, wo Hot-Reload nützlicher ist als ein Produktions-Build.
 
 ```mermaid
 flowchart TD
@@ -205,10 +205,11 @@ nur als Fallback — die 2,7–4,4 % Transportfehler der co-located Läufe würd
 
 **SUT auf der LAN-IP starten:** Die Bind-Adresse ist Host-Topologie, keine
 Workload-Konfiguration — sie steht deshalb **nicht** im Env-Profil, sondern
-inline vor dem Startbefehl. (Im Profil würde sie auch gar nicht wirken:
-fastify-cli parst seine Argumente inklusive `FASTIFY_ADDRESS` beim
-Prozessstart, bevor `dist/app.js` die Profildatei lädt.) Co-located Läufe
-bleiben damit unverändert auf localhost.
+inline vor dem Startbefehl. (Technisch ginge es seit ADR-045: der
+`--import @repo/env/preload` im Startbefehl lädt das Profil, bevor fastify-cli
+seine `FASTIFY_*`-Argumente parst, und `FASTIFY_CLOSE_GRACE_DELAY` nutzt genau
+das. Die Bind-Adresse bleibt trotzdem draußen, weil sie zum Host gehört und
+nicht zum Profil.) Co-located Läufe bleiben damit unverändert auf localhost.
 
 ```bash
 ipconfig getifaddr en0                    # die <mac-ip> für BASE_URL auf dem PC

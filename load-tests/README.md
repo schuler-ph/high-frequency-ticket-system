@@ -54,8 +54,9 @@ mitlaufen laesst, der lokal um dieselben Cores wie k6/Postgres/Redis/Prometheus
 konkurriert (ein FS-Event mitten im Lauf triggert sogar Rebuild + Restart).
 
 Stattdessen je Service den dedizierten `start:loadtest`-Task nutzen — kompiliert
-`dist/app.js`, startet `fastify start` **ohne** `-P` und mit
-`NODE_ENV=production`/`LOG_LEVEL=warn`/`-l warn`:
+`dist/app.js` und startet fastify-cli **ohne** `-P`. `NODE_ENV=production` und
+`LOG_LEVEL=warn` kommen aus dem gewaehlten Lastprofil, nicht mehr als CLI-Flag
+(ADR-045):
 
 ```bash
 pnpm --filter api run start:loadtest      # API auf :10002

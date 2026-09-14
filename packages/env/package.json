@@ -13,6 +13,11 @@
       "types": "./src/load-profile.ts",
       "source": "./src/load-profile.ts",
       "default": "./dist/load-profile.js"
+    },
+    "./preload": {
+      "types": "./src/preload.ts",
+      "source": "./src/preload.ts",
+      "default": "./dist/preload.js"
     }
   },
   "files": [

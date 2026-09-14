@@ -45,6 +45,7 @@ erhalten eine eigene Datei unter `docs/decisions/`.
 - [ADR-042 Turbo ist der einzige Build-Einstieg](decisions/ADR-042-turbo-ist-der-einzige-build-einstieg.md)
 - [ADR-043 Web ist konfigurationsfrei](decisions/ADR-043-web-ist-konfigurationsfrei.md)
 - [ADR-044 Arbeitsunfähigkeit ist ein 503, kein Schweigen](decisions/ADR-044-arbeitsunfaehigkeit-ist-ein-503-kein-schweigen.md)
+- [ADR-045 Der Shutdown drainiert, statt zu nacken](decisions/ADR-045-shutdown-drainiert-statt-zu-nacken.md)
 
 ## Teilweise umgesetzt
 

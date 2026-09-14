@@ -8,6 +8,7 @@ services:
       api:
         condition: service_started
     restart: unless-stopped
+    profiles: ["apps"]
 
   api:
     image: hfts-api:dev
@@ -27,6 +28,7 @@ services:
       pubsub:
         condition: service_healthy
     restart: unless-stopped
+    profiles: ["apps"]
 
   worker:
     image: hfts-worker:dev
@@ -46,6 +48,7 @@ services:
       pubsub:
         condition: service_healthy
     restart: unless-stopped
+    profiles: ["apps"]
 
   redis:
     image: redis:7-alpine

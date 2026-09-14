@@ -3,7 +3,7 @@
 <img alt="Frequency Festival Ticket Shop" src="https://github.com/user-attachments/assets/69bb2946-6907-4539-ad7f-a5230c6aea76" />
 
 A production-grade learning and reference system for highly concentrated
-ticket sales. It combines a Next.js shop with Fastify, Redis, Google Cloud
+ticket sales. It combines a Vite/React shop with Fastify, Redis, Google Cloud
 Pub/Sub, PostgreSQL, load tests, and observability in a single pnpm Turborepo.
 
 ## What the project demonstrates

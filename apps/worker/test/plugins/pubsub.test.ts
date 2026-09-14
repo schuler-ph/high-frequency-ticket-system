@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import { test } from "node:test";
 import type { Message, PubSub, Subscription } from "@google-cloud/pubsub";
+import { env } from "@repo/env";
 import {
   type PubSubSubscriber,
   pubSubSubscriberPlugin,
@@ -84,6 +85,7 @@ function createListenerRegistry(): ListenerRegistry {
 function createSubscriptionMock(
   listeners: ListenerRegistry,
   exists = true,
+  onClose?: () => void | Promise<void>,
 ): Subscription {
   function on(
     event: "message",
@@ -111,19 +113,42 @@ function createSubscriptionMock(
     exists() {
       return Promise.resolve([exists]);
     },
+    removeListener(event: "message" | "error", listener: unknown) {
+      const registered = listeners[event] as unknown[];
+      const index = registered.indexOf(listener);
+      if (index !== -1) registered.splice(index, 1);
+    },
     removeAllListeners() {
       listeners.message = [];
       listeners.error = [];
     },
-    close() {
-      return Promise.resolve();
+    async close() {
+      // Der Drain laeuft hier: was `close()` noch sieht, sieht auch der echte
+      // Subscriber waehrend `SubscriberCloseBehaviors.WaitForProcessing`.
+      await onClose?.();
     },
   } as unknown as Subscription;
 }
 
-function createClientMock(subscription: Subscription): PubSub {
+interface CapturedSubscriptionOptions {
+  name?: string;
+  options?: {
+    flowControl?: { maxMessages?: number };
+    closeOptions?: { behavior?: string; timeout?: { milliseconds: number } };
+  };
+}
+
+function createClientMock(
+  subscription: Subscription,
+  captured: CapturedSubscriptionOptions = {},
+): PubSub {
   return {
-    subscription() {
+    subscription(
+      name: string,
+      options: CapturedSubscriptionOptions["options"],
+    ) {
+      captured.name = name;
+      captured.options = options;
       return subscription;
     },
   } as unknown as PubSub;
@@ -313,4 +338,56 @@ void test("a transient subscription error does not shut the worker down", async 
   );
 
   assert.equal(fatalCalls, 0);
+});
+
+void test("the subscriber is configured to drain in-flight messages on close", async () => {
+  const listeners = createListenerRegistry();
+  const captured: CapturedSubscriptionOptions = {};
+  const fakeClient = createClientMock(
+    createSubscriptionMock(listeners),
+    captured,
+  );
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: fakeClient,
+    subscriptionName: "buy-ticket-worker",
+    onFatal: () => {},
+  });
+
+  // Ohne "WAIT" nackt die Library beim Schliessen jede bereits zugestellte
+  // Nachricht sofort — bei jedem Rolling Update ein Redelivery-Ausschlag.
+  assert.equal(captured.options?.closeOptions?.behavior, "WAIT");
+  assert.equal(
+    captured.options?.closeOptions?.timeout?.milliseconds,
+    env.WORKER_SHUTDOWN_DRAIN_TIMEOUT_SECONDS * 1000,
+  );
+});
+
+void test("a stream error during shutdown does not count as a permanent failure", async () => {
+  let fatalCalls = 0;
+  const listeners = createListenerRegistry();
+  // `close()` zerstoert den Streaming-Pull; der Fehler, den er dabei meldet,
+  // darf den Prozess nicht mitten im Drain beenden.
+  const fakeSubscription = createSubscriptionMock(listeners, true, async () => {
+    await deliverError(
+      listeners,
+      Object.assign(new Error("Subscription does not exist"), { code: 5 }),
+    );
+  });
+  const fastify = createFakeFastify();
+
+  await pubSubSubscriberPlugin(fastify as never, {
+    client: createClientMock(fakeSubscription),
+    subscriptionName: "buy-ticket-worker",
+    onFatal: () => {
+      fatalCalls += 1;
+    },
+  });
+  fastify.pubsubSubscriber.start();
+
+  await fastify.pubsubSubscriber.stop();
+
+  assert.equal(fatalCalls, 0);
+  assert.equal(fastify.serviceHealth.fatalReason, null);
 });
