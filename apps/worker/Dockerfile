@@ -21,8 +21,7 @@ RUN pnpm --filter=worker --prod --legacy deploy /app/worker-out
 FROM node:24-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/worker-out /app
-ENV NODE_ENV=production
 
 USER node
 EXPOSE 10003
-CMD ["node", "node_modules/fastify-cli/cli.js", "start", "-l", "info", "-p", "10003", "dist/app.js"]
+CMD ["node", "node_modules/fastify-cli/cli.js", "start", "-o", "-p", "10003", "dist/app.js"]
