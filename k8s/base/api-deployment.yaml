@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: worker
+  name: api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: worker
+      app: api
   template:
     metadata:
       labels:
-        app: worker
+        app: api
     spec:
       terminationGracePeriodSeconds: 35
       containers:
-        - name: worker
-          image: hfts-worker:dev
+        - name: api
+          image: hfts-api:dev
           ports:
-            - containerPort: 10003
+            - containerPort: 10002
           envFrom:
             - configMapRef:
                 name: hfts-config
@@ -26,7 +26,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 10003
+              port: 10002
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3

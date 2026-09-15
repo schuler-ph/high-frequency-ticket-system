@@ -3,11 +3,11 @@ kind: Kustomization
 resources:
   - ../../base
 configMapGenerator:
-  - name: worker-config
+  - name: hfts-config
     literals:
-      - HFTS_ENV="dev"
-      - PUBSUB_EMULATOR_HOST="host.docker.internal:10005"
+      - HFTS_ENV=dev
+      - PUBSUB_EMULATOR_HOST=host.docker.internal:10005
 secretGenerator:
-  - name: worker-secret
+  - name: hfts-secret
     envs:
       - secret.local.env

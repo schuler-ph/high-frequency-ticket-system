@@ -19,13 +19,23 @@ gehört ins Overlay und nicht in `base/`.
 
 ## Anwenden
 
+Ein Befehl rollt alles aus. Deployments, Services, ConfigMap und Secret
+entstehen in einem Durchgang, weil das Overlay die Generatoren mitbringt:
+
 ```bash
-kubectl apply -k overlays/local
-kubectl apply -k overlays/cloud
+kubectl apply -k k8s/overlays/local
 ```
 
-Die vollständige Befehlsfolge inklusive Cluster-Start, `kind load` und
-Diagnose steht im [Befehlsblatt](../docs/notes/sheets/k8s.md).
+Das Cloud-Overlay wird später genauso angewendet, nur mit `overlays/cloud`.
+
+`base/` wird nie direkt angewendet. ConfigMap und Secret fehlen dort
+absichtlich — sie entstehen erst im Overlay. Ein `kubectl apply -k k8s/base`
+rollt deshalb Deployments aus, deren `envFrom` ins Leere zeigt, und die Pods
+bleiben in `CreateContainerConfigError` stehen.
+
+Vorher müssen die Compose-Stores laufen, Topic und Subscription angelegt und
+die Images per `kind load` im Cluster sein. Diese Schritte, die Diagnose-Befehle
+und die wiederkehrenden Fallen stehen unten unter [Befehle](#befehle).
 
 ## Konfiguration
 
@@ -38,17 +48,14 @@ Zugangsdaten gehören ins Secret, nicht in `base/`. Ein Kubernetes-Secret ist
 base64-kodiert, nicht verschlüsselt — mit echten Werten gehört es nicht ins
 Repository.
 
-# Befehlsblatt: Kubernetes lokal (kind)
+## Befehle
 
-Nachschlagewerk für Phase 5.1: die Befehle, die beim Arbeiten am lokalen
-Cluster immer wieder gebraucht werden. Keine Begründungen — die stehen in
-[ADR-038](../../decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md) und
-in der [Phasennotiz](../phases/phase-5-cloud-deployment.md).
+Nachschlagewerk für die Arbeit am lokalen Cluster. Keine Begründungen — die
+stehen in
+[ADR-038](../docs/decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md) und
+in der [Phasennotiz](../docs/notes/phases/phase-5-cloud-deployment.md).
 
-Die Datenstores bleiben in Compose. Der Cluster erreicht sie über die
-Host-Adresse `host.docker.internal` und die Compose-Host-Ports.
-
-## Voraussetzungen vor jedem Lauf
+### Voraussetzungen vor jedem Lauf
 
 ```bash
 docker compose up -d
@@ -59,7 +66,7 @@ HFTS_ENV=dev pnpm run provision          # Topic und Subscription anlegen
 Ohne Topic beendet sich der Worker mit `process.exit(1)` (ADR-044); im Cluster
 erscheint das als `CrashLoopBackOff`.
 
-## Images bauen und in den Cluster laden
+### Images bauen und in den Cluster laden
 
 ```bash
 pnpm --filter worker run docker:build    # analog: api, web
@@ -73,7 +80,7 @@ kind load docker-image hfts-web:dev --name hfts
 Nach jedem Rebuild erneut laden. Ein `kubectl rollout restart` allein zieht
 kein neues Image.
 
-## Cluster
+### Cluster
 
 ```bash
 kind create cluster --name hfts
@@ -83,16 +90,18 @@ kubectl config current-context
 kind delete cluster --name hfts
 ```
 
-## Anwenden
+### Anwenden und prüfen
 
 ```bash
-kubectl apply -f k8s/base/worker-deployment.yaml
-kubectl apply -k k8s/overlays/local
+kubectl kustomize k8s/overlays/local      # nur rendern, nichts anwenden
+kubectl apply -k k8s/overlays/local       # rollt alles aus, ein Befehl genügt
 kubectl diff -k k8s/overlays/local        # was würde sich ändern?
 kubectl delete -k k8s/overlays/local
 ```
 
-## Ansehen
+Alle Pfade gelten vom Repository-Wurzelverzeichnis aus.
+
+### Ansehen
 
 ```bash
 kubectl get pods
@@ -102,7 +111,7 @@ kubectl get deploy,svc,cm,secret
 kubectl get pod <name> -o yaml            # was der Server wirklich gespeichert hat
 ```
 
-## Die Diagnose-Schleife
+### Die Diagnose-Schleife
 
 ```bash
 kubectl describe pod -l app=worker        # Events stehen am Ende
@@ -115,7 +124,7 @@ kubectl get events --sort-by=.lastTimestamp
 `--previous` ist bei `CrashLoopBackOff` der wichtigste Schalter: der laufende
 Container ist neu und hat den Fehler noch nicht wiederholt.
 
-## Hineinschauen und erreichen
+### Hineinschauen und erreichen
 
 ```bash
 kubectl exec -it <pod> -- sh
@@ -123,7 +132,7 @@ kubectl exec <pod> -- env | sort          # kam die ConfigMap wirklich an?
 kubectl port-forward deploy/api 10002:10002
 ```
 
-## Rollout
+### Rollout
 
 ```bash
 kubectl rollout status deploy/worker
@@ -131,7 +140,7 @@ kubectl rollout restart deploy/worker
 kubectl rollout undo deploy/worker
 ```
 
-## Compose-Host-Ports
+### Compose-Host-Ports
 
 | Dienst   | im Compose-Netz | vom Cluster aus              |
 | -------- | --------------- | ---------------------------- |
@@ -139,7 +148,7 @@ kubectl rollout undo deploy/worker
 | Pub/Sub  | `pubsub:8085`   | `host.docker.internal:10005` |
 | Postgres | `postgres:5432` | `host.docker.internal:10006` |
 
-## Wiederkehrende Fallen
+### Wiederkehrende Fallen
 
 - `ErrImagePull` — `kind load docker-image` vergessen oder Tag vertippt.
 - Pod startet nicht, Meldung über `selector` — `spec.selector.matchLabels` und
@@ -152,3 +161,4 @@ kubectl rollout undo deploy/worker
   Selector fehl; der API-Server proxyt nicht auf Endpunkte ohne Pod.
 - Ein Secret ist base64, nicht verschlüsselt: mit echten Werten gehört es
   nicht ins Repository.
+
