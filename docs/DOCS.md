@@ -37,14 +37,16 @@ Begründung aber nicht.
 
 ## Bedarfswissen
 
-| Ort                    | Zweck                                                     | Lebenszyklus                                                                  |
-| ---------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `docs/notes/phases/`   | detaillierte Phasenpläne und unterstützende Phasennotizen | behalten, solange Todo oder ADR darauf verweisen; aktuelle Wahrheit auslagern |
-| `docs/notes/backlogs/` | Details zu phasenübergreifenden Arbeitspaketen            | wie Phasennotizen; nach Thema teilen, nicht chronologisch sammeln             |
-| `docs/reports/`        | unveränderliche Messungen, Audits und Benchmarks          | behalten; Korrekturen als datierten Nachtrag oder neuen Report                |
-| lokale `README.md`     | Bedienung eines Verzeichnisses, Pakets oder Werkzeugs     | zusammen mit dem lokalen Code pflegen                                         |
-| `.agents/skills/`      | wiederverwendbare Agent-Workflows                         | Projektwissen nur verlinken                                                   |
-| `.github/agents/`      | rollenspezifische Copilot-Agentprofile                    | keine gemeinsamen Repository-Regeln duplizieren                               |
+| Ort                    | Zweck                                                                                                         | Lebenszyklus                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `docs/notes/phases/`   | detaillierte Phasenpläne und unterstützende Phasennotizen                                                     | behalten, solange Todo oder ADR darauf verweisen; aktuelle Wahrheit auslagern      |
+| `docs/notes/backlogs/` | Details zu phasenübergreifenden Arbeitspaketen                                                                | wie Phasennotizen; nach Thema teilen, nicht chronologisch sammeln                  |
+| `docs/notes/sheets/`   | Befehlsblätter zum Nachschlagen, ein Werkzeug je Datei                                                        | behalten, solange das Werkzeug benutzt wird; keine Begründungen, die im ADR stehen |
+| `docs/reports/`        | unveränderliche Messungen, Audits und Benchmarks                                                              | behalten; Korrekturen als datierten Nachtrag oder neuen Report                     |
+| lokale `README.md`     | Bedienung eines Verzeichnisses, Pakets oder Werkzeugs                                                         | zusammen mit dem lokalen Code pflegen                                              |
+| `.agents/skills/`      | wiederverwendbare Agent-Workflows                                                                             | Projektwissen nur verlinken                                                        |
+| `.github/agents/`      | rollenspezifische Copilot-Agentprofile                                                                        | keine gemeinsamen Repository-Regeln duplizieren                                    |
+| `k8s/`                 | Kubernetes-Manifeste: `base/` mit den Objekten, `overlays/<umgebung>/` mit Adressen, Secrets und Replica-Zahl | mit den Manifesten pflegen; Begründung bleibt im ADR, Bedienung in `k8s/README.md` |
 
 Markdown-Test-Fixtures bleiben neben dem Test, der sie auswertet. Sie sind
 keine Projektdokumentation.

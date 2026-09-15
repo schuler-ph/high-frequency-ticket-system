@@ -12,21 +12,17 @@ spec:
       labels:
         app: worker
     spec:
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 35
       containers:
         - name: worker-container
           image: hfts-worker:dev
           ports:
             - containerPort: 10003
-          env:
-            - name: HFTS_ENV
-              value: "dev"
-            - name: REDIS_URL
-              value: "redis://host.docker.internal:10004"
-            - name: PUBSUB_EMULATOR_HOST
-              value: "host.docker.internal:10005"
-            - name: DATABASE_URL
-              value: "postgres://postgres:postgres@host.docker.internal:10006/high_frequency_tickets"
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
           livenessProbe:
             httpGet:
               path: /health

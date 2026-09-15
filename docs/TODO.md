@@ -146,6 +146,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [ ] **N API-Replicas hinter Ingress:** Korrektheit statt Kapazitaet (REQ-D02).
 - [ ] **Entscheidung Zeitquellen bei Replicas:** Sale-Unlock (ADR-024) und Checkout-Deadline (ADR-033) gemeinsam entscheiden; Drift-Nachweis erst in 5.6.
 - [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown als Vorbedingung fuer Rolling Updates ist erfuellt (ADR-045); das Manifest muss `terminationGracePeriodSeconds` > 30 setzen.
+- [ ] **Readiness-Probe entscheiden:** Worker bleibt bei Redis-/Pub-Sub-Ausfall `1/1 Running` mit `/health` 200 — Liveness fragt "hilft ein Neustart?" (ADR-044). Readiness steuert Traffic beim Rolling Update; Worker-Ausfall gehoert in einen Alert (REQ-O04).
 
 ### Phase 5.3 — Messkette umgebungsunabhaengig
 
