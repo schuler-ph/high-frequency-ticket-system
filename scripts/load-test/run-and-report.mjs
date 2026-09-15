@@ -18,7 +18,8 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 
 import {
@@ -219,7 +220,13 @@ const main = async () => {
   // 2. Manifest identity.
   const git = getGitInfo();
   const runId = `${stamp()}-${git.commit.slice(0, 7)}`;
-  const runDir = join(REPO_ROOT, "artifacts", "load-tests", runId);
+  // Belege behaelt nur, wer sie auswertet. Der Smoke-Lauf prueft die Messkette
+  // und interessiert sich ausschliesslich fuer das Urteil auf der Konsole —
+  // seine Rohdaten landen im Temp-Verzeichnis und verschwinden mit dem Host.
+  const saveArtifacts = requireEnvBoolean("SAVE_ARTIFACTS");
+  const runDir = saveArtifacts
+    ? join(REPO_ROOT, "artifacts", "load-tests", runId)
+    : join(mkdtempSync(join(tmpdir(), "hfts-spike-")), runId);
   for (const sub of ["k6", "metrics", "state"]) {
     mkdirSync(join(runDir, sub), { recursive: true });
   }
@@ -426,7 +433,11 @@ const main = async () => {
     }
   }
 
-  console.log(`[spike:report] Artifacts: ${runDir}`);
+  console.log(
+    saveArtifacts
+      ? `[spike:report] Artifacts: ${runDir}`
+      : `[spike:report] Artifacts: verworfen (SAVE_ARTIFACTS=false), temporaer unter ${runDir}`,
+  );
   console.log(
     `[spike:report] benchmark=${derived.validity.benchmark.verdict} system=${derived.validity.system.verdict} performance=${derived.validity.performance.verdict} (k6 phaseA=${phaseAExit} phaseB=${phaseBExit})`,
   );

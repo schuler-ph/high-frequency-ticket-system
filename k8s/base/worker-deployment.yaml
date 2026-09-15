@@ -27,9 +27,21 @@ spec:
             httpGet:
               path: /health
               port: 10003
-            initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 10003
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 10003
+            periodSeconds: 2
+            failureThreshold: 30
           resources:
             requests:
               memory: "256Mi"

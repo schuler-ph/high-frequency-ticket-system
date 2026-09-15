@@ -427,7 +427,7 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 **Task:** `loadtest:run+report` — fragt das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
-**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie Container aus `pnpm docker:run`; die Container dabei mit `HFTS_ENV=smoke-test` starten, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
+**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Das Profil setzt `EXPORT_GRAPHS=false` und `SAVE_ARTIFACTS=false`: keine Panel-PNGs, und die Rohbelege landen im Temp-Verzeichnis statt in `artifacts/load-tests/` — das Urteil auf der Konsole ist das Ergebnis. Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie Container aus `pnpm docker:run`; die Container dabei mit `HFTS_ENV=smoke-test` starten, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
@@ -512,7 +512,7 @@ pnpm spike:graphs                       # letzter Run, Fenster aus dessen manife
 pnpm spike:graphs -- --run <run-id>      # anderer Run, ebenfalls aus dem Manifest
 pnpm spike:graphs -- --range '{"from":"2026-07-27 16:19:00","to":"2026-07-27 16:31:00"}'
 pnpm spike:graphs -- --from now-30m --to now --out /tmp/graphs
-EXPORT_GRAPHS=0 pnpm spike:report        # Export im Lauf abschalten
+EXPORT_GRAPHS=false pnpm spike:report     # Export im Lauf abschalten
 ```
 
 - **Zeitangaben ohne Zone** werden in `--tz` gelesen (Default `Europe/Vienna`) — genau das Format, das die Grafana-Zeitauswahl ausgibt. Sie als UTC zu lesen hätte jedes Bild still um den lokalen Offset verschoben.
