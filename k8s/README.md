@@ -6,11 +6,12 @@ später GKE. Datenstores bleiben in `docker-compose.yml`, erreichbar über
 
 ## Aufbau
 
-| Pfad              | Inhalt                                                     |
-| ----------------- | ---------------------------------------------------------- |
-| `base/`           | Deployments, Services, Probes, Ressourcen — überall gleich |
-| `overlays/local/` | kind: Compose-Adressen, lokales Secret, 1 Replica          |
-| `overlays/cloud/` | GKE: Cloud-Adressen, Cluster-Secret, Replica-Zahl          |
+| Pfad              | Inhalt                                                        |
+| ----------------- | ------------------------------------------------------------- |
+| `base/`           | Deployments, Services, Probes, Ressourcen — überall gleich    |
+| `overlays/local/` | kind: Compose-Adressen, lokales Secret, 1 Replica             |
+| `overlays/cloud/` | GKE: Cloud-Adressen, Cluster-Secret, Replica-Zahl             |
+| `vendor/`         | fremde Cluster-Ausstattung, nicht versioniert — eigene README |
 
 - Unterschiede zwischen lokal und Cloud gehören ins Overlay, nie in `base/`.
 - `base/` nie direkt anwenden — ConfigMap und Secret entstehen erst im Overlay.
@@ -26,10 +27,56 @@ Alle Pfade vom Repository-Wurzelverzeichnis.
 docker compose up -d                      # postgres, redis, pubsub
 HFTS_ENV=dev pnpm run provision           # Topic + Subscription
 pnpm run docker:build                     # oder --filter api|worker|web
-kind load docker-image hfts-api:dev --name hfts        # analog worker, web
-kubectl kustomize k8s/overlays/local      # rendern, nichts anwenden
-kubectl apply -k k8s/overlays/local
+pnpm run kind:up                          # Cluster, Images, Gateway, Overlay
 kubectl get pods -w                       # beide 1/1 Running
+```
+
+`kind:up` kettet vier Schritte, die einzeln dasselbe tun und beim Üben
+einzeln nützlich sind:
+
+| Skript            | tut                                                    |
+| ----------------- | ------------------------------------------------------ |
+| `kind:create`     | nur den Cluster aus `kind.yaml`                        |
+| `kind:load`       | die drei `hfts-*:dev`-Images in den Cluster            |
+| `gateway:install` | Envoy Gateway aus `vendor/`, wartet auf den Controller |
+| `k8s:apply`       | `kubectl apply -k k8s/overlays/local`                  |
+
+`kind:recreate` ist `kind:delete` gefolgt von `kind:up`. Vorher müssen die
+Images gebaut sein, sonst bricht die Kette nach dem Cluster ab.
+
+### Images vorladen
+
+`kind:recreate` wirft den Node weg, und mit ihm dessen Image-Cache. Was nicht
+vorgeladen ist, wird bei jedem Neuaufbau neu aus dem Internet gezogen. Alle
+Images der `install.yaml` stehen auf `imagePullPolicy: IfNotPresent`, deshalb
+lädt `kind:load` neben den drei eigenen auch den Controller in den Node.
+
+Einmalige Voraussetzung auf einem frischen Rechner — sonst scheitert
+`kind:load`:
+
+```bash
+docker pull envoyproxy/gateway:v1.9.1
+```
+
+Ein Pull bleibt: Der Controller erzeugt zu jedem `Gateway` eine zweite
+Deployment mit dem eigentlichen Envoy-Proxy. Dessen Tag steht nicht in der
+`install.yaml`, sondern kommt aus der Controller-Config und ist erst nach dem
+ersten `Gateway` sichtbar:
+
+```bash
+kubectl get deploy -n envoy-gateway-system -o wide
+```
+
+Controller und Overlay sind bewusst zwei Applys: eine CRD und ihre erste
+Instanz im selben Apply wären ein Timing-Rennen. Aus demselben Grund gehört
+der Controller nicht ins Overlay — `k8s:delete` würde sonst die
+Gateway-API-CRDs und damit jedes `Gateway` und jede `HTTPRoute` mitreißen.
+
+Alle `kubectl`-Skripte sind auf `--context kind-hfts` festgenagelt, damit ein
+aktiver GKE-Kontext das lokale Overlay nicht in die Cloud schiebt.
+
+```bash
+kubectl kustomize k8s/overlays/local      # rendern, nichts anwenden
 ```
 
 ## Erreichen
