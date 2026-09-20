@@ -42,6 +42,10 @@ spec:
               port: 10002
             periodSeconds: 2
             failureThreshold: 30
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
           resources:
             requests:
               memory: "256Mi"

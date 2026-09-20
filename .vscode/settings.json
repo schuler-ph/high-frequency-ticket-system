@@ -57,14 +57,14 @@
         "args": ["spike:open-dashboards"]
       },
       // --- Abläufe aus docs/RUNBOOK.md --------------------------------------
-      {
-        "name": "$(play) Dev Stack",
-        "color": "#61AFEF",
-        "tooltip": "RUNBOOK §2: Infra → Seed → pnpm dev (Reihenfolge ist Pflicht). Fragt zuerst das Env-Profil ab: dev / test.",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["dev:stack up"]
-      },
+      // {
+      //   "name": "$(play) Dev Stack",
+      //   "color": "#61AFEF",
+      //   "tooltip": "RUNBOOK §2: Infra → Seed → pnpm dev (Reihenfolge ist Pflicht). Fragt zuerst das Env-Profil ab: dev / test.",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["dev:stack up"]
+      // },
       {
         "name": "$(rocket) LT Stack",
         "color": "#98C379",
@@ -90,14 +90,14 @@
       //   "command": "workbench.action.tasks.runTask",
       //   "args": ["loadtest:stack down"]
       // },
-      {
-        "name": "$(dashboard) Spike Report",
-        "color": "#FF8C00",
-        "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Env-Profil ab: browse-and-buy-full-speed / browse-and-buy-human-pace / buy-only-full-speed / smoke-test (1k Tickets, alles zahlt, ~3 min, prüft nur, ob die Messkette richtig zählt). Die Auswertung läuft im Anschluss automatisch.",
-        "useVsCodeApi": true,
-        "command": "workbench.action.tasks.runTask",
-        "args": ["loadtest:run+report"]
-      },
+      // {
+      //   "name": "$(dashboard) Spike Report",
+      //   "color": "#FF8C00",
+      //   "tooltip": "RUNBOOK §4: Voller Lasttest mit Belegerhebung → artifacts/load-tests/<run-id>/ (dauert viele Minuten). Fragt zuerst das Env-Profil ab: browse-and-buy-full-speed / browse-and-buy-human-pace / buy-only-full-speed / smoke-test (1k Tickets, alles zahlt, ~3 min, prüft nur, ob die Messkette richtig zählt). Die Auswertung läuft im Anschluss automatisch.",
+      //   "useVsCodeApi": true,
+      //   "command": "workbench.action.tasks.runTask",
+      //   "args": ["loadtest:run+report"]
+      // },
       {
         "name": "$(beaker) Smoke",
         "color": "#56B6C2",
@@ -105,6 +105,22 @@
         "useVsCodeApi": true,
         "command": "workbench.action.tasks.runTask",
         "args": ["loadtest:smoke"]
+      },
+      {
+        "name": "$(plug) Tunnel",
+        "color": "#61AFEF",
+        "tooltip": "Drei Tunnel in den kind-Cluster: Envoy (10000), API (10002), Worker (10003). Muss waehrend 'Smoke Cluster' offen bleiben — schliesst du das Terminal, sind die Tunnel weg. Beenden mit Strg+C.",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["k8s:forward"]
+      },
+      {
+        "name": "$(beaker) Smoke Cluster",
+        "color": "#56B6C2",
+        "tooltip": "Smoke-Lauf gegen den kind-Cluster (Profil smoke-test, BASE_URL auf 10000): k6 faehrt ueber den Envoy-Eingang, nicht direkt auf den API-Port — dieselben Pfade wie der Browser. /metrics bleibt am Service, weil das Gateway Messendpunkte bewusst nicht routet; deshalb braucht es alle drei Tunnel aus 'Tunnel'. Prueft vorher die Bereitschaft und benennt bei Timeout den fehlenden Tunnel.",
+        "useVsCodeApi": true,
+        "command": "workbench.action.tasks.runTask",
+        "args": ["loadtest:smoke (cluster)"]
       },
       {
         "name": "$(remote) Spike Split",

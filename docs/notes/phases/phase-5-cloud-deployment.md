@@ -31,3 +31,4 @@ Monitoring → 5.5, verteilter Generator → 5.7); die Freigabe-Regel aus deren
 ### Belege aus 5.2
 
 - Erster Lauf mit drei API-Replicas hinter dem Gateway: [Lastverteilung und Metrik-Kardinalitaet](../../reports/replica-fanout-2026-09-20.md) (2026-09-20). Liefert die Serienzahlen, die 5.3 fuer die Panel-Klassifikation braucht, und den Unterschied zwischen L7-Balancing im Gateway und L4-Bindung am ClusterIP-Service.
+- Rolling Update der API unter Last: [Requestverluste und Wirkung des `preStop`-Hooks](../../reports/rolling-update-2026-09-20.md) (2026-09-20). Belegt, dass der Rollout ohne Hook Requests kostet, und grenzt `preStop` (Routing) gegen den Drain aus ADR-045 (In-flight) ab.

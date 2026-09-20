@@ -276,6 +276,56 @@
       "problemMatcher": []
     },
     {
+      // Drei Tunnel in einem Terminal. Der Envoy-Service traegt einen Hash im
+      // Namen, der sich bei jedem neuen Gateway aendert — deshalb wird er ueber
+      // den owning-gateway-name-Selector aufgeloest, nicht fest verdrahtet.
+      "label": "k8s:forward",
+      "detail": "Tunnel in den kind-Cluster: Envoy (10000), API (10002), Worker (10003). Muss waehrend eines Cluster-Laufs offen bleiben. Beenden mit Strg+C im Terminal.",
+      "hide": true,
+      "type": "shell",
+      "command": "kubectl --context kind-hfts port-forward -n envoy-gateway-system \"svc/$(kubectl --context kind-hfts get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=hfts -o jsonpath='{.items[0].metadata.name}')\" 10000:10000 & kubectl --context kind-hfts port-forward svc/api 10002:10002 & kubectl --context kind-hfts port-forward svc/worker 10003:10003 & wait",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      // Gegenstueck zu 'stack:wait-ready', aber fuer den Cluster: der Kaufpfad
+      // wird ueber den Gateway-Eingang geprueft, nicht am API-Port. /metrics
+      // bleibt bewusst am Service — das Gateway routet es nicht, und das soll
+      // es auch nicht (Messendpunkte gehoeren nicht an den oeffentlichen
+      // Eingang).
+      "label": "k8s:wait-ready",
+      "detail": "Pollt den Kaufpfad ueber Envoy (10000) sowie /metrics von API (10002) und Worker (10003). Bei Timeout wird benannt, welcher der drei Tunnel fehlt.",
+      "hide": true,
+      "type": "shell",
+      "command": "i=0; until curl -sf -o /dev/null localhost:10000/api/tickets/00000000-0000-4000-8000-000000000000/availability && curl -sf -o /dev/null localhost:10002/metrics && curl -sf -o /dev/null localhost:10003/metrics; do sleep 2; i=$((i+2)); if [ $i -ge 120 ]; then echo \"TIMEOUT nach ${i}s.\"; curl -sf -o /dev/null localhost:10000/api/tickets/00000000-0000-4000-8000-000000000000/availability && echo \"  Envoy (10000): Kaufpfad antwortet\" || echo \"  Envoy (10000): KEINE Antwort — Tunnel fehlt oder Gateway/HTTPRoute nicht bereit\"; curl -sf -o /dev/null localhost:10002/metrics && echo \"  API (10002): bereit\" || echo \"  API (10002): KEINE Antwort — Tunnel fehlt oder Pod nicht ready\"; curl -sf -o /dev/null localhost:10003/metrics && echo \"  Worker (10003): bereit\" || echo \"  Worker (10003): KEINE Antwort — Tunnel fehlt oder CrashLoopBackOff (Pub/Sub-Subscription fehlt? HFTS_ENV=dev pnpm seed)\"; echo \"Tunnel starten: Task 'k8s:forward'. Pods pruefen: kubectl --context kind-hfts get pods\"; exit 1; fi; done; echo \"Cluster bereit nach ${i}s: Envoy 10000, API 10002, Worker 10003.\"",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      // BASE_URL wird als Prozess-Env gesetzt und schlaegt damit den Wert aus
+      // smoke-test.env (ADR-034, override: false). Die k6-Helper bauen daraus
+      // '/api/tickets/...', '/api/orders/...' — genau die Pfade, die die
+      // HTTPRoute auf den API-Service zieht. Kein eigenes Profil noetig.
+      "label": "loadtest:report (smoke, cluster)",
+      "detail": "Nur der Smoke-Lauf selbst, Last ueber den Gateway-Eingang (Profil smoke-test, BASE_URL auf 10000); ueber 'loadtest:smoke (cluster)' aufrufen.",
+      "hide": true,
+      "type": "shell",
+      "command": "source \"$HOME/.nvm/nvm.sh\" && nvm use --silent >/dev/null && HFTS_ENV=smoke-test BASE_URL=http://localhost:10000 pnpm run spike:report",
+      "options": { "shell": { "executable": "/bin/zsh", "args": ["-lc"] } },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "loadtest:smoke (cluster)",
+      "detail": "Smoke-Lauf gegen den kind-Cluster: k6 faehrt ueber den Envoy-Eingang (10000), nicht direkt auf den API-Port. Setzt laufende Tunnel voraus — Task 'k8s:forward'. 1k Tickets, alles zahlt, ~3 min; prueft die Messkette und den Gateway-Pfad, kein Kapazitaetsnachweis.",
+      "hide": true,
+      "dependsOrder": "sequence",
+      "dependsOn": ["k8s:wait-ready", "loadtest:report (smoke, cluster)"],
+      "problemMatcher": []
+    },
+    {
       // Der Direktlink selbst ist persistente Konfiguration (networksetup am
       // Mac, New-NetIPAddress/Firewall-Regeln am PC) — dieser Check prueft
       // nach dem Zusammenstecken nur, dass alles noch steht: Link, ssh,
