@@ -32,6 +32,7 @@ type QueueBuyTicketPurchaseInput = {
   redis: TicketRedisScripts;
   pendingTimeoutSeconds?: number;
   createOrderId?: () => string;
+  createNow?: () => number;
   onReservationCreated?: () => void;
 };
 
@@ -54,6 +55,7 @@ export async function queueBuyTicketPurchase({
   redis,
   pendingTimeoutSeconds = env.CHECKOUT_PENDING_TIMEOUT_SECONDS,
   createOrderId = randomUUID,
+  createNow = Date.now,
   onReservationCreated,
 }: QueueBuyTicketPurchaseInput): Promise<BuyTicketResponse> {
   const keys = ticketRedisKeys(eventId);
@@ -63,7 +65,7 @@ export async function queueBuyTicketPurchase({
   // Eligibility Deadline und Serverzeit-Anker der Antwort. `queuedAt` fuer die
   // E2E-Latenz setzt erst die Pay-Route beim Publish — der Buy misst keine
   // Queue-Latenz mehr (ADR-028).
-  const now = Date.now();
+  const now = createNow();
   // Genau eine Berechnung der Deadline: derselbe Wert geht in den Record und
   // als Score in den Ledger.
   const expiresAt = now + pendingTimeoutSeconds * 1000;

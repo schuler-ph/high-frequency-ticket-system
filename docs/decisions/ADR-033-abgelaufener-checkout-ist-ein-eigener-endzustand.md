@@ -98,3 +98,28 @@
 
 - **Umsetzungsplan:** `docs/TODO.md` Phase 4.10, Todo 2; Detailplan in
   [`docs/notes/phases/phase-4-10-checkout-expiry.md`](../notes/phases/phase-4-10-checkout-expiry.md).
+
+- **Nachtrag (2026-09-20) — Die Deadline bei N Replicas (Phase 5.2):** Die
+  Zeitquellen-Entscheidung fällt gemeinsam mit ADR-024: es bleibt bei
+  Prozessuhren, keine autoritative Uhr. Für die Eligibility Deadline heißt das
+  konkret:
+  - **Ziffer 2 gilt weiterhin, aber ihre Begründung trägt nur pro Uhr.** Der
+    Satz „es darf keinen Moment geben, in dem Pay noch zusagt und der Reaper
+    schon freigeben dürfte" setzt voraus, dass beide dieselbe Uhr lesen. Bei
+    getrennten Pods ist das nicht mehr so. **Die Konsequenz, die Ziffer 2
+    verhindern sollte, tritt trotzdem nicht ein:** geschützt ist der Anspruch
+    durch die Atomarität, nicht durch die Uhrengleichheit. Der Reaper gibt nur
+    frei, wenn der Record noch `pending` ist _und_ `ZREM` gewinnt; hat Pay
+    vorher auf `publishing` gedreht, liefert das Script `4` und rührt nichts an.
+    Drift kann die Freigabe verfrühen oder verspäten, aber nie verdoppeln.
+  - **Der Effekt ist folgenlos, weil das Referenzfenster groß ist.** Die Drift
+    wirkt gegen eine Deadline von 12 s (`browse-and-buy-human-pace`) bis 900 s.
+    Eine Uhren-Spanne im Millisekundenbereich verschiebt das Ende des Checkouts
+    um Promille. Das ist der Unterschied zum Sale-Unlock (ADR-024), wo dieselbe
+    Spanne gegen ein Fenster von null wirkt und deshalb Fairness kostet.
+  - **Eine vierte Uhr, der Vollständigkeit halber:** Der Countdown im Frontend
+    verankert sich per Skew-Korrektur an `serverTime` aus dem Status-Poll
+    (`apps/web/src/hooks/useCheckoutDeadline.ts`). Bei N Replicas beantwortet
+    jeder Poll potenziell ein anderer Pod, der Anker springt also um die
+    Pod-Spanne. Selbstkorrigierend und im Millisekundenbereich unsichtbar — aber
+    es sind vier Uhren an dieser Grenze, nicht drei.
