@@ -13,3 +13,6 @@ secretGenerator:
   - name: hfts-secret
     envs:
       - secret.local.env
+replicas:
+  - name: api
+    count: 3

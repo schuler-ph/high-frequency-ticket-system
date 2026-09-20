@@ -42,7 +42,7 @@
     "kind:recreate": "pnpm run kind:delete; pnpm run kind:up",
     "gateway:fetch": "test -f k8s/vendor/install.yaml || curl -fsSL --create-dirs -o k8s/vendor/install.yaml https://github.com/envoyproxy/gateway/releases/download/v1.9.1/install.yaml",
     "gateway:install": "pnpm run gateway:fetch && kubectl --context kind-hfts apply --server-side -f k8s/vendor/install.yaml && kubectl --context kind-hfts wait --timeout=5m -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available",
-    "gateway:forward": "kubectl --context kind-hfts port-forward -n envoy-gateway-system svc/$(kubectl --context kind-hfts get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=hfts -o jsonpath='{.items[0].metadata.name}') 8080:10000",
+    "gateway:forward": "kubectl --context kind-hfts port-forward -n envoy-gateway-system svc/$(kubectl --context kind-hfts get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=hfts -o jsonpath='{.items[0].metadata.name}') 10000:10000",
     "k8s:apply": "kubectl --context kind-hfts apply -k k8s/overlays/local",
     "k8s:delete": "kubectl --context kind-hfts delete -k k8s/overlays/local",
     "worker:restart": "kubectl --context kind-hfts rollout restart deploy/worker && kubectl --context kind-hfts rollout status deploy/worker --timeout=120s"

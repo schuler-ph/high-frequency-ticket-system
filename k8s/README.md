@@ -44,6 +44,13 @@ einzeln nützlich sind:
 `kind:recreate` ist `kind:delete` gefolgt von `kind:up`. Vorher müssen die
 Images gebaut sein, sonst bricht die Kette nach dem Cluster ab.
 
+Daneben, unabhängig vom Aufbau:
+
+| Skript            | tut                                                        |
+| ----------------- | ---------------------------------------------------------- |
+| `gateway:forward` | Tunnel auf `localhost:10000` zum Envoy-Service             |
+| `worker:restart`  | ersetzt den Worker-Pod und wartet auf den fertigen Rollout |
+
 ### Images vorladen
 
 `kind:recreate` wirft den Node weg, und mit ihm dessen Image-Cache. Was nicht
@@ -81,10 +88,30 @@ kubectl kustomize k8s/overlays/local      # rendern, nichts anwenden
 
 ## Erreichen
 
+Seit dem Gateway ist ein Tunnel genug — Envoy trennt `/api` und den Rest im
+Cluster:
+
 ```bash
-kubectl port-forward svc/api 10002:10002  # muss laufen bleiben
+pnpm gateway:forward                      # muss laufen bleiben
+curl -s localhost:10000/api/tickets/00000000-0000-4000-8000-000000000000/availability
+curl -s -o /dev/null -w '%{http_code}\n' localhost:10000/checkout/x   # 200 über web
+```
+
+Der Tunnel bildet `10000:10000` ab — lokal dieselbe Zahl wie im Cluster, damit
+es nur eine zu merken gibt. Sie stammt aus `spec.listeners[].port` in
+`overlays/local/gateway.yaml`; Envoy Gateway baut den Service danach. Änderst
+du den Listener, ändern sich Service-Port und Tunnel mit:
+
+```bash
+kubectl get svc -n envoy-gateway-system   # PORT(S) ist die Zahl rechts im Tunnel
+```
+
+Direkt an einen Service vorbei am Gateway, wenn du die beiden auseinanderhalten
+willst:
+
+```bash
+kubectl port-forward svc/api 10002:10002
 curl -s localhost:10002/health
-curl -s localhost:10002/api/tickets/00000000-0000-4000-8000-000000000000/availability
 ```
 
 - Der Forward ist kein Daemon: endet der Prozess, ist der Tunnel weg.

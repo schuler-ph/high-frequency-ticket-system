@@ -27,3 +27,7 @@ Monitoring → 5.5, verteilter Generator → 5.7); die Freigabe-Regel aus deren
 ### Sale-Unlock-Zeitquelle bei mehreren API-Replicas
 
 > - [ ] **Sale-Unlock-Zeitquelle bei `API replicas > 1` (ADR-024):** Der `opensAt`-Gate-Check vergleicht aktuell gegen `nowMs`, das die API aus `Date.now()` uebergibt — nicht gegen `redis.call("TIME")` im Lua-Script. Das haelt das Script unabhaengig von Redis' Lua-Replikationsverhalten und erlaubt, denselben Zeitstempel als `queuedAt` im Pub/Sub-Payload wiederzuverwenden (ein `Date.now()` pro Request statt zwei). Trade-off: Der Verkaufsstart oeffnet nur so praezise, wie die Uhren der API-Pods synchron sind; bei Uhr-Drift faellt der Unlock pro Pod um die Drift-Spanne unterschiedlich. Lokal (ein Prozess) irrelevant, in GKE deckt NTP-Sync die geforderte Sekunden-Genauigkeit. **Extension:** Falls sub-sekunden-exakter, prozessuebergreifend identischer Unlock gefordert wird, auf `redis.call("TIME")` (eine autoritative Uhr) umstellen — dann entfaellt die `queuedAt`-Wiederverwendung und es faellt ein zweiter Zeitstempel-Roundtrip an; ADR-024 entsprechend aktualisieren.
+
+### Belege aus 5.2
+
+- Erster Lauf mit drei API-Replicas hinter dem Gateway: [Lastverteilung und Metrik-Kardinalitaet](../../reports/replica-fanout-2026-09-20.md) (2026-09-20). Liefert die Serienzahlen, die 5.3 fuer die Panel-Klassifikation braucht, und den Unterschied zwischen L7-Balancing im Gateway und L4-Bindung am ClusterIP-Service.
