@@ -84,3 +84,33 @@ verhaltensgleich: alle drei sprechen die API unter demselben Origin an.
   Kommentar an der Konstante nennt beide Stellen.
 - Sobald ein zweiter Sale dazukommt, ist `MAIN_SALE_EVENT_ID` keine Konstante
   mehr: dann gehört die Id in die Route oder hinter einen API-Endpunkt.
+
+## Nachtrag 2026-09-21: das Gateway besitzt das Routing, nicht nginx
+
+Die Entscheidung „same origin" bleibt unveraendert — geaendert hat sich, wer
+den gemeinsamen Origin herstellt. Seit Phase 5.2 routet das Envoy Gateway
+`/api` auf `svc/api` und alles andere auf `svc/web` (`k8s/base/httproute.yaml`).
+Die Requests erreichen nginx nie; `location /api/` in `apps/web/nginx.conf` war
+damit im Cluster wirkungslos und beschrieb dieselbe Entscheidung ein zweites
+Mal. Die Regel ist entfernt.
+
+Der Satz aus den Konsequenzen — „Ein Reverse Proxy vor Web und API ist ab jetzt
+Voraussetzung, nicht Komfort" — gilt weiter, nur mit anderem Traeger:
+
+- lokal im Dev-Loop: `server.proxy` / `preview.proxy` in `vite.config.ts`,
+- im Cluster: das Gateway.
+
+Damit haengt das Web-Image an keinem Servicenamen mehr. Es enthaelt keinen
+Upstream, startet also auch dann, wenn `svc/api` noch nicht existiert — die
+nginx-Aufloesungsfalle (`host not found in upstream`) ist mit der Regel
+verschwunden. In `nginx.conf` bleiben `try_files` fuer das SPA-Routing, der
+Health-Pfad fuer die Probes, gzip und die Cache-Header.
+
+Mit dem Proxy entfaellt die einzige Verbindung zwischen SPA und API im
+Compose-Pfad. Das `apps`-Profil in `docker-compose.yml` und die
+`docker:run`-Skripte der drei Apps sind damit gegenstandslos und abgeraeumt;
+sie waren der Nachweis aus Phase 5.1, und der ist erbracht. Compose traegt
+weiterhin die Datastores (Redis, PostgreSQL, Pub/Sub) und das Monitoring — die
+tragen kein Profil und starten unveraendert mit `docker compose up -d`. Gebaut
+werden die Images weiter mit `pnpm run docker:build`; in den Cluster kommen sie
+ueber `pnpm run kind:load`.

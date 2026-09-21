@@ -147,6 +147,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Entscheidung Zeitquellen bei Replicas (2026-09-20):** Prozessuhr bleibt; Unlock ist pod-genau, Korridor = Spanne der Pod-Uhren, Inventar unberuehrt. Drift-Nachweis in 5.6. → ADR-024-Nachtrag, ADR-033-Nachtrag
 - [x] **Entscheidung Instanzzahl je Komponente (2026-09-21):** API 3 (gesetzt, nicht gemessen), Worker 1, Web 1; Rollout-Strategie explizit `maxUnavailable: 0` / `maxSurge: 1`, `terminationGracePeriodSeconds: 35`. → [Instanzzahlen](ARCHITECTURE.md#instanzzahlen), ADR-031-Nachtrag
 - [x] **Readiness-Probe entschieden (2026-09-21):** eigener `/ready` je Dienst, prueft nur Redis; die Worker-Probe steuert das Rolling Update, nicht Traffic. Ausfall meldet ein Alert (REQ-O04), nicht die Probe. → ADR-044-Nachtrag
+- [x] **API-Proxy aus nginx abgebaut (2026-09-21):** das Gateway besitzt `/api`, `apps/web/nginx.conf` kein `proxy_pass` mehr; `apps`-Profil in Compose und die `docker:run`-Skripte mit entfernt. → ADR-043-Nachtrag
 
 ### Phase 5.3 — Messkette umgebungsunabhaengig
 

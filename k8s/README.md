@@ -24,7 +24,7 @@ später GKE. Datenstores bleiben in `docker-compose.yml`, erreichbar über
 Alle Pfade vom Repository-Wurzelverzeichnis.
 
 ```bash
-docker compose up -d                      # postgres, redis, pubsub
+docker compose up -d                      # postgres, redis, pubsub (Compose traegt nur noch Datastores)
 HFTS_ENV=dev pnpm run provision           # Topic + Subscription
 pnpm run docker:build                     # oder --filter api|worker|web
 pnpm run kind:up                          # Cluster, Images, Gateway, Overlay

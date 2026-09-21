@@ -34,7 +34,6 @@
     "verify:all": "pnpm run format:check && pnpm run debug:all && pnpm run lint && pnpm run check-types && pnpm run test:ci && HFTS_ENV=dev pnpm run build",
     "prepare": "husky",
     "docker:build": "turbo run docker:build",
-    "docker:run": "turbo run docker:run",
     "kind:create": "kind create cluster --config k8s/kind.yaml",
     "kind:delete": "kind delete cluster --name hfts",
     "kind:load": "kind load docker-image envoyproxy/gateway:v1.9.1 --name hfts && kind load docker-image hfts-api:dev --name hfts && kind load docker-image hfts-web:dev --name hfts && kind load docker-image hfts-worker:dev --name hfts",

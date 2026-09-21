@@ -125,8 +125,7 @@
     `--conditions=source`.
   - Die Images tragen seit Phase 5.1/5.2 den lokalen Cluster: `kind load
 docker-image` lädt sie, die Deployments referenzieren sie als
-    `hfts-*:dev`. Gebaut werden sie über die Turbo-Tasks `docker:build` und
-    `docker:run`.
+    `hfts-*:dev`. Gebaut werden sie über den Turbo-Task `docker:build`.
   - **Offen:** der Build für `linux/amd64` in CI samt Push. Er steht bewusst
     erst in Phase 5.4 (ADR-007) — vorher gibt es kein Push-Ziel, weil die
     Artifact Registry erst mit dem Cloud-Fundament entsteht.
@@ -138,7 +137,7 @@ docker-image` lädt sie, die Deployments referenzieren sie als
 - **Umsetzung:**
   - `apps/api/Dockerfile`, `apps/worker/Dockerfile`, `apps/web/Dockerfile`,
     `apps/web/nginx.conf`, `.dockerignore`
-  - `package.json` (`docker:build`, `docker:run` als Turbo-Tasks)
+  - `package.json` (`docker:build` als Turbo-Task)
   - `apps/api/package.json`, `apps/worker/package.json`,
     `packages/types/package.json`, `packages/db/package.json`,
     `packages/env/package.json` (`files`)

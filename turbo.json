@@ -36,11 +36,6 @@
     "docker:build": {
       "dependsOn": [],
       "cache": false
-    },
-    "docker:run": {
-      "dependsOn": ["docker:build"],
-      "cache": false,
-      "persistent": true
     }
   }
 }
