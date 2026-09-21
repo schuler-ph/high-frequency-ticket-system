@@ -145,7 +145,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 - [x] **N API-Replicas hinter Ingress (2026-09-20):** drei Replicas hinter Envoy Gateway; Rolling Update ohne Requestverlust mit `preStop`. → [Lastverteilung](reports/replica-fanout-2026-09-20.md), [Rolling Update](reports/rolling-update-2026-09-20.md)
 - [x] **Entscheidung Zeitquellen bei Replicas (2026-09-20):** Prozessuhr bleibt; Unlock ist pod-genau, Korridor = Spanne der Pod-Uhren, Inventar unberuehrt. Drift-Nachweis in 5.6. → ADR-024-Nachtrag, ADR-033-Nachtrag
-- [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown als Vorbedingung fuer Rolling Updates ist erfuellt (ADR-045); das Manifest muss `terminationGracePeriodSeconds` > 30 setzen.
+- [x] **Entscheidung Instanzzahl je Komponente (2026-09-21):** API 3 (gesetzt, nicht gemessen), Worker 1, Web 1; Rollout-Strategie explizit `maxUnavailable: 0` / `maxSurge: 1`, `terminationGracePeriodSeconds: 35`. → [Instanzzahlen](ARCHITECTURE.md#instanzzahlen), ADR-031-Nachtrag
 - [x] **Readiness-Probe entschieden (2026-09-21):** eigener `/ready` je Dienst, prueft nur Redis; die Worker-Probe steuert das Rolling Update, nicht Traffic. Ausfall meldet ein Alert (REQ-O04), nicht die Probe. → ADR-044-Nachtrag
 
 ### Phase 5.3 — Messkette umgebungsunabhaengig

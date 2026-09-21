@@ -339,16 +339,65 @@ Konkrete Intervalle, Batch-Größen und Deadlines leben in
   begrenzt (`DATABASE_POOL_CONNECTION_TIMEOUT_MS`): Pool-Sättigung wird zu
   einem transienten Fehler mit NACK und Redelivery — sichtbar in
   `worker_redeliveries_total` — statt zu unbegrenzter Latenz.
-- **Worker-Wartung:** Der Worker läuft aktuell als `replicas: 1`. Da Auditor und
-  Projector nichts am Live-Inventar korrigieren, wäre eine zweite Instanz
-  höchstens ineffizient und kein Korrektheitsproblem — Leader Election ist für
-  sie nicht nötig. Der Reaper bleibt auch parallel sicher, weil er jeden Anspruch
-  einzeln und zustandsbewusst per Lua freigibt.
 - **PostgreSQL:** skaliert mit unabhängigen Ticket-/Order-Inserts; die
   periodische `COUNT(tickets)`-Aggregation bleibt off-Hot-Path und trägt keine
   Admission-Entscheidung.
 
 Konkrete Defaults leben in `packages/env/src/index.ts`, nicht in dieser Datei.
+
+### Instanzzahlen
+
+REQ-D02 verlangt für jede Komponente eine explizite Zahl mit Begründung. Die
+Zahlen gelten für den lokalen Cluster; `k8s/base` bleibt für alle drei bei `1`,
+und jedes Overlay setzt seine Zahl selbst.
+
+| Komponente | Instanzen   | Warum diese Zahl                                                                                                          | Was sie ändern würde                                  |
+| ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| API        | 3 (Overlay) | Die Decke liegt beim einzelnen Node-Prozess, also ist Parallelität der richtige Hebel. **3 ist gesetzt, nicht gemessen.** | Der erste Lasttest auf dem Cluster.                   |
+| Worker     | 1           | Eine Instanz trägt die Schreiblast; N wäre korrektheitsfrei, aber teurer (siehe unten).                                   | Queue-Depth, die eine Instanz dauerhaft nicht abbaut. |
+| Web        | 1           | Statisches nginx ohne Zustand; die SPA wird einmal geladen und liegt danach im Browser.                                   | Ein Nutzerkreis, für den ein kurzer Ausfall zählt.    |
+
+Die API-Zahl ist bewusst vorläufig. Belegt ist der _Hebel_: Baseline F hat die
+lokale Decke bei einem API-Core gemessen (9 009 Kauf-Iterationen/s). Nicht
+belegt ist die _Zahl_ — auf dem Cluster ist noch kein Lastlauf gefahren, und
+die [Lastverteilungsmessung](reports/replica-fanout-2026-09-20.md) prüfte
+Fanout und Metrik-Kardinalität, nicht Durchsatz. Sie bleibt bei 3, bis eine
+Messung einen Grund liefert.
+
+Der Preis von `replicas: 1` beim Worker ist Latenz, nicht Korrektheit: Er ist
+der einzige schreibende Pfad nach PostgreSQL, und fällt er ungeplant aus,
+staut Pub/Sub, bis er zurück ist. Der Preis von N wäre umgekehrt: Auditor und
+Projector liefen N-fach, jeder mit eigenem `COUNT(tickets)`-Scan, und ihre
+Gauges messen einen Weltzustand — `sum()` über sie multipliziert ihn mit der
+Instanzzahl. Korrektheit ist in beide Richtungen unberührt, weil Auditor und
+Projector nichts am Live-Inventar korrigieren und der Reaper jeden Anspruch
+einzeln und zustandsbewusst per Lua freigibt; Leader Election ist für keine
+der drei nötig ([ADR-031](decisions/ADR-031-redis-authoritatives-inventory-auditor-und-reaper-statt-schreibendem-reconcile.md)).
+
+### Rollout
+
+Alle drei Deployments setzen `maxUnavailable: 0` und `maxSurge: 1` explizit.
+Der Kubernetes-Default wäre prozentual (25 %) und damit von der Replica-Zahl
+abhängig: bei drei Replicas ergäbe er dieselben Werte, ab fünf dagegen
+`maxUnavailable: 1` — ein stiller Wechsel des Verhaltens beim Hochskalieren.
+
+Daraus folgt für jedes geplante Rollout: Der neue Pod wird `Ready`, bevor der
+alte terminiert. Es gibt **keine Lücke**, sondern kurzzeitig eine Instanz mehr.
+Beim Worker heißt das kurzzeitig zwei — unproblematisch aus demselben Grund,
+aus dem N Instanzen korrektheitsfrei sind.
+
+Zwei getrennte Probleme sind dabei gelöst:
+
+- **Routing (nur API):** Die Endpoint-Entfernung propagiert asynchron über
+  kube-proxy und Envoy, SIGTERM kommt sofort. Der `preStop`-Sleep von 5 s
+  überbrückt das Fenster, in dem ein terminierender Pod noch Requests bekäme.
+- **In-flight:** Die API schließt laufende Requests über `fastify.close()` ab,
+  der Worker wartet auf zugestellte Nachrichten
+  ([ADR-045](decisions/ADR-045-shutdown-drainiert-statt-zu-nacken.md)).
+  `terminationGracePeriodSeconds: 35` ist das gemeinsame Budget ab dem
+  Terminating-Zeitpunkt und umfasst den Hook.
+
+Gemessen ist beides am [Rolling Update unter Last](reports/rolling-update-2026-09-20.md).
 
 ## Observability
 

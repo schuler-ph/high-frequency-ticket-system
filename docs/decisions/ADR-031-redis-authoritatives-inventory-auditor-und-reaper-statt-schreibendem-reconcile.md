@@ -65,3 +65,50 @@ Alternativen stehen in
 [ADR-037](ADR-037-pending-reaper-in-eigenem-takt.md); Ziffer 6 und 7 dieses
 ADRs (identitätsbasierte Freigabe, Score als Fälligkeitsautorität) sind der
 Grund, warum die Entkopplung keine neue Race-Klasse öffnet.
+
+## Nachtrag 2026-09-21: der Worker bleibt bei einer Instanz
+
+Bestaetigung, kein Richtungswechsel. Ziffer 3, 4 und 6 haben N Worker-Instanzen
+korrektheitsfrei gemacht — die Entscheidung nach REQ-D02 ist, diese Freiheit
+vorerst **nicht** zu nutzen: `replicas: 1`. Die Zahlen aller drei Komponenten
+und ihre Gruende stehen im Skalierungs-Abschnitt der
+[Architektur](../ARCHITECTURE.md#instanzzahlen); hier steht, was die Eins kostet
+und was sie belegt.
+
+**Der Preis in beide Richtungen.** Eine Instanz kostet Latenz, nicht
+Korrektheit: Der Worker ist der einzige schreibende Pfad nach PostgreSQL, und
+faellt er ungeplant aus, staut Pub/Sub, bis er zurueck ist. N Instanzen wuerden
+umgekehrt Auditor und Projector vervielfachen — jeder mit eigenem
+`COUNT(tickets)`-Scan (Ziffer 4) und jeder mit denselben Gauges. Diese Gauges
+messen einen Weltzustand, kein Instanz-Beitrag; `sum()` ueber sie multipliziert
+das Capacity-Delta mit der Instanzzahl. Die
+[Kardinalitaetsmessung](../reports/replica-fanout-2026-09-20.md) zeigt dieselbe
+Grenze an den API-Replicas. Solange die Aggregation nicht entlang dieser Grenze
+korrigiert ist (Phase 5.3), ist ein Singleton-Worker auch der ehrlichere
+Messpunkt.
+
+**Was die Verfuegbarkeit beim Rollout angeht, sind zwei Faelle zu trennen**
+— die [Messung vom 2026-09-20](../reports/rolling-update-2026-09-20.md) deckt
+beide ab:
+
+- **Geplantes Rollout: keine Luecke.** Mit `maxUnavailable: 0` und
+  `maxSurge: 1` wird der neue Pod `Ready`, bevor der alte terminiert; es laufen
+  kurzzeitig zwei Worker. Genau das ist nach Ziffer 3, 4 und 6 unbedenklich.
+  Der alte Pod drainiert dabei nachweislich (4,6 s gegen
+  `WORKER_SHUTDOWN_DRAIN_TIMEOUT_SECONDS=5`, ADR-045) statt zu nacken.
+- **Ungeplanter Ausfall: eine Luecke, von der Queue absorbiert.** Ein
+  `delete pod --force --grace-period=0` mitten in 57 011 laufenden Kaeufen
+  liess die Bilanz exakt und das Capacity-Delta auf null. Die API antwortet
+  weiterhin `202`, Pub/Sub puffert, die Verarbeitung holt auf.
+
+Beide Laeufe zeigten null Redeliveries und null Duplikate. Der Report begruendet
+selbst, warum null hier **kein** Nachweis von Duplikatfreiheit ist, sondern nur
+die Abwesenheit des Redelivery-Ausschlags, den ADR-045 beseitigen sollte: Die
+Positivkontrolle konnte bei rund einer Sekunde Payment-Mock pro Handler
+statistisch gar nicht ausschlagen. Die Aussage dieses Nachtrags ist deshalb die
+schwaechere und belegte: **Ein Worker-Rollout unter Kauflast kostet kein Ticket
+und keine Bilanz** — nicht, dass Duplikate ausgeschlossen waeren.
+
+**Revision.** Die Eins faellt, wenn eine Queue-Depth entsteht, die eine Instanz
+dauerhaft nicht abbaut. Dann ist zuerst die Gauge-Aggregation aus Phase 5.3
+faellig, nicht das Manifest.
