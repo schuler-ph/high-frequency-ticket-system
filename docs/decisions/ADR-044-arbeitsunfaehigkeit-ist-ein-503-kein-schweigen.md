@@ -127,3 +127,29 @@ nicht sind.
   schadet. Dauerhaft nicht erreichbares Redis bleibt damit vorerst ein
   unentdeckter Zustand; das zu erkennen bräuchte eine Schwelle
   ("seit N Sekunden getrennt") und ist offen.
+
+## Nachtrag (2026-09-21) — Die Trennung ist neu bewertet (Phase 5.2)
+
+Oben steht unter Alternativen, ein eigener `/ready` führe für den Worker ins
+Leere, und die Frage sei neu zu stellen, sobald die API mehrere Replicas hinter
+dem Ingress hat. Das ist eingetreten: beide Dienste haben jetzt einen
+`/ready`-Endpunkt und eine `readinessProbe` im Manifest.
+
+- **Was den Ausschlag gab, ist nicht der Traffic-Entzug, sondern das Rolling
+  Update.** Ein neuer Pod gilt erst als verfügbar, wenn er ready meldet. Ohne
+  Probe täuscht ein noch nicht verbundener Worker Fortschritt vor, und der alte
+  Pod wird abgeräumt, bevor der neue arbeiten kann. Das ist der Job, den die
+  Probe beim Worker hat — die ursprüngliche Feststellung („er nimmt keinen
+  Verkehr entgegen, den man ihm entziehen könnte") bleibt richtig, sie war nur
+  nicht der einzige Grund für eine Readiness. Bei der API kommt der klassische
+  Zweck dazu: einen Pod ohne Redis aus den Endpoints nehmen, ohne ihn zu töten.
+- **Geprüft wird ausschließlich Redis**, über den ioredis-Status statt über ein
+  `PING`. Pub/Sub fehlt bewusst: ein toter Subscriber ist nicht reparabel und
+  läuft über `markFatal()` in die Liveness, nicht in die Readiness. Der Satz
+  „der Neustart ist die Reparatur" gilt unverändert.
+- **Ein ausgefallener Worker fällt weiterhin nicht über die Probe auf.**
+  Readiness steuert Traffic, sie meldet niemandem etwas. Das bleibt Aufgabe
+  eines Alerts (REQ-O04), der noch aussteht.
+
+Umsetzung: `apps/api/src/routes/ready.ts`, `apps/worker/src/routes/ready.ts`,
+`k8s/base/api-deployment.yaml`, `k8s/base/worker-deployment.yaml`.

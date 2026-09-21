@@ -139,14 +139,14 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
 - [x] **Arbeitsunfaehigkeit meldet 503 (2026-09-09):** API und Worker markieren dauerhafte Pub/Sub-Fehler; `/health` antwortet 503 mit Grund. Liveness-Probe muss darauf zeigen. → ADR-044
 - [x] **Smoke-Profil umbenannt und Schnellabbruch (2026-09-09):** `browse-and-buy-smoke` heisst jetzt `smoke-test`; Phase A stoppt sofort, wenn ausverkauft und Ledger leer. → ADR-025 Nachtrag
-- [ ] **Manifeste gegen lokalen Cluster, 1 Replica:** Datenstores bleiben Compose. Werkzeuge kubectl + kind → ADR-038; lokale Vorstufe → ADR-010-Nachtrag (erledigt); `k8s/` in DOCS.md routen.
+- [x] **Manifeste gegen lokalen Cluster, 1 Replica (2026-09-16):** `k8s/base` + `overlays/local`, Datenstores bleiben Compose, `k8s/` in DOCS.md geroutet. → ADR-038, ADR-010-Nachtrag
 
 ### Phase 5.2 — Multi-Replica-Korrektheit lokal
 
-- [ ] **N API-Replicas hinter Ingress:** Korrektheit statt Kapazitaet (REQ-D02).
+- [x] **N API-Replicas hinter Ingress (2026-09-20):** drei Replicas hinter Envoy Gateway; Rolling Update ohne Requestverlust mit `preStop`. → [Lastverteilung](reports/replica-fanout-2026-09-20.md), [Rolling Update](reports/rolling-update-2026-09-20.md)
 - [x] **Entscheidung Zeitquellen bei Replicas (2026-09-20):** Prozessuhr bleibt; Unlock ist pod-genau, Korridor = Spanne der Pod-Uhren, Inventar unberuehrt. Drift-Nachweis in 5.6. → ADR-024-Nachtrag, ADR-033-Nachtrag
 - [ ] **Entscheidung Instanzzahl je Komponente** (REQ-D02; Worker: ADR-004/ADR-031); Graceful Shutdown als Vorbedingung fuer Rolling Updates ist erfuellt (ADR-045); das Manifest muss `terminationGracePeriodSeconds` > 30 setzen.
-- [ ] **Readiness-Probe entscheiden:** Worker bleibt bei Redis-/Pub-Sub-Ausfall `1/1 Running` mit `/health` 200 — Liveness fragt "hilft ein Neustart?" (ADR-044). Readiness steuert Traffic beim Rolling Update; Worker-Ausfall gehoert in einen Alert (REQ-O04).
+- [x] **Readiness-Probe entschieden (2026-09-21):** eigener `/ready` je Dienst, prueft nur Redis; die Worker-Probe steuert das Rolling Update, nicht Traffic. Ausfall meldet ein Alert (REQ-O04), nicht die Probe. → ADR-044-Nachtrag
 
 ### Phase 5.3 — Messkette umgebungsunabhaengig
 
