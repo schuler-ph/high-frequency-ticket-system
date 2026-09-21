@@ -136,7 +136,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Env-Profile nach `packages/env/profiles/` verschoben (2026-09-07):** Loader loest `../profiles/` auf; `pnpm deploy` bringt sie ins Image, die `COPY`-Zeile im API-Dockerfile entfaellt. → ADR-041
 - [x] **Turbo ist der einzige Build-Einstieg (2026-09-08):** Dep-Ketten aus den Package-Skripten entfernt. → ADR-042
 - [x] **Web ist konfigurationsfrei (2026-09-08):** API same origin, Event-Id als Konstante; `vite build` braucht kein Profil. Setzt eine `/api/`-Proxy-Regel voraus. → ADR-043
-- [ ] **Dockerfiles fuer API, Worker, Web:** Runtime-Pfad `dist`, Build in GitHub Actions. → ADR-019, ADR-007
+- [x] **Dockerfiles fuer API, Worker, Web (2026-09-08):** Multi-Stage, Runtime-Pfad `dist`, Non-Root; die Images tragen den lokalen Cluster. Bauen und Pushen in CI erst mit der Registry in 5.4. → ADR-019
 - [x] **Arbeitsunfaehigkeit meldet 503 (2026-09-09):** API und Worker markieren dauerhafte Pub/Sub-Fehler; `/health` antwortet 503 mit Grund. Liveness-Probe muss darauf zeigen. → ADR-044
 - [x] **Smoke-Profil umbenannt und Schnellabbruch (2026-09-09):** `browse-and-buy-smoke` heisst jetzt `smoke-test`; Phase A stoppt sofort, wenn ausverkauft und Ledger leer. → ADR-025 Nachtrag
 - [x] **Manifeste gegen lokalen Cluster, 1 Replica (2026-09-16):** `k8s/base` + `overlays/local`, Datenstores bleiben Compose, `k8s/` in DOCS.md geroutet. → ADR-038, ADR-010-Nachtrag
@@ -158,6 +158,7 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 - [ ] **IaC fuer Netz, DB, Cache, Cluster, Queue, Registry, Secrets;** Manifeste via Kubeconfig. → Entscheidungsmatrix in der Details-Notiz (ADR-003/005/010/031/034)
 - [ ] **Smoke:** ein E2E-Kauf in der Cloud, danach vollstaendiger Abbau (REQ-D01).
+- [ ] **Images in CI bauen und pushen:** amd64, SHA-Tag statt `latest`, Ziel ist die Artifact Registry aus dem IaC-Todo; Authentifizierung ueber Workload Identity Federation, kein Key im Repository-Secret. → ADR-007, ADR-019
 
 ### Phase 5.5 — Cloud-Monitoring
 
