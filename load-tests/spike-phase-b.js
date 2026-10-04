@@ -22,7 +22,8 @@ export const options = {
       rate: COOLDOWN_RATE,
       timeUnit: "1s",
       duration: "1m",
-      preAllocatedVUs: 200,
+      // k6 lehnt preAllocatedVUs > maxVUs ab; das Smoke-Profil deckelt bei 20.
+      preAllocatedVUs: Math.min(200, COOLDOWN_MAX_VUS),
       maxVUs: COOLDOWN_MAX_VUS,
     },
   },

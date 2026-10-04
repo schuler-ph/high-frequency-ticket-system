@@ -162,11 +162,14 @@ export const snapshotJob = async (baseUrl, job, fetchImpl = fetch) => {
 };
 
 /**
- * Wait until every target of the given jobs has been scraped after `sinceMs`.
+ * Wait until EVERY target of the given jobs has been scraped after `sinceMs`.
  *
- * Needed right after the TSDB reset: until the next scrape Prometheus holds no
- * series at all, and a snapshot taken in that window would record an empty
- * baseline.
+ * Needed right after the TSDB reset: until a pod's next scrape Prometheus
+ * holds no series of it, and a snapshot taken in that window would record a
+ * baseline without that pod. The targets API answers per target and does not
+ * depend on the TSDB the reset just emptied. A scrape that STARTED before the
+ * reset finished carries a timestamp the tombstones cover, so only
+ * `lastScrape >= sinceMs` counts.
  *
  * @param {{ baseUrl: string, jobs: string[], sinceMs: number, timeoutMs?: number, pollIntervalMs?: number, sleep?: (ms: number) => Promise<void>, now?: () => number, fetchImpl?: typeof fetch }} opts
  * @returns {Promise<void>}
@@ -181,18 +184,27 @@ export const waitForFreshScrape = async ({
   now = () => Date.now(),
   fetchImpl = fetch,
 }) => {
-  const selector = `up{job=~"${jobs.join("|")}"}`;
   const deadline = now() + timeoutMs;
   for (;;) {
-    const { value: oldest } = await instantQuery(
-      baseUrl,
-      `min(timestamp(${selector}))`,
-      fetchImpl,
+    const res = await fetchImpl(`${baseUrl}/api/v1/targets?state=active`);
+    if (!res.ok) {
+      throw new Error(`Prometheus targets API failed (${res.status})`);
+    }
+    const targets = ((await res.json()).data?.activeTargets ?? []).filter(
+      (target) => jobs.includes(target.labels?.job),
     );
-    if (oldest !== null && oldest * 1000 >= sinceMs) return;
+    const stale = targets.filter(
+      (target) =>
+        target.health !== "up" || Date.parse(target.lastScrape) < sinceMs,
+    );
+    if (targets.length > 0 && stale.length === 0) return;
     if (now() >= deadline) {
+      const waitingFor =
+        targets.length === 0
+          ? "no target at all"
+          : stale.map((target) => target.labels.instance).join(", ");
       throw new Error(
-        `No fresh scrape of ${jobs.join(", ")} within ${timeoutMs} ms — is Prometheus scraping the pods?`,
+        `No fresh scrape of ${jobs.join(", ")} within ${timeoutMs} ms (${waitingFor}) — is Prometheus scraping the pods?`,
       );
     }
     await sleep(pollIntervalMs);

@@ -39,9 +39,11 @@
      [Dashboard-Audit](../reports/dashboard-aggregation-2026-10-04.md):
      Beitrag `sum`, Weltzustand `max`, „alle oben" `min`.
   4. **Der TSDB-Reset** läuft über die Admin-API (`delete_series` für alle
-     Serien, dann `clean_tombstones`). Danach wartet die Messkette, bis jedes
-     Target nach dem Reset frisch gescrapt wurde, sonst wäre der Vorher-Snapshot
-     leer.
+     Serien, dann `clean_tombstones`). Danach wartet die Messkette, bis die
+     Targets-API für **jeden** Pod einen Scrape nach dem Reset meldet; sonst
+     fehlten Pods im Vorher-Snapshot. Der erste Smoke-Lauf gegen den Cluster
+     prüfte nur den ältesten Zeitstempel der noch vorhandenen Serien und nahm
+     den Snapshot mit einem von drei API-Pods und ohne Worker.
   5. **Der Preflight** prüft per `kubectl --context $K8S_CONTEXT`, dass jedes
      gewünschte Replica bereit ist, und per Prometheus, dass genauso viele
      Targets `up` sind. Dazu einen HTTP-Abruf durch das Gateway. Alles vor dem

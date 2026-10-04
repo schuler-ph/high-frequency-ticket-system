@@ -197,41 +197,89 @@ test("the report counts across three API pods from Prometheus snapshots", async 
 
 // --- Freshness after the TSDB reset ---
 
-test("waitForFreshScrape returns once every target was scraped after the reset", async () => {
-  const sinceMs = 1_790_000_000_000;
-  const readings = [null, sinceMs / 1000 - 3, sinceMs / 1000 + 1];
+const SINCE_MS = Date.parse("2026-10-04T17:49:40Z");
+
+/** A fake targets API that serves one scripted target list per poll. */
+const targetsSequence = (polls) => {
   let i = 0;
-  const prom = fakePrometheus(() => {
-    const value = readings[Math.min(i++, readings.length - 1)];
-    return value === null ? [] : [[{}, value]];
-  });
+  const fetchImpl = async (url) => {
+    assert.match(url, /\/api\/v1\/targets\?state=active$/);
+    const targets = polls[Math.min(i++, polls.length - 1)];
+    return {
+      ok: true,
+      json: async () => ({
+        status: "success",
+        data: {
+          activeTargets: targets.map(([job, instance, lastScrape, health = "up"]) => ({
+            labels: { job, instance },
+            lastScrape,
+            health,
+          })),
+        },
+      }),
+    };
+  };
+  return { fetchImpl, polls: () => i };
+};
+
+const before = "2026-10-04T17:49:39Z";
+const after = "2026-10-04T17:49:41Z";
+
+// Der Fehler, den der erste Smoke-Lauf gegen den Cluster zeigte: nach dem
+// Reset war erst EIN API-Pod frisch gescrapt, der Vorher-Snapshot enthielt
+// also weder die anderen beiden API-Pods noch den Worker.
+test("waitForFreshScrape waits until every pod was scraped after the reset", async () => {
+  const fake = targetsSequence([
+    [["api", "api-a", after], ["api", "api-b", before], ["worker", "worker-a", before], ["redis", "r", before]],
+    [["api", "api-a", after], ["api", "api-b", after], ["worker", "worker-a", before], ["redis", "r", before]],
+    [["api", "api-a", after], ["api", "api-b", after], ["worker", "worker-a", after], ["redis", "r", before]],
+  ]);
   await waitForFreshScrape({
     baseUrl: "http://p",
     jobs: ["api", "worker"],
-    sinceMs,
+    sinceMs: SINCE_MS,
     sleep: async () => {},
-    now: () => sinceMs,
-    fetchImpl: prom.fetchImpl,
+    now: () => SINCE_MS,
+    fetchImpl: fake.fetchImpl,
   });
-  assert.equal(i, 3);
-  assert.equal(prom.queries[0], 'min(timestamp(up{job=~"api|worker"}))');
+  // `redis` gehoert nicht zu den gemessenen Jobs und darf nicht blockieren.
+  assert.equal(fake.polls(), 3);
 });
 
-test("waitForFreshScrape fails loudly when no fresh scrape arrives", async () => {
+test("waitForFreshScrape does not accept a pod that is down", async () => {
   let clock = 0;
-  const prom = fakePrometheus(() => []);
+  const fake = targetsSequence([[["api", "api-a", after, "down"]]]);
   await assert.rejects(
     waitForFreshScrape({
       baseUrl: "http://p",
       jobs: ["api"],
-      sinceMs: 0,
+      sinceMs: SINCE_MS,
       timeoutMs: 10,
       sleep: async (ms) => {
         clock += ms;
       },
       now: () => clock,
-      fetchImpl: prom.fetchImpl,
+      fetchImpl: fake.fetchImpl,
     }),
-    /No fresh scrape of api/,
+    /No fresh scrape of api within 10 ms \(api-a\)/,
+  );
+});
+
+test("waitForFreshScrape fails loudly when the job has no target at all", async () => {
+  let clock = 0;
+  const fake = targetsSequence([[]]);
+  await assert.rejects(
+    waitForFreshScrape({
+      baseUrl: "http://p",
+      jobs: ["api"],
+      sinceMs: SINCE_MS,
+      timeoutMs: 10,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      now: () => clock,
+      fetchImpl: fake.fetchImpl,
+    }),
+    /no target at all/,
   );
 });
