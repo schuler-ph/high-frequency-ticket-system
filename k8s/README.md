@@ -47,10 +47,9 @@ Images gebaut sein, sonst bricht die Kette nach dem Cluster ab.
 
 Daneben, unabhängig vom Aufbau:
 
-| Skript            | tut                                                        |
-| ----------------- | ---------------------------------------------------------- |
-| `gateway:forward` | Tunnel auf `localhost:10000` zum Envoy-Service             |
-| `worker:restart`  | ersetzt den Worker-Pod und wartet auf den fertigen Rollout |
+| Skript           | tut                                                        |
+| ---------------- | ---------------------------------------------------------- |
+| `worker:restart` | ersetzt den Worker-Pod und wartet auf den fertigen Rollout |
 
 ### Images vorladen
 
@@ -88,23 +87,26 @@ kubectl kustomize k8s/overlays/local      # rendern, nichts anwenden
 
 ## Erreichen
 
-Seit dem Gateway ist ein Tunnel genug — Envoy trennt `/api` und den Rest im
-Cluster:
+Drei Eingänge haben einen festen Host-Port, ohne Tunnel. `k8s/kind.yaml`
+bildet je einen festen NodePort auf `0.0.0.0` ab, deshalb erreicht auch der
+Generator-PC sie über `10.0.0.1`:
+
+| Host-Port | NodePort | Service                                       |
+| --------- | -------- | --------------------------------------------- |
+| 10000     | 30000    | Envoy (Gateway-Listener), `/api` und Web      |
+| 10007     | 30007    | Prometheus (`prometheus-nodeport`)            |
+| 10008     | 30008    | Grafana (`grafana-nodeport`), `admin`/`admin` |
 
 ```bash
-pnpm gateway:forward                      # muss laufen bleiben
 curl -s localhost:10000/api/tickets/00000000-0000-4000-8000-000000000000/availability
 curl -s -o /dev/null -w '%{http_code}\n' localhost:10000/checkout/x   # 200 über web
 ```
 
-Der Tunnel bildet `10000:10000` ab — lokal dieselbe Zahl wie im Cluster, damit
-es nur eine zu merken gibt. Sie stammt aus `spec.listeners[].port` in
-`overlays/local/gateway.yaml`; Envoy Gateway baut den Service danach. Änderst
-du den Listener, ändern sich Service-Port und Tunnel mit:
-
-```bash
-kubectl get svc -n envoy-gateway-system   # PORT(S) ist die Zahl rechts im Tunnel
-```
+Den Envoy-Service baut Envoy Gateway selbst. Sein fester NodePort steht deshalb
+nicht in einem eigenen Service, sondern als Patch in
+`overlays/local/envoyproxy.yaml`, auf den die `GatewayClass` per
+`parametersRef` zeigt. Port-Mappings wirken nur beim Erzeugen des Clusters: wer
+`kind.yaml` ändert, braucht `kind:recreate`.
 
 Direkt an einen Service vorbei am Gateway, wenn du die beiden auseinanderhalten
 willst:
