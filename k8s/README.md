@@ -31,13 +31,14 @@ pnpm run kind:up                          # Cluster, Images, Gateway, Overlay
 kubectl get pods -w                       # beide 1/1 Running
 ```
 
-`kind:up` kettet vier Schritte, die einzeln dasselbe tun und beim Üben
+`kind:up` kettet fünf Schritte, die einzeln dasselbe tun und beim Üben
 einzeln nützlich sind:
 
 | Skript            | tut                                                    |
 | ----------------- | ------------------------------------------------------ |
+| `kind:pull`       | fremde Images aus `docker.io` in den lokalen Docker    |
 | `kind:create`     | nur den Cluster aus `kind.yaml`                        |
-| `kind:load`       | die drei `hfts-*:dev`-Images in den Cluster            |
+| `kind:load`       | fremde und `hfts-*:dev`-Images in den Cluster          |
 | `gateway:install` | Envoy Gateway aus `vendor/`, wartet auf den Controller |
 | `k8s:apply`       | `kubectl apply -k k8s/overlays/local`                  |
 
@@ -55,15 +56,14 @@ Daneben, unabhängig vom Aufbau:
 
 `kind:recreate` wirft den Node weg, und mit ihm dessen Image-Cache. Was nicht
 vorgeladen ist, wird bei jedem Neuaufbau neu aus dem Internet gezogen. Alle
-Images der `install.yaml` stehen auf `imagePullPolicy: IfNotPresent`, deshalb
-lädt `kind:load` neben den drei eigenen auch den Controller in den Node.
+fremden Images stehen auf `imagePullPolicy: IfNotPresent`, deshalb lädt
+`kind:load` neben den drei eigenen auch den Envoy-Gateway-Controller,
+Prometheus, Grafana und den Renderer in den Node.
 
-Einmalige Voraussetzung auf einem frischen Rechner — sonst scheitert
-`kind:load`:
-
-```bash
-docker pull envoyproxy/gateway:v1.9.1
-```
+`kind:load` kopiert nur aus dem lokalen Docker. Damit die fremden Images dort
+liegen, zieht `kind:pull` sie vorher; ist ein Image schon aktuell, prüft der
+Pull nur den Digest. Ändert sich ein Tag in `install.yaml` oder in
+`k8s/base/`, müssen `kind:pull` und `kind:load` mitgezogen werden.
 
 Ein Pull bleibt: Der Controller erzeugt zu jedem `Gateway` eine zweite
 Deployment mit dem eigentlichen Envoy-Proxy. Dessen Tag steht nicht in der

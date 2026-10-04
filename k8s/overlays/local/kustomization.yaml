@@ -6,6 +6,7 @@ resources:
   - gatewayclass.yaml
   - gateway.yaml
   - prometheus-nodeport.yaml
+  - grafana-nodeport.yaml
 configMapGenerator:
   - name: hfts-config
     literals:
@@ -18,6 +19,9 @@ secretGenerator:
   - name: hfts-secret
     envs:
       - secret.local.env
+  - name: grafana-admin
+    literals:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
 replicas:
   - name: api
     count: 3

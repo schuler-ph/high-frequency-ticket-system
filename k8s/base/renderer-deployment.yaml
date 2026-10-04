@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: renderer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: renderer
+  template:
+    metadata:
+      labels:
+        app: renderer
+    spec:
+      containers:
+        - name: renderer
+          image: grafana/grafana-image-renderer:3.12.9
+          ports:
+            - containerPort: 8081
+          env:
+            - name: RENDERING_TIMEOUT
+              value: "60"
+            - name: ENABLE_METRICS
+              value: "true"
+          readinessProbe:
+            tcpSocket:
+              port: 8081
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: grafana-datasources
+    files:
+      - grafana/provisioning/datasources/prometheus.yml
+  - name: grafana-dashboards
+    files:
+      - grafana/provisioning/dashboards/provider.yml
+      - grafana/provisioning/dashboards/api-performance.json
+      - grafana/provisioning/dashboards/db-runtime.json
+      - grafana/provisioning/dashboards/order-completion-latency.json
+      - grafana/provisioning/dashboards/order-lifecycle.json
+      - grafana/provisioning/dashboards/pubsub-queue.json
+      - grafana/provisioning/dashboards/redis-performance.json
+      - grafana/provisioning/dashboards/reservation-consistency.json
+      - grafana/provisioning/dashboards/ticket-status.json
+      - grafana/provisioning/dashboards/worker-reliability.json

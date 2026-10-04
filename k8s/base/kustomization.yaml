@@ -11,3 +11,8 @@ resources:
   - prometheus-rbac.yaml
   - prometheus-deployment.yaml
   - prometheus-service.yaml
+  - ../../monitoring
+  - grafana-deployment.yaml
+  - grafana-service.yaml
+  - renderer-deployment.yaml
+  - renderer-service.yaml
