@@ -5,6 +5,7 @@ import {
   requireEnvBoolean,
   requireEnvNumber,
 } from "../lib/require-env.mjs";
+import { readEventCounter } from "../load-test/lib/prometheus.mjs";
 
 const BASE_URL = requireEnv("BASE_URL");
 const EVENT_ID = requireEnv("EVENT_ID");
@@ -22,7 +23,8 @@ const PROMETHEUS_RW_URL = requireEnv("K6_PROMETHEUS_RW_SERVER_URL");
 // steigen — das stoppte Phase A verfrueht. Der Completion-Counter kann nur
 // steigen; ein Plateau ueber mehrere Polls bedeutet, dass keine Verkaeufe mehr
 // durchgehen (Inventar durch Sales + Phantom-Reservierungen erschoepft).
-const WORKER_METRICS_URL = requireEnv("WORKER_METRICS_URL");
+// Gelesen wird ueber Prometheus, summiert ueber alle Worker-Pods (ADR-047).
+const PROMETHEUS_URL = requireEnv("PROMETHEUS_URL");
 
 const k6Env = {
   ...process.env,
@@ -56,42 +58,12 @@ const spawnK6 = (scriptPath) => {
 };
 
 /**
- * Liest den monotonen Worker-Counter `orders_completed_total` (Summe ueber alle
- * `event_id`-Labels, bzw. gefiltert auf EVENT_ID) aus dem Prometheus-`/metrics`-
- * Text. Liefert `null`, wenn der Counter (noch) nicht exponiert ist.
+ * Liest den monotonen Worker-Counter `orders_completed_total` fuer EVENT_ID,
+ * summiert ueber alle Worker-Pods. Liefert `null`, solange kein Pod den
+ * Counter exponiert.
  */
-/**
- * Liest den Rest-Bestand aus der Availability-Route, um ein Completion-Plateau
- * von einem echten Ausverkauf zu unterscheiden. Liefert `null`, wenn der Wert
- * nicht lesbar ist — dann bleibt das Plateau bewusst unklassifiziert, statt
- * einen Ausverkauf zu behaupten, der nicht belegt ist.
- */
-export const fetchAvailableCount = async () => {
-  try {
-    const res = await fetch(`${BASE_URL}/api/tickets/${EVENT_ID}/availability`);
-    if (!res.ok) return null;
-    const body = await res.json();
-    return typeof body?.available === "number" ? body.available : null;
-  } catch {
-    return null;
-  }
-};
-
-export const fetchCompletedCount = async () => {
-  const res = await fetch(WORKER_METRICS_URL);
-  if (!res.ok) return null;
-  const text = await res.text();
-
-  let total = null;
-  for (const line of text.split("\n")) {
-    if (!line.startsWith("orders_completed_total")) continue;
-    // Optional auf das Ziel-Event filtern; ohne Label-Match zaehlen wir alle.
-    if (line.includes("{") && !line.includes(EVENT_ID)) continue;
-    const value = Number(line.slice(line.lastIndexOf(" ") + 1));
-    if (Number.isFinite(value)) total = (total ?? 0) + value;
-  }
-  return total;
-};
+export const fetchCompletedCount = () =>
+  readEventCounter(PROMETHEUS_URL, "orders_completed_total", EVENT_ID);
 
 /**
  * Pollt den Completion-Fortschritt, bis er fuer SOLDOUT_CONFIRM_POLLS

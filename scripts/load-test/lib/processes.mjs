@@ -275,45 +275,6 @@ export const stopK6ViaRest = async (restUrl, opts = {}) => {
   }
 };
 
-/** Sum one metric family from a Prometheus text exposition, per event. */
-const sumMetricLines = (text, metricName, eventId) => {
-  let total = null;
-  for (const line of text.split("\n")) {
-    if (!line.startsWith(metricName)) continue;
-    if (line.includes("{") && eventId && !line.includes(eventId)) continue;
-    const value = Number(line.slice(line.lastIndexOf(" ") + 1));
-    if (Number.isFinite(value)) total = (total ?? 0) + value;
-  }
-  return total;
-};
-
-/** Read the monotonic `orders_completed_total` from the worker /metrics text. */
-export const fetchCompletedCount = async (
-  metricsUrl,
-  eventId,
-  fetchImpl = fetch,
-) => {
-  const res = await fetchImpl(metricsUrl);
-  if (!res.ok) return null;
-  return sumMetricLines(await res.text(), "orders_completed_total", eventId);
-};
-
-/**
- * Read `reservation_ledger_active` — the claims Redis still holds. Nur Laeufe
- * mit kurzer Checkout-Deadline brauchen das: dort gibt der Reaper abgelaufene
- * Ansprueche zurueck in den Verkauf, ein erschoepftes `available` allein heisst
- * also noch nicht, dass der Verkauf vorbei ist.
- */
-export const fetchLedgerActive = async (
-  metricsUrl,
-  eventId,
-  fetchImpl = fetch,
-) => {
-  const res = await fetchImpl(metricsUrl);
-  if (!res.ok) return null;
-  return sumMetricLines(await res.text(), "reservation_ledger_active", eventId);
-};
-
 /**
  * Classify a completion plateau against remaining inventory: only an exhausted
  * `available` counter is a genuine sell-out; a plateau with stock left is a stall
@@ -368,20 +329,19 @@ export const classifyPlateau = (available, ledgerActive = null) => {
  * a completed sale.
  *
  * @param {Promise<number>} exitPromise
- * @param {{ metricsUrl: string, eventId: string, pollIntervalMs?: number, confirmPolls?: number, readAvailable?: (eventId: string) => Promise<number | null>, fetchImpl?: typeof fetch }} opts
+ * @param {{ readCompleted: (eventId: string) => Promise<number | null>, eventId: string, pollIntervalMs?: number, confirmPolls?: number, readAvailable?: (eventId: string) => Promise<number | null>, readLedgerActive?: (eventId: string) => Promise<number | null>, plateauWaitsForEmptyLedger?: boolean }} opts
  * @returns {Promise<{ stopped: boolean, reason: "sold-out" | "stalled" | "k6-exited", available: number | null, completed: number | null }>}
  */
 export const pollUntilSoldOut = async (
   exitPromise,
   {
-    metricsUrl,
+    readCompleted,
     eventId,
     pollIntervalMs = 3000,
     confirmPolls = 3,
     readAvailable,
     readLedgerActive,
     plateauWaitsForEmptyLedger = false,
-    fetchImpl = fetch,
   },
 ) => {
   const readOrNull = async (read) => {
@@ -406,7 +366,7 @@ export const pollUntilSoldOut = async (
     if (childExited) break;
     let completed;
     try {
-      completed = await fetchCompletedCount(metricsUrl, eventId, fetchImpl);
+      completed = await readCompleted(eventId);
     } catch {
       continue;
     }
@@ -483,7 +443,7 @@ export const runPhaseAReactive = async ({
   runId,
   summaryPath,
   env,
-  metricsUrl,
+  readCompleted,
   eventId,
   pollIntervalMs,
   confirmPolls,
@@ -493,7 +453,6 @@ export const runPhaseAReactive = async ({
   gracefulStopTimeoutMs = 40_000,
   spawnPhase = spawnK6,
   requestStop,
-  fetchImpl = fetch,
   logPath,
 }) => {
   const { child, exitPromise } = spawnPhase(scriptPath, {
@@ -503,14 +462,13 @@ export const runPhaseAReactive = async ({
     logPath,
   });
   const plateau = await pollUntilSoldOut(exitPromise, {
-    metricsUrl,
+    readCompleted,
     eventId,
     pollIntervalMs,
     confirmPolls,
     readAvailable,
     readLedgerActive,
     plateauWaitsForEmptyLedger,
-    fetchImpl,
   });
 
   if (!plateau.stopped) {

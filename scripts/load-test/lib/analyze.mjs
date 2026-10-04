@@ -202,7 +202,8 @@ const COUNTER_QUERIES = {
 const readServiceConfig = (samples) => {
   const sample = samples.find((s) => s.name === "service_config_info");
   if (!sample) return null;
-  const { service: _service, ...config } = sample.labels;
+  // `instance` is the pod Prometheus scraped (ADR-047), not a config value.
+  const { service: _service, instance: _instance, ...config } = sample.labels;
   return Object.keys(config).length > 0 ? config : null;
 };
 

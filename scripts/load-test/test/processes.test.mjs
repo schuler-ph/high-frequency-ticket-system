@@ -7,7 +7,6 @@ import {
   buildRemoteK6Args,
   classifyPlateau,
   isSaleSettled,
-  fetchCompletedCount,
   isExpectedK6Exit,
   K6_SCRIPT_ENV_KEYS,
   pollUntilSoldOut,
@@ -264,12 +263,11 @@ test("runPhaseAReactive uses the injected stopper instead of SIGINT", async () =
     runId: "r1",
     summaryPath: "s.json",
     env: {},
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => 0,
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5]),
     spawnPhase: () => ({
       child: { kill: (signal) => kills.push(signal) },
       exitPromise,
@@ -305,31 +303,11 @@ test("classifyPlateau waits for the ledger to drain before declaring sell-out", 
   assert.equal(classifyPlateau(500, 12), "stalled");
 });
 
-/** Serve a scripted sequence of `orders_completed_total` values. */
-const metricsSequence = (values) => {
+/** Serve a scripted sequence of `orders_completed_total` readings. */
+const completedSequence = (values) => {
   let i = 0;
-  return async () => ({
-    ok: true,
-    text: async () =>
-      `orders_completed_total ${values[Math.min(i++, values.length - 1)]}\n`,
-  });
+  return async () => values[Math.min(i++, values.length - 1)];
 };
-
-test("fetchCompletedCount sums the counter from /metrics text", async () => {
-  const total = await fetchCompletedCount(
-    "http://x/metrics",
-    undefined,
-    metricsSequence([42]),
-  );
-  assert.equal(total, 42);
-});
-
-test("fetchCompletedCount returns null on a failed scrape", async () => {
-  const total = await fetchCompletedCount("http://x/metrics", undefined, async () => ({
-    ok: false,
-  }));
-  assert.equal(total, null);
-});
 
 // The core Baseline-B regression (report §4.5): phase A stopped at 888s of 990s
 // while 89 359 tickets were still available, and the run was treated as a
@@ -337,12 +315,11 @@ test("fetchCompletedCount returns null on a failed scrape", async () => {
 test("a completion plateau with inventory left is a stall, not a sell-out", async () => {
   const never = new Promise(() => {});
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => 89_359,
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5]),
   });
   assert.equal(result.stopped, true);
   assert.equal(result.reason, "stalled");
@@ -352,12 +329,11 @@ test("a completion plateau with inventory left is a stall, not a sell-out", asyn
 test("a completion plateau at zero inventory is a real sell-out", async () => {
   const never = new Promise(() => {});
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => 0,
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5]),
   });
   assert.equal(result.reason, "sold-out");
   assert.equal(result.available, 0);
@@ -370,14 +346,13 @@ test("a plateau at zero inventory keeps running until the ledger is empty", asyn
   const ledgerReadings = [7, 7, 0];
   let read = 0;
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => 0,
     readLedgerActive: async () =>
       ledgerReadings[Math.min(read++, ledgerReadings.length - 1)],
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
   });
   assert.equal(result.reason, "sold-out");
   assert.equal(result.available, 0);
@@ -392,14 +367,13 @@ test("a plateau at zero inventory keeps running until the ledger is empty", asyn
 test("an unreadable inventory leaves the plateau unclassified (stalled)", async () => {
   const never = new Promise(() => {});
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => {
       throw new Error("redis-cli unavailable");
     },
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5]),
   });
   assert.equal(result.reason, "stalled");
   assert.equal(result.available, null);
@@ -419,7 +393,6 @@ test("phase A stops immediately once sold out with an empty ledger", async () =>
   const never = new Promise(() => {});
   let polls = 0;
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     // Ein Plateau braeuchte mindestens 5 Polls; der Schnellabbruch greift beim
@@ -430,7 +403,7 @@ test("phase A stops immediately once sold out with an empty ledger", async () =>
       return 0;
     },
     readLedgerActive: async () => 0,
-    fetchImpl: metricsSequence([1, 2, 3, 4, 5, 6, 7, 8]),
+    readCompleted: completedSequence([1, 2, 3, 4, 5, 6, 7, 8]),
   });
 
   assert.equal(result.stopped, true);
@@ -442,7 +415,6 @@ test("phase A stops immediately once sold out with an empty ledger", async () =>
 test("a still-filled ledger does not trigger the fast stop", async () => {
   const never = new Promise(() => {});
   const result = await pollUntilSoldOut(never, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
@@ -451,7 +423,7 @@ test("a still-filled ledger does not trigger the fast stop", async () => {
     // Ledger voll -> kein Schnellabbruch; ohne
     // `plateauWaitsForEmptyLedger` bleibt der Plateau-Pfad wie bisher.
     plateauWaitsForEmptyLedger: false,
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5]),
   });
 
   assert.equal(result.reason, "sold-out");
@@ -460,14 +432,13 @@ test("a still-filled ledger does not trigger the fast stop", async () => {
 test("with a short checkout deadline the plateau still waits for the ledger", async () => {
   const exit = new Promise((resolve) => setTimeout(() => resolve(0), 60));
   const result = await pollUntilSoldOut(exit, {
-    metricsUrl: "http://x/metrics",
     eventId: "e-1",
     pollIntervalMs: 1,
     confirmPolls: 2,
     readAvailable: async () => 0,
     readLedgerActive: async () => 7,
     plateauWaitsForEmptyLedger: true,
-    fetchImpl: metricsSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
+    readCompleted: completedSequence([1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
   });
 
   // Der Lauf darf nicht als Sell-out enden, solange Ansprueche offen sind.

@@ -8,11 +8,11 @@
  * exit code. Evidence is always written before the process exits, even on a
  * failed or timed-out run.
  *
- * This is the side-effecting layer: it requires a live local stack (Docker
- * containers, running API/worker on the built stand, k6, Prometheus). The pure
- * analysis it delegates to is exercised by the unit + golden tests without any
- * of that. It is intended to be run once the Stage-4 capacity infrastructure
- * is in place (Baseline B).
+ * This is the side-effecting layer: it requires the local cluster (API and
+ * worker pods in kind, Prometheus scraping each pod, ADR-047), the Compose
+ * datastores and k6. Every service metric comes from Prometheus, because a
+ * Service URL answers from one arbitrary pod. The pure analysis it delegates
+ * to is exercised by the unit + golden tests without any of that.
  *
  * Usage: node scripts/load-test/run-and-report.mjs
  */
@@ -23,7 +23,6 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 
 import {
-  checkEndpoints,
   loadPolicy,
   getGitInfo,
   getHostInfo,
@@ -36,23 +35,35 @@ import {
   snapshotPostgres,
   snapshotRedis,
 } from "./lib/snapshots.mjs";
-import { targetUp } from "./lib/prometheus.mjs";
+import {
+  countTargetsUp,
+  instantQuery,
+  readEventCounter,
+  readLedgerActive,
+  SCRAPE_INTERVAL_MS,
+  snapshotJob,
+  targetUp,
+  waitForFreshScrape,
+} from "./lib/prometheus.mjs";
+import {
+  assessCluster,
+  MEASURED_DEPLOYMENTS,
+  readDeployments,
+} from "./lib/cluster.mjs";
 import { waitForDrain } from "./lib/drain.mjs";
 import {
-  fetchLedgerActive,
   runPhaseAReactive,
   runPhaseB,
   spawnK6Ssh,
   stopK6ViaRest,
 } from "./lib/processes.mjs";
-import { parseOpenMetrics, sumSamples } from "./lib/openmetrics.mjs";
 import { exportDashboards } from "./lib/grafana.mjs";
 import { analyzeAndWrite } from "./analyze-run.mjs";
 import { requireEnv, requireEnvBoolean } from "../lib/require-env.mjs";
 
 const EVENT_ID = requireEnv("EVENT_ID");
-const API_METRICS = requireEnv("API_METRICS_URL");
-const WORKER_METRICS = requireEnv("WORKER_METRICS_URL");
+const BASE_URL = requireEnv("BASE_URL");
+const K8S_CONTEXT = requireEnv("K8S_CONTEXT");
 const PROMETHEUS_URL = requireEnv("PROMETHEUS_URL");
 const SALE_OPENS_IN_SECONDS = requireEnv("SALE_OPENS_IN_SECONDS");
 
@@ -128,11 +139,9 @@ const GRAPH_PAD_AFTER_MS = 30_000;
 const nowIso = () => new Date().toISOString();
 const stamp = () => nowIso().replace(/[:.]/g, "-");
 
-const fetchText = async (url) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-  return res.text();
-};
+/** A counter summed over every pod of a job; absent series count as 0. */
+const sumOverPods = async (job, metric) =>
+  (await instantQuery(PROMETHEUS_URL, `sum(${metric}{job="${job}"})`)).value ?? 0;
 
 /**
  * Read the drain-relevant counters: `published` from the API (confirmed
@@ -143,14 +152,63 @@ const fetchText = async (url) => {
  * cancelled and abandoned checkouts would count as an eternal backlog and the
  * drain could never reach zero (see lib/drain.mjs).
  */
-const fetchCounters = async () => {
-  const api = parseOpenMetrics(await fetchText(API_METRICS));
-  const worker = parseOpenMetrics(await fetchText(WORKER_METRICS));
-  return {
-    published: sumSamples(api, "payments_confirmed_total") ?? 0,
-    completed: sumSamples(worker, "orders_completed_total") ?? 0,
-    failed: sumSamples(worker, "orders_failed_total") ?? 0,
-  };
+const fetchCounters = async () => ({
+  published: await sumOverPods("api", "payments_confirmed_total"),
+  completed: await sumOverPods("worker", "orders_completed_total"),
+  failed: await sumOverPods("worker", "orders_failed_total"),
+});
+
+/**
+ * Are the pods under test ready, scraped, and reachable through the gateway?
+ * Runs before the reset, so a missing pod aborts the run while database, Redis
+ * and TSDB are still untouched.
+ *
+ * @returns {Promise<string[]>} problems
+ */
+const checkCluster = async () => {
+  let deployments;
+  let targetsUp;
+  try {
+    deployments = readDeployments(K8S_CONTEXT, MEASURED_DEPLOYMENTS);
+  } catch (error) {
+    return [
+      `kubectl --context ${K8S_CONTEXT} get deployment failed (${error instanceof Error ? error.message.split("\n")[0] : error}) — cluster up? \`pnpm kind:up\``,
+    ];
+  }
+  try {
+    targetsUp = Object.fromEntries(
+      await Promise.all(
+        MEASURED_DEPLOYMENTS.map(async (job) => [
+          job,
+          await countTargetsUp(PROMETHEUS_URL, job),
+        ]),
+      ),
+    );
+  } catch (error) {
+    return [
+      `Prometheus unreachable at ${PROMETHEUS_URL} (${error instanceof Error ? error.message : error}) — \`kubectl --context ${K8S_CONTEXT} get pods -l app=prometheus\``,
+    ];
+  }
+  const problems = assessCluster({
+    deployments,
+    targetsUp,
+    expectedProfile: requireEnv("HFTS_ENV"),
+  });
+
+  // Any HTTP answer proves the path Envoy → API; a 404 for a not yet seeded
+  // event is fine, the reset seeds it. Only a 5xx or no answer is a problem.
+  const gatewayUrl = `${BASE_URL}/api/tickets/${EVENT_ID}/availability`;
+  try {
+    const res = await fetch(gatewayUrl, { signal: AbortSignal.timeout(3000) });
+    if (res.status >= 500) {
+      problems.push(`Gateway answered ${res.status} at ${gatewayUrl}.`);
+    }
+  } catch (error) {
+    problems.push(
+      `Gateway unreachable at ${gatewayUrl} (${error instanceof Error ? error.message : error}) — kind port mapping 10000, \`kubectl --context ${K8S_CONTEXT} get gateway\`.`,
+    );
+  }
+  return problems;
 };
 
 const main = async () => {
@@ -163,9 +221,11 @@ const main = async () => {
   //
   // Beim ssh-Runner braucht DIESER Host kein k6 — dafuer ssh, und das k6 auf
   // dem Generator-Host muss zur lokal gepinnten Major-Version (v2.x) passen.
-  const pf = preflight(
-    REMOTE ? { requiredCommands: ["node", "pnpm", "ssh"] } : undefined,
-  );
+  const pf = preflight({
+    requiredCommands: REMOTE
+      ? ["node", "pnpm", "ssh", "kubectl"]
+      : ["node", "pnpm", "k6", "kubectl"],
+  });
   if (!pf.ok) {
     console.error("[spike:report] Preflight failed:");
     for (const problem of pf.problems) console.error(`  - ${problem}`);
@@ -197,23 +257,12 @@ const main = async () => {
     console.log(`[spike:report] Remote k6 (${REMOTE.sshHost}): ${remoteK6Version}`);
   }
 
-  const reachable = await checkEndpoints([
-    {
-      name: "API",
-      url: API_METRICS,
-      hint: "start it with `pnpm --filter api run start:loadtest` (VS Code: Task 'loadtest:stack up')",
-    },
-    {
-      name: "Worker",
-      url: WORKER_METRICS,
-      hint: "start it with `pnpm --filter worker run start:loadtest` (VS Code: Task 'loadtest:stack up')",
-    },
-  ]);
-  if (!reachable.ok) {
+  const clusterProblems = await checkCluster();
+  if (clusterProblems.length > 0) {
     console.error(
-      "[spike:report] Preflight failed — the services under test are not ready. Nothing was seeded or reset:",
+      "[spike:report] Preflight failed — the cluster is not ready to be measured. Nothing was seeded or reset:",
     );
-    for (const problem of reachable.problems) console.error(`  - ${problem}`);
+    for (const problem of clusterProblems) console.error(`  - ${problem}`);
     process.exit(1);
   }
 
@@ -234,7 +283,7 @@ const main = async () => {
 
   const k6Env = {
     ...process.env,
-    BASE_URL: requireEnv("BASE_URL"),
+    BASE_URL,
     EVENT_ID,
     K6_PROMETHEUS_RW_SERVER_URL: requireEnv("K6_PROMETHEUS_RW_SERVER_URL"),
   };
@@ -252,15 +301,22 @@ const main = async () => {
   timestamps.seededAt = nowIso();
 
   // 4. Baseline snapshots (state survives across the run for counter deltas).
+  // The reset emptied the TSDB; until every pod was scraped again a snapshot
+  // would record an empty baseline.
+  await waitForFreshScrape({
+    baseUrl: PROMETHEUS_URL,
+    jobs: MEASURED_DEPLOYMENTS,
+    sinceMs: Date.parse(timestamps.seededAt),
+  });
   const stateBefore = {
     postgres: snapshotPostgres(EVENT_ID),
     redis: snapshotRedis(EVENT_ID),
   };
-  const apiBefore = await fetchText(API_METRICS);
-  const workerBefore = await fetchText(WORKER_METRICS);
+  const apiBefore = await snapshotJob(PROMETHEUS_URL, "api");
+  const workerBefore = await snapshotJob(PROMETHEUS_URL, "worker");
   const drainBaseline = await fetchCounters();
-  writeFileSync(join(runDir, "metrics", "api-before.prom"), apiBefore);
-  writeFileSync(join(runDir, "metrics", "worker-before.prom"), workerBefore);
+  writeFileSync(join(runDir, "metrics", "api-before.prom"), apiBefore.text);
+  writeFileSync(join(runDir, "metrics", "worker-before.prom"), workerBefore.text);
   writeFileSync(
     join(runDir, "state", "before.json"),
     JSON.stringify(stateBefore, null, 2) + "\n",
@@ -273,14 +329,19 @@ const main = async () => {
     runId,
     summaryPath: join(runDir, "k6", "phase-a-summary.json"),
     env: k6Env,
-    metricsUrl: WORKER_METRICS,
+    // Sold-out-Quelle (ADR-025) ueber alle Worker-Pods. Gepollt wird im
+    // Scrape-Takt: schneller gelesen, sieht der Detektor denselben Scrape
+    // zweimal und haelt das fuer ein Plateau.
+    readCompleted: (eventId) =>
+      readEventCounter(PROMETHEUS_URL, "orders_completed_total", eventId),
+    pollIntervalMs: SCRAPE_INTERVAL_MS,
     eventId: EVENT_ID,
     // Lets the plateau detector tell a real sell-out from host contention.
     readAvailable: (eventId) => readAvailableTickets(eventId),
     // Immer gelesen: zusammen mit `available == 0` ist ein leerer Ledger der
     // eindeutige Beleg, dass der Verkauf entschieden ist — dann bricht Phase A
     // sofort ab, ohne erst ein Completion-Plateau abzuwarten.
-    readLedgerActive: (eventId) => fetchLedgerActive(WORKER_METRICS, eventId),
+    readLedgerActive: (eventId) => readLedgerActive(PROMETHEUS_URL, eventId),
     // Fuer die Plateau-Erkennung gilt weiter Ablauf-Semantik statt Profilname:
     // ist die Checkout-Deadline kurz genug, um innerhalb des Phase-A-Fensters
     // (max ~990 s) abzulaufen, gibt der Reaper Ansprueche zurueck in den
@@ -353,23 +414,34 @@ const main = async () => {
     postgres: snapshotPostgres(EVENT_ID),
     redis: snapshotRedis(EVENT_ID),
   };
-  writeFileSync(
-    join(runDir, "metrics", "api-after.prom"),
-    await fetchText(API_METRICS),
-  );
-  writeFileSync(
-    join(runDir, "metrics", "worker-after.prom"),
-    await fetchText(WORKER_METRICS),
-  );
+  const apiAfter = await snapshotJob(PROMETHEUS_URL, "api");
+  const workerAfter = await snapshotJob(PROMETHEUS_URL, "worker");
+  writeFileSync(join(runDir, "metrics", "api-after.prom"), apiAfter.text);
+  writeFileSync(join(runDir, "metrics", "worker-after.prom"), workerAfter.text);
   writeFileSync(
     join(runDir, "state", "after.json"),
     JSON.stringify(stateAfter, null, 2) + "\n",
   );
 
+  // Counter deltas are only valid while the same pods live from snapshot to
+  // snapshot: a restarted pod starts its counters at 0 again.
+  const pods = {
+    before: { api: apiBefore.instances, worker: workerBefore.instances },
+    after: { api: apiAfter.instances, worker: workerAfter.instances },
+  };
+  const podsChanged =
+    JSON.stringify(pods.before) !== JSON.stringify(pods.after);
+  if (podsChanged) {
+    console.warn(
+      `[spike:report] Pods changed during the run (before ${JSON.stringify(pods.before)}, after ${JSON.stringify(pods.after)}) — counter deltas of a restarted pod are wrong.`,
+    );
+  }
   const health = {
     apiUp: await targetUp(PROMETHEUS_URL, "api").catch(() => null),
     workerUp: await targetUp(PROMETHEUS_URL, "worker").catch(() => null),
     scrapeGapSeconds: null,
+    pods,
+    podsChanged,
   };
   writeFileSync(
     join(runDir, "health.json"),
@@ -428,7 +500,7 @@ const main = async () => {
         `[spike:report] Grafana export skipped: ${error instanceof Error ? error.message : error}`,
       );
       console.warn(
-        "[spike:report]   Renderer running? `docker compose up -d renderer` (hfts-grafana-renderer). Nachtraeglich: `pnpm spike:graphs`.",
+        `[spike:report]   Renderer running? \`kubectl --context ${K8S_CONTEXT} get pods -l app=renderer\`. Nachtraeglich: \`pnpm spike:graphs\`.`,
       );
     }
   }

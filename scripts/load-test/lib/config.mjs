@@ -58,9 +58,9 @@ export const getHostInfo = () => ({
 
 /**
  * A minimal preflight gate. Fails fast BEFORE any state is mutated when a hard
- * prerequisite is missing (automation doc, step 1). This MVP checks tool
- * availability and container state; the full target-health matrix in the doc
- * is a follow-up.
+ * prerequisite is missing (automation doc, step 1). It checks tools and the
+ * Compose datastores; whether the pods under test are ready and scraped is
+ * `lib/cluster.mjs`.
  *
  * @param {{ requiredCommands?: string[], requiredContainers?: string[] }} [opts]
  * @returns {{ ok: boolean, problems: string[] }}
@@ -76,7 +76,9 @@ export const preflight = (opts = {}) => {
 
   // OpenSSH kennt kein `--version` (nur `-V`) — mit dem Standard-Probe wurde
   // ein vorhandenes ssh als "not found" gemeldet und der Split-Lauf brach ab.
-  const versionProbeArgs = { ssh: ["-V"] };
+  // kubectl kennt ebenfalls kein `--version`; `version --client` fragt den
+  // API-Server nicht, prueft also nur das Werkzeug.
+  const versionProbeArgs = { ssh: ["-V"], kubectl: ["version", "--client"] };
 
   for (const command of requiredCommands) {
     try {
@@ -106,49 +108,6 @@ export const preflight = (opts = {}) => {
     problems.push(
       "Could not verify container state (docker inspect failed); run `docker compose up -d`.",
     );
-  }
-
-  return { ok: problems.length === 0, problems };
-};
-
-/**
- * Second preflight stage: are the services under test actually reachable?
- *
- * Containers running is not enough — API and worker are host processes started
- * separately (`start:loadtest`). Without this check the orchestrator seeded
- * first and only then discovered the services were down, aborting with a bare
- * `fetch failed` *after* it had already truncated the database and wiped the
- * Prometheus TSDB. That contradicts the promise of step 1 ("fail before
- * mutating any state"), so reachability is verified up front and reported with
- * the command needed to fix it.
- *
- * Kept separate from `preflight()` so that stays synchronous and dependency-free.
- *
- * @param {Array<{ name: string, url: string, hint?: string }>} endpoints
- * @param {{ timeoutMs?: number, fetchImpl?: typeof fetch }} [opts]
- * @returns {Promise<{ ok: boolean, problems: string[] }>}
- */
-export const checkEndpoints = async (endpoints, opts = {}) => {
-  const timeoutMs = opts.timeoutMs ?? 3000;
-  const fetchImpl = opts.fetchImpl ?? fetch;
-  const problems = [];
-
-  for (const { name, url, hint } of endpoints) {
-    try {
-      const res = await fetchImpl(url, {
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!res.ok) {
-        problems.push(
-          `${name} answered ${res.status} at ${url}${hint ? ` — ${hint}` : ""}`,
-        );
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      problems.push(
-        `${name} unreachable at ${url} (${reason})${hint ? ` — ${hint}` : ""}`,
-      );
-    }
   }
 
   return { ok: problems.length === 0, problems };

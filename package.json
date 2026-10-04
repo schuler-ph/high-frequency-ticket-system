@@ -44,6 +44,7 @@
     "gateway:install": "pnpm run gateway:fetch && kubectl --context kind-hfts apply --server-side -f k8s/vendor/install.yaml && kubectl --context kind-hfts wait --timeout=5m -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available",
     "k8s:apply": "kubectl --context kind-hfts apply -k k8s/overlays/local",
     "k8s:delete": "kubectl --context kind-hfts delete -k k8s/overlays/local",
+    "k8s:profile": "node scripts/lib/require-profile.mjs && kubectl --context kind-hfts set env deploy/api deploy/worker HFTS_ENV=${HFTS_ENV} && kubectl --context kind-hfts rollout status deploy/api --timeout=180s && kubectl --context kind-hfts rollout status deploy/worker --timeout=180s",
     "worker:restart": "kubectl --context kind-hfts rollout restart deploy/worker && kubectl --context kind-hfts rollout status deploy/worker --timeout=120s"
   },
   "devDependencies": {

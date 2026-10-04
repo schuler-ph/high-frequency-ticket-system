@@ -44,27 +44,21 @@ docker compose ps
 # falls nicht: docker compose up -d
 ```
 
-## API/Worker fuer den Lasttest starten (gebauter Stand, nicht `pnpm dev`)
+## System unter Test: der lokale Cluster
 
-Fuer einen belastbaren Kapazitaetslauf (Baseline B) duerfen API und Worker **nicht**
-im Dev-Modus laufen. `pnpm dev` startet `dev` via `tsc-watch --onSuccess`, das
-`fastify start` mit `-P` (pino-pretty — ein synchroner, den Event-Loop
-blockierender Log-Transform) faehrt und zusaetzlich einen TS-Compiler + FS-Watcher
-mitlaufen laesst, der lokal um dieselben Cores wie k6/Postgres/Redis/Prometheus
-konkurriert (ein FS-Event mitten im Lauf triggert sogar Rebuild + Restart).
+Gemessen wird nur gegen den kind-Cluster (Phase 5.3, ADR-047): drei API-Pods
+und ein Worker-Pod hinter Envoy, Prometheus und Grafana im Cluster, die
+Datastores in Compose. k6 erreicht die API über den Gateway-Eingang
+`localhost:10000`, die Messkette liest jede Service-Metrik über Prometheus
+(`localhost:10007`) — kein Tunnel nötig. Aufbau: [`k8s/README.md`](../k8s/README.md).
 
-Stattdessen je Service den dedizierten `start:loadtest`-Task nutzen — kompiliert
-`dist/app.js` und startet fastify-cli **ohne** `-P`. `NODE_ENV=production` und
-`LOG_LEVEL=warn` kommen aus dem gewaehlten Lastprofil, nicht mehr als CLI-Flag
-(ADR-045):
+Die Pods müssen dasselbe Profil laufen wie der Lauf, sonst bricht der Preflight
+ab. Das Profil steuert Dinge, die k6 nie sieht (Checkout-Deadline,
+Reaper-Takt, Pool-Größe):
 
 ```bash
-pnpm --filter api run start:loadtest      # API auf :10002
-pnpm --filter worker run start:loadtest   # Worker auf :10003
+HFTS_ENV=browse-and-buy-full-speed pnpm k8s:profile   # setzt HFTS_ENV auf API + Worker, wartet auf den Rollout
 ```
-
-Die Dev-Tasks (`pnpm dev`) bleiben unveraendert und weiterhin die Wahl fuer die
-lokale Entwicklung.
 
 ## Ausführen
 
@@ -74,7 +68,7 @@ lokale Entwicklung.
 pnpm spike
 
 # Mit custom Unlock-Delay, Base-URL oder Event-ID
-SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm spike
+SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10000 EVENT_ID=freq-2025 pnpm spike
 ```
 
 ## Reaktive Zwei-Phasen-Orchestrierung
@@ -83,7 +77,7 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10002 EVENT_ID=freq-2025 pnpm
 
 1. `scripts/local/reset.mjs` mit dem `SALE_OPENS_IN_SECONDS` des Profils ausführt — verwirft den Pub/Sub-Rückstand, setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis. Die Provisionierung (Schema, Topic, Subscription) ist davon getrennt und läuft beim Hochfahren des Stacks.
 2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
-3. Der monotone Worker-Counter `orders_completed_total` (`/metrics`) wird alle 3s gepollt; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
+3. Der monotone Worker-Counter `orders_completed_total` wird im Scrape-Takt (5 s) aus Prometheus gelesen, summiert über alle Worker-Pods; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
 4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
 
 Ohne Orchestrator lässt sich jede Phase auch einzeln fahren (z.B. zum Debuggen), dann aber ohne reaktiven Sold-Out-Stop:
@@ -207,7 +201,7 @@ bewusst davon ab.
 
 | Variable                         | Wert im Default-Profil                  | Beschreibung                                                                    |
 | -------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
-| `BASE_URL`                       | `http://localhost:10002`                | API-Basis-URL                                                                   |
+| `BASE_URL`                       | `http://localhost:10000`                | Gateway-Eingang des Clusters (Envoy, `/api` → API-Pods)                         |
 | `EVENT_ID`                       | `00000000-0000-4000-8000-000000000000`  | Event-ID für Ticket-Requests                                                    |
 | `CHECKOUT_POLL`                  | `false`                                 | `true` aktiviert den `GET /orders/:orderId`-Poll bis `completed`/`failed`       |
 | `CHECKOUT_POLL_MAX_ATTEMPTS`     | `10`                                    | Max. Poll-Versuche pro Order, bevor aufgegeben wird                             |
@@ -227,9 +221,9 @@ bewusst davon ab.
 | `PAY_RATE`                       | `0.88` (buy-only: `1`)                  | Anteil der Reservierungen, die bezahlt werden                                   |
 | `CANCEL_RATE`                    | `0.08` (buy-only: `0`)                  | Anteil, der via `cancel` abbricht (Rest = Abbruch ohne Cancel)                  |
 | `SALE_OPENS_IN_SECONDS`          | `60`                                    | Sekunden bis zum Sale-Unlock (an `reset.mjs` weitergereicht)                    |
-| `SPIKE_POLL_INTERVAL_MS`         | `3000`                                  | Intervall der Completion-Counter-Polls in der Orchestrierung                    |
+| `SPIKE_POLL_INTERVAL_MS`         | `5000`                                  | Intervall der Completion-Counter-Polls, gleich dem Scrape-Intervall             |
 | `SPIKE_SOLDOUT_CONFIRM_POLLS`    | `3`                                     | Anzahl aufeinanderfolgender Polls ohne Fortschritt bis Sold-Out gilt            |
-| `WORKER_METRICS_URL`             | `http://localhost:10003/metrics`        | Worker-`/metrics`-Endpoint für den `orders_completed_total`-Poll                |
+| `K8S_CONTEXT`                    | `kind-hfts`                             | kubectl-Kontext fuer den Preflight (Pods bereit, Profil, Rollout)               |
 | `SPIKE_GRACEFUL_STOP_TIMEOUT_MS` | `40000`                                 | Timeout fuer den graceful k6-Stop, bevor SIGKILL erzwungen wird                 |
 | `K6_PROMETHEUS_RW`               | `false`                                 | `true` aktiviert k6s Prometheus-Remote-Write (Default **aus**, s. u.)           |
 | `K6_PROMETHEUS_RW_SERVER_URL`    | `http://localhost:10007/api/v1/write`   | Prometheus Remote-Write-Endpoint fuer k6-Metriken                               |

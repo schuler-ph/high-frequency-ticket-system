@@ -11,8 +11,9 @@ is recorded in
 ```bash
 # Full run: preflight -> seed -> baseline snapshots -> phase A (reactive) +
 # phase B -> drain -> final snapshots -> analysis -> report -> policy exit code.
-# Requires a live local stack (Docker, built API/worker, k6, Prometheus).
-pnpm spike:report
+# Requires the local cluster (pods on the run's profile: `pnpm k8s:profile`),
+# the Compose datastores and k6.
+HFTS_ENV=<profil> pnpm spike:report
 
 # Re-derive derived.json + report.md from an existing artifact directory ONLY
 # (no network / DB). Lets reports be regenerated after template changes.
@@ -23,7 +24,7 @@ pnpm spike:analyze -- artifacts/load-tests/<run-id>
 pnpm spike:compare -- <baseline-derived.json|dir> <candidate-derived.json|dir>
 
 # Export every Grafana panel (title + legend) as PNG for a time window.
-# Runs automatically at the end of `spike:report`; needs the renderer container.
+# Runs automatically at the end of `spike:report`; needs the renderer pod.
 pnpm spike:graphs                                   # last run, window from its manifest
 pnpm spike:graphs -- --range '{"from":"2026-07-27 16:19:00","to":"2026-07-27 16:31:00"}'
 
@@ -35,7 +36,7 @@ pnpm spike:report:test
 
 | Path                      | Responsibility                                                        |
 | ------------------------- | --------------------------------------------------------------------- |
-| `run-and-report.mjs`      | Orchestrator (side effects): the only part needing a live stack.      |
+| `run-and-report.mjs`      | Orchestrator (side effects): the only part needing the live cluster.  |
 | `analyze-run.mjs`         | Pure: artifact dir → `derived.json` + `report.md`.                    |
 | `compare-runs.mjs`        | Pure: two `derived.json` → comparison report.                         |
 | `lib/openmetrics.mjs`     | Parse `/metrics` text; sum counters; reconstruct histograms.          |
@@ -47,7 +48,8 @@ pnpm spike:report:test
 | `lib/manifest.mjs`        | Manifest shape + secret-redaction allowlist (**orchestrator** env).   |
 | `lib/config.mjs`          | Policy/query loaders, Git/host info, preflight.                       |
 | `lib/snapshots.mjs`       | PostgreSQL/Redis state via the container CLIs (read-only).            |
-| `lib/prometheus.mjs`      | Prometheus instant query + target health.                             |
+| `lib/prometheus.mjs`      | Aggregated queries, per-job snapshots across pods, TSDB freshness.    |
+| `lib/cluster.mjs`         | Preflight: pods ready, scraped and on the run's profile (ADR-047).    |
 | `lib/drain.mjs`           | Drain monitor (`pending = Δpublished − Δcompleted − Δfailed`).        |
 | `lib/processes.mjs`       | k6 phase spawning + reactive sell-out stop; k6 console → `k6/*.log`.  |
 | `lib/grafana.mjs`         | Panel discovery + `/render/d-solo` PNG export (ADR-030).              |
@@ -62,7 +64,8 @@ reviewed baseline is copied into `docs/reports/` by hand.
 ## Boundaries
 
 - **Pure vs. side-effecting.** Everything except `run-and-report.mjs` and the
-  `snapshots`/`prometheus`/`processes` collectors is pure and unit-tested.
+  `snapshots`/`prometheus`/`cluster`/`processes` collectors is pure and
+  unit-tested.
 - **No guesswork.** The analyzer separates observations, derived facts, and
   hypotheses; a plausible-but-uninstrumented root cause stays `inconclusive`.
 - **Idempotent output.** Re-running `spike:analyze` over the same artifacts

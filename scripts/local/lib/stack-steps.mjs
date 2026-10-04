@@ -21,7 +21,6 @@ import { requireEnv, requireEnvNumber } from "../../lib/require-env.mjs";
 const POSTGRES_CONTAINER = "hfts-postgres";
 const REDIS_CONTAINER = "hfts-redis";
 const PUBSUB_CONTAINER = "hfts-pubsub";
-const PROMETHEUS_CONTAINER = "hfts-prometheus";
 const POSTGRES_DB = "high_frequency_tickets";
 const POSTGRES_USER = "postgres";
 
@@ -80,20 +79,6 @@ export const checkContainers = () => {
     throw new Error(
       `Required containers are not running: ${notRunning.join(", ")}. Run 'docker compose up -d' first.`,
     );
-  }
-};
-
-const isContainerRunning = (name) => {
-  try {
-    const state = execSync(`docker inspect -f '{{.State.Running}}' ${name}`, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .trim()
-      .toLowerCase();
-    return state === "true";
-  } catch {
-    return false;
   }
 };
 
@@ -262,45 +247,41 @@ export const purgeSubscription = async (log) => {
   }
 };
 
-// Prometheus haelt bei hoher Label-Kardinalitaet (z.B. Series-Churn aus einem
-// vorherigen Lasttest) einen aufgeblaehten Go-Heap resident, auch nachdem die
-// Series wieder verschwunden sind. Ein frischer Lauf soll auch die Metrik-
-// Historie leeren: Container stoppen (kein Prozess haelt dann die gemappten
-// Chunk-/WAL-Dateien), TSDB-Volume via Wegwerf-Container leeren
-// (--volumes-from koppelt uns nicht an den Compose-Volume-Namen) und frisch
-// starten. Reclaimt RAM + Disk und vermeidet ein Replay des aufgeblaehten WAL.
-// Nicht-fatal: Prometheus ist Monitoring, kein Kern-State.
-export const resetPrometheus = (log) => {
+// Ein frischer Lauf soll mit leerer Metrik-Historie beginnen, sonst mischen
+// sich Serien eines frueheren Laufs in die exportierten Panels. Seit Prometheus
+// im Cluster laeuft (ADR-047), gibt es keinen Container mehr, den man stoppen
+// und dessen Volume man leeren koennte; die Admin-API loescht stattdessen alle
+// Serien und raeumt die Tombstones ab. Den Heap gibt das nicht sofort frei —
+// dafuer waere ein Pod-Neustart noetig, und der kostet die Scrape-Historie, die
+// der Lauf gerade braucht. Nicht-fatal: Prometheus ist Monitoring, kein
+// Kern-State. Profile ohne PROMETHEUS_URL (dev) haben nichts zu leeren.
+const PROMETHEUS_ADMIN_PATHS = [
+  `/api/v1/admin/tsdb/delete_series?match[]=${encodeURIComponent('{__name__=~".+"}')}`,
+  "/api/v1/admin/tsdb/clean_tombstones",
+];
+
+export const resetPrometheus = async (log) => {
   if (process.env.SKIP_PROMETHEUS_RESET === "1") {
     log("Skipping Prometheus reset (SKIP_PROMETHEUS_RESET=1).");
     return;
   }
 
-  if (!isContainerRunning(PROMETHEUS_CONTAINER)) {
-    log(`${PROMETHEUS_CONTAINER} not running; skipping Prometheus reset.`);
+  const baseUrl = process.env.PROMETHEUS_URL;
+  if (!baseUrl) {
+    log("No PROMETHEUS_URL in this profile; skipping Prometheus reset.");
     return;
   }
 
-  log("Wiping Prometheus TSDB (fresh metrics)...");
+  log(`Deleting all series from the Prometheus TSDB at ${baseUrl}...`);
   try {
-    execFileSync("docker", ["stop", PROMETHEUS_CONTAINER], { stdio: "inherit" });
-    execFileSync(
-      "docker",
-      [
-        "run",
-        "--rm",
-        "--volumes-from",
-        PROMETHEUS_CONTAINER,
-        "busybox",
-        "sh",
-        "-c",
-        "cd /prometheus && rm -rf ./* ./.[!.]* 2>/dev/null; exit 0",
-      ],
-      { stdio: "inherit" },
-    );
-    execFileSync("docker", ["start", PROMETHEUS_CONTAINER], {
-      stdio: "inherit",
-    });
+    for (const path of PROMETHEUS_ADMIN_PATHS) {
+      const response = await fetch(`${baseUrl}${path}`, { method: "POST" });
+      if (response.status !== 204) {
+        throw new Error(
+          `POST ${path} -> ${response.status} (admin API enabled? --web.enable-admin-api)`,
+        );
+      }
+    }
   } catch (error) {
     log(
       `Prometheus reset failed (non-fatal): ${

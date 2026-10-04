@@ -7,12 +7,14 @@ Fast alles hat auch einen VS-Code-Task (`.vscode/tasks.json`) und einen Button i
 
 ## Standardports
 
-Der lokale Block `10001`–`10009` wird in `packages/env/src/index.ts`,
-`docker-compose.yml` und den jeweiligen Service-Skripten konfiguriert:
+Der lokale Block `10000`–`10009` wird in `packages/env/src/index.ts`,
+`docker-compose.yml`, `k8s/kind.yaml` und den jeweiligen Service-Skripten
+konfiguriert. `10000`, `10007` und `10008` sind feste NodePorts des
+kind-Clusters, `10004`–`10006` und `10009` kommen aus Compose:
 
-| 10001 | 10002 | 10003  | 10004 | 10005   | 10006    | 10007      | 10008   | 10009          |
-| ----- | ----- | ------ | ----- | ------- | -------- | ---------- | ------- | -------------- |
-| Web   | API   | Worker | Redis | Pub/Sub | Postgres | Prometheus | Grafana | Redis-Exporter |
+| 10000   | 10001 | 10002 | 10003  | 10004 | 10005   | 10006    | 10007      | 10008   | 10009          |
+| ------- | ----- | ----- | ------ | ----- | ------- | -------- | ---------- | ------- | -------------- |
+| Gateway | Web   | API   | Worker | Redis | Pub/Sub | Postgres | Prometheus | Grafana | Redis-Exporter |
 
 ---
 
@@ -69,6 +71,8 @@ pnpm dev                      # Web + API + Worker parallel (Turbo)
 ---
 
 ## 3. Lasttest-Stack hochfahren (gebauter Stand)
+
+> **Seit Phase 5.3 wird nur gegen den Cluster gemessen** ([§4](#messlauf-gegen-den-cluster), ADR-047). `spike:report` liest Service-Metriken über Prometheus im Cluster und prüft Pods per `kubectl`; gegen Host-Prozesse läuft es nicht mehr. Dieser Abschnitt beschreibt den Host-Prozess-Stack für Diagnose außerhalb des Clusters.
 
 Für belastbare Messungen dürfen API und Worker **nicht** im Dev-Modus laufen: `-P` schaltet pino-pretty ein (synchroner, Event-Loop-blockierender Log-Transform), und der `tsc-watch`-Watcher konkurriert um dieselben Cores wie k6, Postgres und Redis. Ein FS-Event mitten im Lauf triggert sogar einen Rebuild.
 
@@ -372,6 +376,32 @@ done
 
 ## 4. Lasttest fahren
 
+### Messlauf gegen den Cluster
+
+Jeder Lauf braucht eine ausdrückliche Freigabe. Ablauf mit Prüfpunkten:
+
+```bash
+docker compose up -d                                   # Postgres, Redis, Pub/Sub, Redis-Exporter
+kubectl --context kind-hfts get pods                   # api 3×, worker, web, prometheus, grafana, renderer: 1/1 Running
+HFTS_ENV=<profil> pnpm k8s:profile                     # API + Worker auf das Profil des Laufs, wartet auf den Rollout
+curl -s localhost:10000/api/tickets/00000000-0000-4000-8000-000000000000/availability   # Gateway antwortet
+HFTS_ENV=<profil> pnpm spike:report                    # co-located; Split: Button `Spike Split`
+```
+
+- **Preflight** (vor jedem Reset): Werkzeuge und Compose-Container, dann je
+  Deployment `ready == updated == desired`, das Profil im Pod-Template gleich
+  `HFTS_ENV`, und Prometheus scrapt genau so viele Pods. Dazu ein Abruf durch
+  das Gateway. Fehlt ein Pod oder läuft ein anderes Profil, endet der Lauf mit
+  Exit 1 und dem Befehl zur Behebung — nichts ist zurückgesetzt.
+- **Reset** leert die Prometheus-TSDB über die Admin-API; die Messkette wartet
+  danach, bis jeder Pod frisch gescrapt ist, und nimmt erst dann den
+  Vorher-Snapshot.
+- **Snapshots** sind die Serien aller Pods eines Jobs aus Prometheus
+  (`metrics/api-*.prom` zeigen jede Serie mit ihrem Pod als `instance`).
+  `health.json` hält die Pod-Namen vor und nach dem Lauf fest; ändern sie sich,
+  warnt die Konsole, weil ein neu gestarteter Pod seine Zähler bei 0 beginnt.
+- Zurück auf das Entwicklungsprofil: `HFTS_ENV=dev pnpm k8s:profile`.
+
 Zwei Varianten. `spike` fährt nur die Last, `spike:report` sammelt zusätzlich alle Belege und erzeugt den Report — das ist der Standard für jede Messung, die man später zitieren will.
 
 ```mermaid
@@ -381,11 +411,11 @@ flowchart TD
     B -->|nur Last| C["pnpm spike"]
     B -->|Belege + Report| D["pnpm spike:report"]
 
-    D --> D0["<b>Preflight</b><br/>Tools + Container,<br/>dann API/Worker erreichbar?"]
-    D0 -->|"nicht erreichbar"| DX["Exit 1 mit Startbefehl —<br/><b>nichts</b> zurückgesetzt"]
+    D --> D0["<b>Preflight</b><br/>Tools + Container,<br/>Pods bereit, gescrapt, Profil?"]
+    D0 -->|"nicht bereit"| DX["Exit 1 mit Befehl —<br/><b>nichts</b> zurückgesetzt"]
     D0 -->|ok| D1["<i>ab hier wird State mutiert</i>"]
     D1 --> D2["reset<br/><i>Queue-Purge + TRUNCATE +<br/>opensAt + Prometheus-TSDB-Wipe</i>"]
-    D2 --> D3["Snapshots VORHER<br/>/metrics, DB, Redis"]
+    D2 --> D3["Snapshots VORHER<br/>Prometheus (alle Pods), DB, Redis"]
     D3 --> D4["Phase A<br/>1k → 10k RPS<br/><i>Stop bei Plateau</i>"]
     D4 --> D5["Phase B<br/>1k RPS Cool-Down"]
     D5 --> D6["Drain<br/><i>published − completed − failed</i>"]
@@ -405,7 +435,7 @@ flowchart TD
     style DX fill:#c55,color:#fff
 ```
 
-> **`reset` ist destruktiv:** es verwirft den Pub/Sub-Rückstand, macht `TRUNCATE`, setzt die Redis-Counter zurück und löscht die Prometheus-TSDB. Deshalb prüft der Preflight **vorher**, ob API und Worker antworten — laufende Container beweisen das nicht, denn beide sind Host-Prozesse. Ohne diese Prüfung setzte ein Lauf gegen einen nicht laufenden Stack erst alles zurück und brach dann mit einem nackten `fetch failed` ab.
+> **`reset` ist destruktiv:** es verwirft den Pub/Sub-Rückstand, macht `TRUNCATE`, setzt die Redis-Counter zurück und löscht die Prometheus-TSDB. Deshalb prüft der Preflight **vorher**, ob jeder Pod bereit und gescrapt ist — laufende Container beweisen das nicht. Ohne diese Prüfung setzte ein Lauf gegen einen nicht bereiten Stack erst alles zurück und brach dann ab.
 >
 > **Warum der Reset hier steht und nicht beim Stack-Start:** `opensAt` wird als `Date.now() + SALE_OPENS_IN_SECONDS` geschrieben. Läge der Reset im `LT Stack`-Button, wäre das Sale-Unlock-Fenster längst verstrichen, bis die Services gebaut sind und der Lauf startet — k6s Warm-up-Phase erwartet dort aber `425 Too Early`. `LT Stack` provisioniert deshalb nur (Schema, Topic, Subscription), der Lauf resettet selbst.
 >
@@ -427,11 +457,11 @@ K6_PROMETHEUS_RW=true pnpm spike             # k6-Metriken live in Grafana (s. u
 
 **Task:** `loadtest:run+report` — fragt das Env-Profil ab (`browse-and-buy-full-speed` / `browse-and-buy-human-pace` / `buy-only-full-speed`, s. [load-tests/README.md](../load-tests/README.md#lastprofile-load_profile)) und prüft vorher die Bereitschaft · **Button:** `Spike Report`. Die Auswertung aus §5 läuft am Ende des Laufs automatisch mit.
 
-**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Das Profil setzt `EXPORT_GRAPHS=false` und `SAVE_ARTIFACTS=false`: keine Panel-PNGs, und die Rohbelege landen im Temp-Verzeichnis statt in `artifacts/load-tests/` — das Urteil auf der Konsole ist das Ergebnis. Er läuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus `LT Stack` genauso wie ein `kubectl port-forward` auf `svc/api` und `svc/worker` im lokalen Cluster; die Pods tragen ihr Profil über die ConfigMap, damit Services und Generator dieselben Annahmen tragen. Prometheus scrapt beide Varianten über `host.docker.internal`.
+**Task:** `loadtest:smoke` · **Button:** `Smoke` — derselbe Ablauf mit festem Profil `smoke-test` und ohne Rückfrage (1k Tickets, alles zahlt, ~3 min; prüft nur, ob die Messkette richtig zählt). Das Profil setzt `EXPORT_GRAPHS=false` und `SAVE_ARTIFACTS=false`: keine Panel-PNGs, und die Rohbelege landen im Temp-Verzeichnis statt in `artifacts/load-tests/` — das Urteil auf der Konsole ist das Ergebnis. Gegen den Cluster: **Task** `loadtest:smoke (cluster)` · **Button** `Smoke Cluster` — setzt die Pods per `k8s:profile` auf `smoke-test` und fährt den Lauf über den Gateway-Eingang, ohne Tunnel.
 
 ### Zwei-Maschinen-Lauf (k6 auf dem Generator-PC)
 
-Voraussetzungen: der SUT-Stack aus §3 ([Zwei-Maschinen-Setup](#zwei-maschinen-setup-generator-getrennt-vom-sut), API/Worker auf `0.0.0.0`) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc).
+Voraussetzungen: der Cluster aus [Messlauf gegen den Cluster](#messlauf-gegen-den-cluster) (kind bildet den Gateway-Eingang auf `0.0.0.0:10000` ab) und der [eingerichtete Generator-Host](#generator-host-einrichten-windows-pc).
 
 **Der bequeme Weg — Button `Spike Split`** (Task `loadtest:run+report (split)`): liest die vier Split-Werte aus `packages/env/profiles/split.local.env`. Die Datei ist gitignoriert (Host-Topologie — IPs, ssh-User, Remote-Pfad — gehört nicht ins Repo) und wird einmalig aus der Vorlage erzeugt:
 
@@ -453,13 +483,13 @@ K6_RUNNER=ssh \
 K6_SSH_HOST=<user>@<pc-ip> \
 K6_REMOTE_DIR=C:/hfts \
 K6_REST_URL=http://<pc-ip>:6565 \
-BASE_URL=http://<mac-ip>:10002 \
+BASE_URL=http://<mac-ip>:10000 \
 HFTS_ENV=browse-and-buy-full-speed pnpm spike:report
 ```
 
 Die Lastform — `K6_TARGET_RATE`, `K6_MAX_VUS`, `K6_COOLDOWN_RATE`, `K6_COOLDOWN_MAX_VUS` — kommt aus dem Profil und lässt sich auf demselben Weg inline übersteuern (z. B. `K6_MAX_VUS=16000`); sie steht im Manifest des Laufs.
 
-Der Orchestrator bleibt auf dem Mac (Snapshots via `docker exec`), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Die k6-Konsolenausgabe beider Phasen (`Insufficient VUs`, `dial tcp … i/o timeout`, Threshold-Meldungen) liegt zusätzlich zum Terminal als `k6/phase-a.log` und `k6/phase-b.log` im Run-Ordner. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
+Der Orchestrator bleibt auf dem Mac (Zustand via `docker exec`, Service-Metriken via Prometheus), startet k6 per ssh auf dem PC (Env-Kontrakt fährt als `-e`-Flags mit, ssh reicht das Prozess-Env nicht weiter), stoppt Phase A beim Sold-out-Plateau über die k6-REST-API (`PATCH /v1/status` — auf k6 v2.0.0 endet der Lauf danach mit Exit 103 und vollständigem Summary-Export) und holt die Remote-Summaries per scp an die gewohnten lokalen Pfade; Analyse und Goldens merken vom Split nichts. Die k6-Konsolenausgabe beider Phasen (`Insufficient VUs`, `dial tcp … i/o timeout`, Threshold-Meldungen) liegt zusätzlich zum Terminal als `k6/phase-a.log` und `k6/phase-b.log` im Run-Ordner. Der Preflight prüft lokal `node`/`pnpm`/`ssh` statt `k6` und remote `ssh <host> k6 --version` (Pin auf v2.x, passend zur lokalen Version).
 
 > **Wenn der Stop nicht zustellbar ist** (Netz weg, REST-Port zu): der SIGKILL-Fallback des Orchestrators trifft nur den lokalen ssh-Prozess. Ein weiterlaufendes k6 auf dem PC beenden: `taskkill /F /IM k6.exe`.
 

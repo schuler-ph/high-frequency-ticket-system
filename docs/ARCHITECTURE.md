@@ -402,7 +402,19 @@ Gemessen ist beides am [Rolling Update unter Last](reports/rolling-update-2026-0
 ## Observability
 
 API, Worker, Redis Exporter und k6 liefern Metriken an Prometheus; Grafana
-visualisiert sie. Die wichtigsten Systemsignale sind:
+visualisiert sie. Prometheus, Grafana und der Renderer laufen im Cluster
+(`k8s/base`). Prometheus findet API- und Worker-Pods über ihre
+`prometheus.io/*`-Annotationen; `instance` ist der Pod-Name, `job` das
+`app`-Label. Den Redis-Exporter, der mit den Datastores in Compose bleibt,
+scrapt er über die Host-Adresse.
+
+Bei N Instanzen gilt eine Aggregationsregel
+([Audit](reports/dashboard-aggregation-2026-10-04.md)): Counter und
+Histogramme sind Beiträge und werden summiert, Gauges eines Weltzustands
+(Bestand, Ledger, Capacity Delta) per `max`, Gauges einer einzelnen Instanz
+(Pool, CPU, Freshness) bleiben `by (instance)` sichtbar. Die Messkette liest
+dieselben Zahlen aus Prometheus, nie über eine Service-URL, die nur einen Pod
+trifft (ADR-047). Die wichtigsten Systemsignale sind:
 
 - Request-Rate, Status und Latenz pro Route;
 - Reservation-, Payment-, Cancel- und Publish-Rollback-Counter;

@@ -31,7 +31,7 @@ runEntrypoint("local:reset", async () => {
   await purgeSubscription(log);
   const events = resetDatabaseState(log);
   resetRedis(log);
-  resetPrometheus(log);
+  await resetPrometheus(log);
 
   log("Completed successfully.");
   log(`Seeded events: ${events.map((event) => event.id).join(", ")}`);
