@@ -16,6 +16,9 @@ spec:
     metadata:
       labels:
         app: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10003"
     spec:
       terminationGracePeriodSeconds: 35
       containers:

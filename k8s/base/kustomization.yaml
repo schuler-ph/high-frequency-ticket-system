@@ -8,3 +8,6 @@ resources:
   - worker-deployment.yaml
   - worker-service.yaml
   - httproute.yaml
+  - prometheus-rbac.yaml
+  - prometheus-deployment.yaml
+  - prometheus-service.yaml
