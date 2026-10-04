@@ -4,3 +4,8 @@ metadata:
   name: hfts
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    kind: EnvoyProxy
+    name: envoy-proxy
+    namespace: envoy-gateway-system
+    group: gateway.envoyproxy.io

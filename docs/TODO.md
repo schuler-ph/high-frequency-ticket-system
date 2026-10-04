@@ -121,13 +121,14 @@ ADRs: ADR-036 (Performance als drittes Verdict), ADR-037 (Pending-Reaper in eige
 
 ## Phase 5: Cloud Deployment (GCP)
 
-Roter Faden: erst lokal beweisen (5.1–5.3), dann Cloud (5.4–5.7); Cloud-Arbeit
-erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Details](notes/phases/phase-5-cloud-deployment.md)
+Roter Faden: erst lokal fertig (5.1–5.3, Basis der Bachelorarbeit), dann Cloud
+(5.4–5.7, Labor der Masterarbeit). Messkette bleibt erhalten, REQ-D03/D05 unveraendert.
+Anforderungen: REQ-D01–D06. → [Details](notes/phases/phase-5-cloud-deployment.md)
 
 ### Wichtige Dokumente
 
 - Lernüberblick → [Der Sprung nach GKE](https://claude.ai/code/artifact/db918407-944b-40a2-b9e7-42f4b1d05de5)
-- Selbstlernkurs für Phase 5.1 - 5.7 → [GKE-Werkstatt](https://claude.ai/code/artifact/7b9a13ca-f581-4075-819c-690f996e019a)
+- Selbstlernkurs für Phase 5.1 - 5.7, mit Fahrplan und Entscheidungen → [GKE-Werkstatt](https://claude.ai/artifact/GGFM41gAAGwqe1ELm4i2KB)
 - Überblick über die nächsten Phasen [HTS Standortbestimmung](/Users/p.schuler/repos/privat/hts-standortbestimmung-2026-08-26.md)
 
 ### Phase 5.1 — Containerisierung und lokales Kubernetes
@@ -149,13 +150,22 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 - [x] **Readiness-Probe entschieden (2026-09-21):** eigener `/ready` je Dienst, prueft nur Redis; die Worker-Probe steuert das Rolling Update, nicht Traffic. Ausfall meldet ein Alert (REQ-O04), nicht die Probe. → ADR-044-Nachtrag
 - [x] **API-Proxy aus nginx abgebaut (2026-09-21):** das Gateway besitzt `/api`, `apps/web/nginx.conf` kein `proxy_pass` mehr; `apps`-Profil in Compose und die `docker:run`-Skripte mit entfernt. → ADR-043-Nachtrag
 
-### Phase 5.3 — Messkette umgebungsunabhaengig
+### Phase 5.3 — Lokal fertig: Split-Lauf gegen den Cluster
 
-- [ ] **Zugriffspfade abstrahieren** (Snapshots, Preflight, Reset/Seed, TSDB-Wipe, Sold-out-Quelle ADR-025); eigener ADR.
-- [ ] **Aggregation bei N Instanzen fixen:** `targetUp`/Erst-Serie-Queries, `sum()` ueber replizierte Gauges (REQ-D04).
-- [ ] **Smoke-Profil `smoke-test` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette richtig (alle Zaehler exakt 1 000)? Erst lokal, dann in jeder Cloud-Stufe. Lauf nur mit Freigabe. → ADR-035 Nachtrag
+Kurs Modul 4. Entschieden 2026-10-04: Monitoring im Cluster, gemessen wird nur gegen den Cluster; Postgres/Redis per `docker exec` bleiben bis 5.6.
+
+- [ ] **Gateway im LAN erreichbar:** fester NodePort fuer Envoy, kind-Port-Mapping auf `0.0.0.0:10002`; der Ryzen erreicht die API ohne `port-forward`.
+- [ ] **Prometheus in den Cluster:** Pod-Discovery, Admin-API, Remote-Write-Receiver, Host-Port 10007; Redis-Exporter bleibt in Compose und wird ueber die Host-Adresse gescrapt.
+- [ ] **Grafana und Renderer in den Cluster:** Provisioning als ConfigMaps, Host-Port 10008; Compose traegt danach nur noch Postgres, Redis, Pub/Sub und den Redis-Exporter.
+- [ ] **Aggregation bei N Instanzen fixen:** jedes Panel klassifizieren (Beitrag, Weltzustand, pro Instanz), `Inventory Integrity` korrigieren, `sum()` ueber replizierte Gauges entfernen (REQ-D04).
+- [ ] **Messkette pod-faehig:** Snapshots und Sold-out-Quelle (ADR-025) aus Prometheus, keine Erst-Serie-Queries, TSDB-Reset ueber Admin-API, Preflight prueft Pods; eigener ADR.
+- [ ] **Smoke-Profil `smoke-test` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette ueber drei Pods richtig (alle Zaehler exakt 1 000)? Lauf nur mit Freigabe. → ADR-035 Nachtrag
+- [ ] **Baseline G:** Split-Lauf (k6 auf dem Ryzen, SUT in kind, 3 API, 1 Worker) mit den drei Profilen von Baseline F, `spike:compare` gegen F. Lauf nur mit Freigabe.
+- [ ] **Abschluss:** RUNBOOK-Ablauf fuer den Messlauf gegen den Cluster, Phasennotiz nachziehen, Commit des Baseline-G-Reports als `thesis-baseline` taggen.
 
 ### Phase 5.4 — Cloud-Fundament
+
+Kurs Modul 5–7. Fenster: bis Ende November 2026 oder nach Abgabe der Bachelorarbeit, nicht parallel zu deren Messlaeufen.
 
 - [ ] **IaC fuer Netz, DB, Cache, Cluster, Queue, Registry, Secrets;** Manifeste via Kubeconfig. → Entscheidungsmatrix in der Details-Notiz (ADR-003/005/010/031/034)
 - [ ] **Smoke:** ein E2E-Kauf in der Cloud, danach vollstaendiger Abbau (REQ-D01).
@@ -163,13 +173,21 @@ erst nach gemeinsamer GCP-Einarbeitung. Anforderungen: REQ-D01–D06. → [Detai
 
 ### Phase 5.5 — Cloud-Monitoring
 
+Kurs Modul 8. Zurueckgestellt bis zum Start der Masterarbeit (vorher Tag `master-baseline`).
+
 - [ ] **Entscheidung Monitoring-Quelle:** neuer ADR; ADR-006 bleibt fuer lokal gueltig (Nachtrag). Grafana + Renderer gehoeren zur Evidenz (ADR-030, REQ-O04).
+- [ ] **Monitoring ins Cloud-Overlay:** Prometheus, Grafana, Renderer aus 5.3 unveraendert; Redis-Exporter als Pod gegen Memorystore.
 
 ### Phase 5.6 — Cloud-Baseline auf Paritaetsniveau
 
-- [ ] **`spike:report` in der Cloud mit dem Referenzprofil** (REQ-P01), Vergleich gegen [Baseline F](reports/baseline-f-2026-08-26/LOAD-TEST-REPORT-2026-08-26.md) — Runde 1, 9 009 it/s, p95 228 ms, ein API-Core (REQ-D03, REQ-D05 Stufe 1). Lauf nur mit Freigabe.
+Zurueckgestellt bis zum Start der Masterarbeit. Referenz ist Baseline G aus 5.3; Baseline F bleibt deren Vorgaenger.
+
+- [ ] **Zugriffspfade ohne `docker exec`:** Seed, Reset und Snapshots gegen Cloud SQL und Memorystore (Job oder Auth Proxy); ADR aus 5.3 erweitern. Abnahme mit `smoke-test` in GKE.
+- [ ] **`spike:report` in der Cloud gegen Baseline G** (REQ-P01): gleiche Profile und Replica-Zahl, k6-VM per ssh wie der Ryzen, `spike:compare` gegen G, reale Pod-Uhr-Drift messen (REQ-D03, REQ-D05 Stufe 1). Lauf nur mit Freigabe.
 
 ### Phase 5.7 — Cloud-Zielprofil
+
+Zurueckgestellt bis zum Start der Masterarbeit, nach dem Paritaetslauf.
 
 - [ ] **Verteilter Generator** inkl. Quantil-Merge der Teil-Summaries; Kapazitaet fuer den 50k-Lauf entscheiden (REQ-P02). Haengt an Phase 4.13. Lauf nur mit Freigabe.
 
