@@ -391,7 +391,9 @@ HFTS_ENV=<profil> pnpm spike:report                    # co-located; Split: Butt
 - **Preflight** (vor jedem Reset): Werkzeuge und Compose-Container, dann je
   Deployment `ready == updated == desired`, das Profil im Pod-Template gleich
   `HFTS_ENV`, und Prometheus scrapt genau so viele Pods. Dazu ein Abruf durch
-  das Gateway. Fehlt ein Pod oder läuft ein anderes Profil, endet der Lauf mit
+  das Gateway. Direkt nach `k8s:profile` terminieren die alten Pods noch und
+  werden weiter gescrapt; der Preflight wartet bis zu 90 s, bis der Cluster
+  steht. Fehlt danach ein Pod oder läuft ein anderes Profil, endet der Lauf mit
   Exit 1 und dem Befehl zur Behebung — nichts ist zurückgesetzt.
 - **Reset** leert die Prometheus-TSDB über die Admin-API; die Messkette wartet
   danach, bis jeder Pod frisch gescrapt ist, und nimmt erst dann den

@@ -139,6 +139,9 @@ const GRAPH_PAD_AFTER_MS = 30_000;
 const nowIso = () => new Date().toISOString();
 const stamp = () => nowIso().replace(/[:.]/g, "-");
 
+/** Longest pod termination (35 s grace) plus a scrape to notice it. */
+const CLUSTER_SETTLE_TIMEOUT_MS = 90_000;
+
 /** A counter summed over every pod of a job; absent series count as 0. */
 const sumOverPods = async (job, metric) =>
   (await instantQuery(PROMETHEUS_URL, `sum(${metric}{job="${job}"})`)).value ?? 0;
@@ -257,7 +260,21 @@ const main = async () => {
     console.log(`[spike:report] Remote k6 (${REMOTE.sshHost}): ${remoteK6Version}`);
   }
 
-  const clusterProblems = await checkCluster();
+  // Right after `pnpm k8s:profile` the old pods are still terminating
+  // (preStop + grace period, up to ~40 s) and Prometheus still scrapes them.
+  // A cluster that settles within the budget is fine; one that does not is a
+  // real problem, reported with what the last check saw.
+  let clusterProblems = await checkCluster();
+  const settleDeadline = Date.now() + CLUSTER_SETTLE_TIMEOUT_MS;
+  if (clusterProblems.length > 0) {
+    console.log(
+      `[spike:report] Waiting up to ${CLUSTER_SETTLE_TIMEOUT_MS / 1000} s for the cluster to settle (${clusterProblems.length} open point(s))...`,
+    );
+  }
+  while (clusterProblems.length > 0 && Date.now() < settleDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, SCRAPE_INTERVAL_MS));
+    clusterProblems = await checkCluster();
+  }
   if (clusterProblems.length > 0) {
     console.error(
       "[spike:report] Preflight failed — the cluster is not ready to be measured. Nothing was seeded or reset:",
