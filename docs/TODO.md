@@ -159,7 +159,7 @@ Kurs Modul 4. Entschieden 2026-10-04: Monitoring im Cluster, gemessen wird nur g
 - [x] **Grafana und Renderer in den Cluster (2026-10-04):** Provisioning als ConfigMaps, Host-Port 10008; Compose traegt danach nur noch Postgres, Redis, Pub/Sub und den Redis-Exporter.
 - [x] **Aggregation bei N Instanzen gefixt (2026-10-04):** 64 Panels klassifiziert, 19 korrigiert; `Kapazitaet` zeigt mit zwei Workern 1 Mio. statt 2 Mio. (REQ-D04). → [Audit](reports/dashboard-aggregation-2026-10-04.md)
 - [x] **Messkette pod-faehig (2026-10-04):** Snapshots, Drain und Sold-out-Quelle aus Prometheus, keine Erst-Serie-Queries, TSDB-Reset ueber Admin-API, Preflight prueft Pods und Profil (`pnpm k8s:profile`). → ADR-047
-- [ ] **Smoke-Profil `smoke-test` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette ueber drei Pods richtig (alle Zaehler exakt 1 000)? Lauf nur mit Freigabe. → ADR-035 Nachtrag
+- [x] **Smoke-Profil `smoke-test` abgenommen (2026-10-04):** co-located gegen kind, `system=pass`, alle Zaehler exakt 1 000 ueber drei API-Pods. → ADR-035 Nachtrag
 - [ ] **Baseline G:** Split-Lauf (k6 auf dem Ryzen, SUT in kind, 3 API, 1 Worker) mit den drei Profilen von Baseline F, `spike:compare` gegen F. Lauf nur mit Freigabe.
 - [ ] **Abschluss:** RUNBOOK-Ablauf fuer den Messlauf gegen den Cluster, Phasennotiz nachziehen, Commit des Baseline-G-Reports als `thesis-baseline` taggen.
 

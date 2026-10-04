@@ -74,3 +74,16 @@
   man ihm ansehen, damit niemand seine Zahlen als Kapazität liest. Damit der
   Warm-up nicht bei 1 000 RPS festhängt, ist die Warm-up-Rate jetzt der
   Profilwert `K6_WARMUP_RATE` (ADR-034), in den drei Kapazitätsprofilen 1 000.
+
+- **Nachtrag 2026-10-04 (Abnahme gegen den Cluster):** `smoke-test` lief
+  gegen kind mit drei API-Pods und einem Worker, k6 co-located, Messkette
+  über Prometheus (ADR-047). Ergebnis `system=pass`: reserviert, bezahlt und
+  abgeschlossen je exakt 1 000, über die Pods verteilt als 344 + 332 + 324
+  Zahlungen, Postgres 1 000 Orders und Tickets, `available` 0, Ledger leer,
+  Pods vor und nach dem Lauf identisch. Der erste Versuch davor endete
+  `inconclusive`, weil der Vorher-Snapshot nur einen API-Pod und keinen
+  Worker enthielt; behoben in der Frische-Prüfung (ADR-047). `benchmark` ist
+  `invalid` (65 % dropped iterations): seit 2026-09-09 fährt das Profil
+  1 000 it/s mit 200 VUs statt der oben genannten 50 it/s. Für die
+  Zählfrage ist das ohne Belang, eine Kapazitätsaussage trifft der Lauf
+  ohnehin nicht.
