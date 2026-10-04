@@ -232,9 +232,14 @@
       },
       "targets": [
         {
-          "expr": "inventory_capacity_delta_tickets{job=\"worker\"}",
-          "legendFormat": "Capacity Delta ({{event_id}})",
+          "expr": "max by (event_id) (inventory_capacity_delta_tickets{job=\"worker\"})",
+          "legendFormat": "Capacity Delta max ({{event_id}})",
           "refId": "A"
+        },
+        {
+          "expr": "min by (event_id) (inventory_capacity_delta_tickets{job=\"worker\"})",
+          "legendFormat": "Capacity Delta min ({{event_id}})",
+          "refId": "B"
         }
       ],
       "title": "Capacity Delta over time \u2014 available + sold + active \u2212 capacity",
@@ -286,7 +291,7 @@
       },
       "targets": [
         {
-          "expr": "abs(inventory_capacity_delta_tickets{job=\"worker\"})",
+          "expr": "max by (event_id) (abs(inventory_capacity_delta_tickets{job=\"worker\"}))",
           "legendFormat": "|delta| {{event_id}}",
           "refId": "A"
         }
@@ -379,12 +384,12 @@
       },
       "targets": [
         {
-          "expr": "reservation_ledger_active{job=\"worker\"}",
+          "expr": "max by (event_id) (reservation_ledger_active{job=\"worker\"})",
           "legendFormat": "active {{event_id}}",
           "refId": "A"
         },
         {
-          "expr": "reservation_ledger_stale{job=\"worker\"}",
+          "expr": "max by (event_id) (reservation_ledger_stale{job=\"worker\"})",
           "legendFormat": "due (Reaper-Kandidaten) {{event_id}}",
           "refId": "B"
         }
@@ -430,22 +435,22 @@
       },
       "targets": [
         {
-          "expr": "inventory_capacity_tickets{job=\"worker\"}",
+          "expr": "max by (event_id) (inventory_capacity_tickets{job=\"worker\"})",
           "legendFormat": "capacity {{event_id}}",
           "refId": "A"
         },
         {
-          "expr": "inventory_available_tickets{job=\"worker\"}",
+          "expr": "max by (event_id) (inventory_available_tickets{job=\"worker\"})",
           "legendFormat": "available {{event_id}}",
           "refId": "B"
         },
         {
-          "expr": "inventory_sold_tickets{job=\"worker\"}",
+          "expr": "max by (event_id) (inventory_sold_tickets{job=\"worker\"})",
           "legendFormat": "sold {{event_id}}",
           "refId": "C"
         },
         {
-          "expr": "reservation_ledger_active{job=\"worker\"}",
+          "expr": "max by (event_id) (reservation_ledger_active{job=\"worker\"})",
           "legendFormat": "active {{event_id}}",
           "refId": "D"
         }
@@ -560,8 +565,8 @@
       },
       "targets": [
         {
-          "expr": "time() - inventory_audit_last_success_timestamp_seconds{job=\"worker\"}",
-          "legendFormat": "seconds since last success",
+          "expr": "time() - max by (instance) (inventory_audit_last_success_timestamp_seconds{job=\"worker\"})",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
@@ -618,7 +623,7 @@
       },
       "targets": [
         {
-          "expr": "reservation_reaper_oldest_age_seconds{job=\"worker\"}",
+          "expr": "max by (event_id) (reservation_reaper_oldest_age_seconds{job=\"worker\"})",
           "legendFormat": "oldest pending {{event_id}}",
           "refId": "A"
         }
@@ -664,7 +669,7 @@
       },
       "targets": [
         {
-          "expr": "reservation_reaper_candidates{job=\"worker\"}",
+          "expr": "max by (event_id) (reservation_reaper_candidates{job=\"worker\"})",
           "legendFormat": "candidates {{event_id}}",
           "refId": "A"
         },
@@ -684,7 +689,7 @@
           "refId": "D"
         },
         {
-          "expr": "increase(inventory_audit_runs_total{job=\"worker\",result=\"error\"}[15m])",
+          "expr": "sum(increase(inventory_audit_runs_total{job=\"worker\",result=\"error\"}[15m]))",
           "legendFormat": "audit errors / 15m",
           "refId": "E"
         }

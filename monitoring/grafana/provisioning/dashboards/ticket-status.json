@@ -23,7 +23,7 @@
       },
       "targets": [
         {
-          "expr": "sum(inventory_capacity_tickets{job=\"worker\"})",
+          "expr": "max(inventory_capacity_tickets{job=\"worker\"})",
           "instant": true,
           "legendFormat": "Kapazität",
           "refId": "A"
@@ -52,7 +52,7 @@
       },
       "targets": [
         {
-          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "expr": "max(inventory_available_tickets{job=\"worker\"})",
           "instant": true,
           "legendFormat": "verfügbar",
           "refId": "A"
@@ -81,7 +81,7 @@
       },
       "targets": [
         {
-          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "expr": "max(reservation_ledger_active{job=\"worker\"})",
           "instant": true,
           "legendFormat": "im Checkout",
           "refId": "A"
@@ -110,7 +110,7 @@
       },
       "targets": [
         {
-          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "expr": "max(inventory_sold_tickets{job=\"worker\"})",
           "instant": true,
           "legendFormat": "persistiert",
           "refId": "A"
@@ -161,19 +161,19 @@
       },
       "targets": [
         {
-          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "expr": "max(inventory_available_tickets{job=\"worker\"})",
           "instant": true,
           "legendFormat": "verfügbar",
           "refId": "A"
         },
         {
-          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "expr": "max(reservation_ledger_active{job=\"worker\"})",
           "instant": true,
           "legendFormat": "im Checkout gehalten",
           "refId": "B"
         },
         {
-          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "expr": "max(inventory_sold_tickets{job=\"worker\"})",
           "instant": true,
           "legendFormat": "persistiert",
           "refId": "C"
@@ -232,17 +232,17 @@
       },
       "targets": [
         {
-          "expr": "sum(inventory_available_tickets{job=\"worker\"})",
+          "expr": "max(inventory_available_tickets{job=\"worker\"})",
           "legendFormat": "verfügbar",
           "refId": "A"
         },
         {
-          "expr": "sum(reservation_ledger_active{job=\"worker\"})",
+          "expr": "max(reservation_ledger_active{job=\"worker\"})",
           "legendFormat": "im Checkout gehalten",
           "refId": "B"
         },
         {
-          "expr": "sum(inventory_sold_tickets{job=\"worker\"})",
+          "expr": "max(inventory_sold_tickets{job=\"worker\"})",
           "legendFormat": "persistiert",
           "refId": "C"
         }

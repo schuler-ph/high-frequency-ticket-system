@@ -157,7 +157,7 @@ Kurs Modul 4. Entschieden 2026-10-04: Monitoring im Cluster, gemessen wird nur g
 - [x] **Gateway im LAN erreichbar (2026-10-04):** fester NodePort 30000 fuer Envoy (EnvoyProxy-Patch), kind-Mapping auf `0.0.0.0:10000`; der Ryzen erreicht die API ohne `port-forward`.
 - [x] **Prometheus in den Cluster (2026-10-04):** Pod-Discovery, Admin-API, Remote-Write-Receiver, Host-Port 10007; Redis-Exporter bleibt in Compose und wird ueber die Host-Adresse gescrapt.
 - [x] **Grafana und Renderer in den Cluster (2026-10-04):** Provisioning als ConfigMaps, Host-Port 10008; Compose traegt danach nur noch Postgres, Redis, Pub/Sub und den Redis-Exporter.
-- [ ] **Aggregation bei N Instanzen fixen:** jedes Panel klassifizieren (Beitrag, Weltzustand, pro Instanz), `Inventory Integrity` korrigieren, `sum()` ueber replizierte Gauges entfernen (REQ-D04).
+- [x] **Aggregation bei N Instanzen gefixt (2026-10-04):** 64 Panels klassifiziert, 19 korrigiert; `Kapazitaet` zeigt mit zwei Workern 1 Mio. statt 2 Mio. (REQ-D04). → [Audit](reports/dashboard-aggregation-2026-10-04.md)
 - [ ] **Messkette pod-faehig:** Snapshots und Sold-out-Quelle (ADR-025) aus Prometheus, keine Erst-Serie-Queries, TSDB-Reset ueber Admin-API, Preflight prueft Pods; eigener ADR.
 - [ ] **Smoke-Profil `smoke-test` abnehmen:** 1k Tickets, sofort offen, alles zahlt, ~3 min — zaehlt die Messkette ueber drei Pods richtig (alle Zaehler exakt 1 000)? Lauf nur mit Freigabe. → ADR-035 Nachtrag
 - [ ] **Baseline G:** Split-Lauf (k6 auf dem Ryzen, SUT in kind, 3 API, 1 Worker) mit den drei Profilen von Baseline F, `spike:compare` gegen F. Lauf nur mit Freigabe.

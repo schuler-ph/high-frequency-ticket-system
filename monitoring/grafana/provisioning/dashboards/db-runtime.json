@@ -47,18 +47,18 @@
       },
       "targets": [
         {
-          "expr": "db_pool_connections{job=\"worker\", state=\"total\"}",
-          "legendFormat": "total (open)",
+          "expr": "max by (instance) (db_pool_connections{job=\"worker\", state=\"total\"})",
+          "legendFormat": "total (open) {{instance}}",
           "refId": "A"
         },
         {
-          "expr": "db_pool_connections{job=\"worker\", state=\"idle\"}",
-          "legendFormat": "idle (free)",
+          "expr": "max by (instance) (db_pool_connections{job=\"worker\", state=\"idle\"})",
+          "legendFormat": "idle (free) {{instance}}",
           "refId": "B"
         },
         {
-          "expr": "db_pool_connections{job=\"worker\", state=\"waiting\"}",
-          "legendFormat": "waiting (queued acquirers)",
+          "expr": "max by (instance) (db_pool_connections{job=\"worker\", state=\"waiting\"})",
+          "legendFormat": "waiting (queued acquirers) {{instance}}",
           "refId": "C"
         }
       ],
@@ -114,8 +114,8 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(db_pool_connections{job=\"worker\", state=\"waiting\"}[$__range]) or vector(0)",
-          "legendFormat": "waiting acquirers",
+          "expr": "max by (instance) (max_over_time(db_pool_connections{job=\"worker\", state=\"waiting\"}[$__range])) or vector(0)",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
@@ -171,7 +171,7 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(db_locks_waiting{job=\"worker\"}[$__range]) or vector(0)",
+          "expr": "max by (wait_event_type) (max_over_time(db_locks_waiting{job=\"worker\"}[$__range])) or vector(0)",
           "legendFormat": "{{wait_event_type}}",
           "refId": "A"
         }
@@ -359,7 +359,7 @@
       "targets": [
         {
           "expr": "rate(process_cpu_seconds_total{job=~\"worker|api\"}[1m])",
-          "legendFormat": "{{job}} CPU cores",
+          "legendFormat": "{{job}} CPU cores {{instance}}",
           "refId": "A"
         }
       ],
@@ -514,12 +514,12 @@
       },
       "targets": [
         {
-          "expr": "time() - sold_count_projector_last_success_timestamp_seconds{job=\"worker\"}",
-          "legendFormat": "seconds since last success",
+          "expr": "time() - max by (instance) (sold_count_projector_last_success_timestamp_seconds{job=\"worker\"})",
+          "legendFormat": "seconds since last success {{instance}}",
           "refId": "A"
         },
         {
-          "expr": "increase(sold_count_projector_runs_total{job=\"worker\",result=\"error\"}[15m])",
+          "expr": "sum(increase(sold_count_projector_runs_total{job=\"worker\",result=\"error\"}[15m]))",
           "legendFormat": "errors / 15m",
           "refId": "B"
         }
@@ -565,8 +565,8 @@
       },
       "targets": [
         {
-          "expr": "db_pool_connections{job=\"worker\",state=\"waiting\"}",
-          "legendFormat": "pool waiters",
+          "expr": "max by (instance) (db_pool_connections{job=\"worker\",state=\"waiting\"})",
+          "legendFormat": "pool waiters {{instance}}",
           "refId": "A"
         },
         {
