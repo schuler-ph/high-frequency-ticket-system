@@ -11,7 +11,7 @@ configMapGenerator:
   - name: hfts-config
     literals:
       - HFTS_ENV=dev
-      - PUBSUB_EMULATOR_HOST=host.docker.internal:10005
+      - PUBSUB_EMULATOR_HOST=hfts-pubsub:8085
   - name: prometheus-config
     files:
       - prometheus.yml

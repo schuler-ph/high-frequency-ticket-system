@@ -56,3 +56,26 @@
   noetigen Hosts kommen aus dem Env-Profil (ADR-034), nicht aus den
   Manifesten. Der Wechsel zwischen lokal und GKE ist ein
   `kubectl config use-context`, kein Werkzeugwechsel.
+
+## Nachtrag 2026-10-05: Datastores im kind-Netz statt über `host.docker.internal`
+
+Die Pods erreichten Redis, Postgres und den Pub/Sub-Emulator zunächst über
+`host.docker.internal` und die Compose-Host-Ports. Jedes Paket lief dabei aus
+der VM durch den Userspace-Netzstack von Docker Desktop auf den Mac und über
+die Port-Weiterleitung zurück in die VM. Ein Redis-Roundtrip kostete so
+0,95 ms statt 0,30 ms direkt aus dem Pod. Unter Last liefen rund 49.000
+Redis-Kommandos pro Sekunde und der ganze Postgres-Verkehr doppelt durch diesen
+Stack. Er belegte Mac-Kerne, die dem Cluster fehlten, und `buy_ticket` stand im
+Worker bei 2 bis 5 s.
+
+Deshalb hängt `pnpm run kind:network` die vier Compose-Container zusätzlich ins
+Docker-Netz `kind`. Das lokale Overlay adressiert sie unter ihren
+Containernamen (`hfts-redis:6379`, `hfts-postgres:5432`, `hfts-pubsub:8085`,
+`hfts-redis-exporter:9121`). Das entspricht der Cloud-Topologie, in der die
+Datastores ebenfalls nicht über den Host laufen.
+
+Compose deklariert das Netz bewusst nicht als extern: Der Compose-Stack muss
+ohne Cluster startbar bleiben, `pnpm test` braucht ihn ohne kind. Der Preis ist
+ein zusätzlicher Schritt. `kind:up` ruft ihn nach `kind:create` auf, nach einem
+Neuerzeugen der Compose-Container muss er erneut laufen. Die Compose-Host-Ports
+bleiben für Host-Prozesse, Tests und Diagnose bestehen.

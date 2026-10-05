@@ -257,7 +257,7 @@
       // (zaehlt die Messkette richtig?) und soll mit einem Klick startbar sein.
       // Er laeuft gegen das, was auf 10002/10003 antwortet — Host-Prozesse aus
       // 'loadtest:stack up' genauso wie ein port-forward auf den Cluster;
-      // Prometheus scrapt beides ueber host.docker.internal.
+      // Prometheus scrapt im Cluster.
       "label": "loadtest:report (smoke)",
       "detail": "Nur der Smoke-Lauf selbst (Profil smoke-test, setzt einen bereiten Stack voraus); ueber 'loadtest:smoke' aufrufen.",
       "hide": true,

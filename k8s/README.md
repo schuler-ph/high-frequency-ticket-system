@@ -1,8 +1,8 @@
 # Kubernetes-Manifeste
 
 Lokal kind ([ADR-038](../docs/decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)),
-später GKE. Datenstores bleiben in `docker-compose.yml`, erreichbar über
-`host.docker.internal`.
+später GKE. Datenstores bleiben in `docker-compose.yml` und hängen zusätzlich im
+Docker-Netz `kind`; die Pods erreichen sie unter ihrem Containernamen.
 
 ## Aufbau
 
@@ -31,13 +31,14 @@ pnpm run kind:up                          # Cluster, Images, Gateway, Overlay
 kubectl get pods -w                       # beide 1/1 Running
 ```
 
-`kind:up` kettet fünf Schritte, die einzeln dasselbe tun und beim Üben
+`kind:up` kettet sechs Schritte, die einzeln dasselbe tun und beim Üben
 einzeln nützlich sind:
 
 | Skript            | tut                                                    |
 | ----------------- | ------------------------------------------------------ |
 | `kind:pull`       | fremde Images aus `docker.io` in den lokalen Docker    |
 | `kind:create`     | nur den Cluster aus `kind.yaml`                        |
+| `kind:network`    | hängt die Compose-Datastores ins Docker-Netz `kind`    |
 | `kind:load`       | fremde und `hfts-*:dev`-Images in den Cluster          |
 | `gateway:install` | Envoy Gateway aus `vendor/`, wartet auf den Controller |
 | `k8s:apply`       | `kubectl apply -k k8s/overlays/local`                  |
@@ -146,10 +147,29 @@ kubectl delete -k k8s/overlays/local
 - `port-forward service/<name>` scheitert bei Service ohne Selector.
 - Worker ohne Topic beendet sich mit exit 1 (ADR-044) → `CrashLoopBackOff`.
 
-## Compose-Host-Ports
+## Datastores
 
-| Dienst   | im Compose-Netz | vom Cluster aus              |
-| -------- | --------------- | ---------------------------- |
-| Redis    | `redis:6379`    | `host.docker.internal:10004` |
-| Pub/Sub  | `pubsub:8085`   | `host.docker.internal:10005` |
-| Postgres | `postgres:5432` | `host.docker.internal:10006` |
+Die Compose-Container hängen in zwei Netzen. Pods erreichen sie im Docker-Netz
+`kind` direkt unter ihrem Containernamen, nicht über den Host
+([ADR-038, Nachtrag 2026-10-05](../docs/decisions/ADR-038-kind-als-lokaler-kubernetes-cluster.md)).
+Die Host-Ports bleiben für Host-Prozesse, Tests und Diagnose.
+
+| Dienst         | vom Cluster aus            | vom Mac aus       |
+| -------------- | -------------------------- | ----------------- |
+| Redis          | `hfts-redis:6379`          | `localhost:10004` |
+| Pub/Sub        | `hfts-pubsub:8085`         | `localhost:10005` |
+| Postgres       | `hfts-postgres:5432`       | `localhost:10006` |
+| Redis-Exporter | `hfts-redis-exporter:9121` | `localhost:10009` |
+
+Die Verbindung ins Netz `kind` überlebt Neustarts, aber kein Neuerzeugen der
+Container. Nach `docker compose down` oder einem `docker compose up -d`, das
+Container ersetzt, erneut verbinden, sonst bleiben API und Worker beim Start
+am Redis-Timeout hängen:
+
+```bash
+pnpm run kind:network
+```
+
+Die Adressen stehen in `overlays/local/kustomization.yaml`,
+`overlays/local/prometheus.yml` und im gitignorierten
+`overlays/local/secret.local.env` (`REDIS_URL`, `DATABASE_URL`).
