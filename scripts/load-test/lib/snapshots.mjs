@@ -77,6 +77,18 @@ const infoField = (info, field) => {
 };
 
 /**
+ * Unlock-Zeitpunkt des Sale-Gates (Epoch-ms), so wie der Reset ihn geschrieben
+ * hat. `null` heisst: kein Gate, der Verkauf ist ab Start offen.
+ *
+ * @param {string} eventId
+ * @returns {number | null}
+ */
+export const readSaleOpensAt = (eventId) => {
+  const value = Number(redis("GET", `tickets:event:${eventId}:opensAt`));
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+/**
  * Single live read of the remaining-inventory counter. Used by the reactive
  * phase-A monitor to tell a genuine sell-out (`0`) from a completion plateau
  * caused by host contention — see `lib/processes.mjs`. Returns `null` when the

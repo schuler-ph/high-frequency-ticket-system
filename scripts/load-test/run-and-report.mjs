@@ -32,9 +32,11 @@ import {
 import { buildManifest, redactConfig } from "./lib/manifest.mjs";
 import {
   readAvailableTickets,
+  readSaleOpensAt,
   snapshotPostgres,
   snapshotRedis,
 } from "./lib/snapshots.mjs";
+import { describePhaseASchedule } from "./lib/schedule.mjs";
 import {
   countTargetsUp,
   instantQuery,
@@ -341,6 +343,20 @@ const main = async () => {
 
   // 5. Phase A (reactive) + phase B.
   timestamps.workloadStartedAt = nowIso();
+  const saleOpensAt = readSaleOpensAt(EVENT_ID);
+  const schedule = describePhaseASchedule({
+    warmupSeconds: Number(requireEnv("K6_WARMUP_SECONDS")),
+    rampSeconds: Number(requireEnv("K6_RAMP_SECONDS")),
+    sustainSeconds: Number(requireEnv("K6_SUSTAIN_SECONDS")),
+    warmupRate: Number(requireEnv("K6_WARMUP_RATE")),
+    targetRate: Number(requireEnv("K6_TARGET_RATE")),
+    saleOpensAtSecond:
+      saleOpensAt === null
+        ? null
+        : (saleOpensAt - Date.parse(timestamps.workloadStartedAt)) / 1000,
+  });
+  console.log("[spike:report] Zeitplan Phase A (k6-Uhr):");
+  for (const line of schedule) console.log(`[spike:report]   ${line}`);
   const phaseA = await runPhaseAReactive({
     scriptPath: join(REPO_ROOT, "load-tests", "spike-phase-a.js"),
     runId,
@@ -361,10 +377,10 @@ const main = async () => {
     readLedgerActive: (eventId) => readLedgerActive(PROMETHEUS_URL, eventId),
     // Fuer die Plateau-Erkennung gilt weiter Ablauf-Semantik statt Profilname:
     // ist die Checkout-Deadline kurz genug, um innerhalb des Phase-A-Fensters
-    // (max ~990 s) abzulaufen, gibt der Reaper Ansprueche zurueck in den
+    // (Warm-up + Rampe + Sustain, mit den Standarddauern ~990 s) abzulaufen, gibt der Reaper Ansprueche zurueck in den
     // Verkauf — ein Stopp bei `available == 0` wuerde den Lauf dann mit
     // unverkauftem Inventar beenden. Bei langer Deadline (900 s) wuerde
-    // dieselbe Bedingung nie greifen und der Lauf ins 15-min-Sicherheitsnetz
+    // dieselbe Bedingung nie greifen und der Lauf ins Sustain-Sicherheitsnetz
     // laufen.
     plateauWaitsForEmptyLedger:
       Number(requireEnv("CHECKOUT_PENDING_TIMEOUT_SECONDS")) <= 600,

@@ -76,9 +76,9 @@ SALE_OPENS_IN_SECONDS=30 BASE_URL=http://localhost:10000 EVENT_ID=freq-2025 pnpm
 `pnpm spike` ruft `scripts/local/run-spike.mjs` auf (siehe ADR-025), das:
 
 1. `scripts/local/reset.mjs` mit dem `SALE_OPENS_IN_SECONDS` des Profils ausführt — verwirft den Pub/Sub-Rückstand, setzt `available` zurück und schreibt den Sale-Unlock-Zeitpunkt (`opensAt`) in Redis. Die Provisionierung (Schema, Topic, Subscription) ist davon getrennt und läuft beim Hochfahren des Stacks.
-2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up 1.000 RPS flat/45s (Verkauf gesperrt, 425-Responses) → Ramp-Up 1.000→5.000 RPS/45s → Sustain 5.000 RPS (15 min Sicherheitsnetz).
+2. **Phase A** (`spike-phase-a.js`) startet: Warm-Up mit `K6_WARMUP_RATE` flat für `K6_WARMUP_SECONDS` (Verkauf gesperrt, 425-Responses) → Ramp-Up auf `K6_TARGET_RATE` über `K6_RAMP_SECONDS` → Sustain bis zum Sold-out, höchstens `K6_SUSTAIN_SECONDS` als Sicherheitsnetz. Alle Werte stehen im Profil; `spike:report` druckt vor dem Start den Zeitplan auf der k6-Uhr und die Stage, in die `SALE_OPENS_IN_SECONDS` fällt.
 3. Der monotone Worker-Counter `orders_completed_total` wird im Scrape-Takt (5 s) aus Prometheus gelesen, summiert über alle Worker-Pods; stagniert die Zahl abgeschlossener Orders für 3 aufeinanderfolgende Polls (Plateau, relativ zum ersten Poll-Wert), wird Phase A per `SIGINT` (graceful k6-Stop) beendet. Der **Auslöser** ist bewusst nicht `available` — das oszilliert seit der Cancel-/Abandonment-Modellierung (Cancel macht `INCR available`) und würde Phase A verfrüht stoppen. `available` wird erst **nach** dem Plateau einmal gelesen, um Ausverkauf von Stall zu unterscheiden (siehe „Sold-Out vs. Stall" unten).
-4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down 1.000 RPS flat/1min.
+4. **Phase B** (`spike-phase-b.js`) startet: Cool-Down mit `K6_COOLDOWN_RATE` flat für `K6_COOLDOWN_SECONDS`.
 
 Ohne Orchestrator lässt sich jede Phase auch einzeln fahren (z.B. zum Debuggen), dann aber ohne reaktiven Sold-Out-Stop:
 

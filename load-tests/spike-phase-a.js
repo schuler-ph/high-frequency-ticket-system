@@ -22,6 +22,13 @@ const MAX_VUS = requireEnvNumber("K6_MAX_VUS");
 // alle 16.000 VUs in den Einsatz und p95 von 228 auf 1.667 ms, Drops von 0,36
 // auf 4,28 %. Der Knopf bleibt fuer Profile unterhalb der Decke sinnvoll.
 const PREALLOCATED_VUS = requireEnvNumber("K6_PREALLOCATED_VUS");
+// Stage-Dauern in Sekunden, gleiche Einheit wie SALE_OPENS_IN_SECONDS: beide
+// Uhren muessen vergleichbar sein, damit das Profil festlegt, in welche Stage
+// die Verkaufsoeffnung faellt. Der Orchestrator druckt den Zeitplan vor dem
+// Start auf der k6-Uhr.
+const WARMUP_SECONDS = requireEnvNumber("K6_WARMUP_SECONDS");
+const RAMP_SECONDS = requireEnvNumber("K6_RAMP_SECONDS");
+const SUSTAIN_SECONDS = requireEnvNumber("K6_SUSTAIN_SECONDS");
 
 export const options = {
   // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
@@ -42,19 +49,18 @@ export const options = {
       // Herleitung je Profil steht in docs/notes/backlogs/baseline-f-valid-runs.md.
       maxVUs: MAX_VUS,
       stages: [
-        // Phase 1 – Warm-Up:  K6_WARMUP_RATE flat, 45s (Pre-Sale-Hype, Sale
-        // ist noch gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
-        { target: WARMUP_RATE, duration: "45s" },
-        // Phase 2 – Ramp-Up:  K6_WARMUP_RATE → K6_TARGET_RATE RPS, 45s (Sale-Opening
-        // naehert sich; `opensAt` liegt typischerweise in diesem Fenster)
-        { target: TARGET_RATE, duration: "45s" },
-        // Phase 3 – Sustain:  K6_TARGET_RATE RPS, 15 Minuten Sicherheitsnetz.
-        // Die Orchestrierung (scripts/load-test/run-and-report.mjs) pollt die
+        // Phase 1 – Warm-Up: K6_WARMUP_RATE flat (Pre-Sale-Hype, Sale ist noch
+        // gesperrt — Kaufversuche liefern 425 bis `opensAt` erreicht ist)
+        { target: WARMUP_RATE, duration: `${WARMUP_SECONDS}s` },
+        // Phase 2 – Ramp-Up: K6_WARMUP_RATE → K6_TARGET_RATE
+        { target: TARGET_RATE, duration: `${RAMP_SECONDS}s` },
+        // Phase 3 – Sustain: K6_TARGET_RATE als Sicherheitsnetz. Die
+        // Orchestrierung (scripts/load-test/run-and-report.mjs) pollt die
         // Verfuegbarkeit und stoppt diese Stage reaktiv (SIGINT lokal, REST
-        // remote), sobald `available` auf 0 faellt — die 15 Minuten greifen
-        // nur, falls kein Sold-Out erkannt wird (z.B. bei einem manuellen
-        // `k6 run` ohne Orchestrator).
-        { target: TARGET_RATE, duration: "15m" },
+        // remote), sobald der Verkauf entschieden ist — die Dauer greift nur,
+        // falls kein Sold-Out erkannt wird (z.B. bei einem manuellen `k6 run`
+        // ohne Orchestrator).
+        { target: TARGET_RATE, duration: `${SUSTAIN_SECONDS}s` },
       ],
     },
   },

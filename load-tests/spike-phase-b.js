@@ -8,6 +8,7 @@ import {
 // spike-phase-a.js.
 const COOLDOWN_RATE = requireEnvNumber("K6_COOLDOWN_RATE");
 const COOLDOWN_MAX_VUS = requireEnvNumber("K6_COOLDOWN_MAX_VUS");
+const COOLDOWN_SECONDS = requireEnvNumber("K6_COOLDOWN_SECONDS");
 
 export const options = {
   // Ohne `url` (und mit statischen `name`-Tags in den Helpers), sonst
@@ -15,13 +16,13 @@ export const options = {
   systemTags: SYSTEM_TAGS,
   scenarios: {
     cool_down: {
-      // Phase 4 – Cool-Down: K6_COOLDOWN_RATE RPS flat, 1 Minute. Wird von
+      // Phase 4 – Cool-Down: K6_COOLDOWN_RATE flat fuer K6_COOLDOWN_SECONDS. Wird von
       // der Orchestrierung direkt im Anschluss an den reaktiv gestoppten
       // Sold-Out von Phase A gestartet.
       executor: "constant-arrival-rate",
       rate: COOLDOWN_RATE,
       timeUnit: "1s",
-      duration: "1m",
+      duration: `${COOLDOWN_SECONDS}s`,
       // k6 lehnt preAllocatedVUs > maxVUs ab; das Smoke-Profil deckelt bei 20.
       preAllocatedVUs: Math.min(200, COOLDOWN_MAX_VUS),
       maxVUs: COOLDOWN_MAX_VUS,

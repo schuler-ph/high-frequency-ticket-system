@@ -220,11 +220,13 @@ const main = async () => {
   });
 
   console.log(
-    "[run-spike] Phase A: warm-up (1k/45s) -> ramp (1k->5k/45s) -> sustain (5k, until sold out)...",
+    `[run-spike] Phase A: warm-up (${requireEnvNumber("K6_WARMUP_SECONDS")}s) -> ramp (${requireEnvNumber("K6_RAMP_SECONDS")}s) -> sustain (until sold out)...`,
   );
   const phaseAExitCode = await runPhaseAReactively();
 
-  console.log("[run-spike] Phase B: cool-down (1k/1min)...");
+  console.log(
+    `[run-spike] Phase B: cool-down (${requireEnvNumber("K6_COOLDOWN_SECONDS")}s)...`,
+  );
   const phaseBExitCode = await runPhaseB();
 
   // Policy-Exit-Code: ein k6-Threshold-Fehler (Exit 99) in einer der Phasen ist

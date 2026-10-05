@@ -45,6 +45,12 @@ export const CONFIG_ALLOWLIST = [
   "K6_PREALLOCATED_VUS",
   "K6_COOLDOWN_RATE",
   "K6_COOLDOWN_MAX_VUS",
+  // Stage-Dauern: erst mit ihnen ist lesbar, in welche Stage die
+  // Verkaufsoeffnung (SALE_OPENS_IN_SECONDS) fiel.
+  "K6_WARMUP_SECONDS",
+  "K6_RAMP_SECONDS",
+  "K6_SUSTAIN_SECONDS",
+  "K6_COOLDOWN_SECONDS",
   "PAY_RATE",
   "CANCEL_RATE",
   "THINK_TIME_KIND",
