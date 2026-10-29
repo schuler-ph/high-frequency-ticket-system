@@ -81,6 +81,17 @@ Oder allgemein:
 /coverage-check buy flow
 ```
 
+### Docs-Bootstrap
+
+Uebertraegt die Doku-Struktur dieses Repos (AGENTS.md + Symlinks, `docs/DOCS.md`
+als Router, Todo-Index, ADRs, Notizen, Doku-Check) in ein anderes Projekt.
+Fuer alle Projekte nutzbar, wenn der Ordner `.agents/skills/docs-bootstrap/`
+nach `~/.claude/skills/` kopiert wird.
+
+```text
+/docs-bootstrap
+```
+
 ## Wann welcher Zusatz sinnvoll ist
 
 - Nur `implementer` + `reviewer`: fuer normale kleine Tasks
